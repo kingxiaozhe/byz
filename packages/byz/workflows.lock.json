@@ -5,7 +5,7 @@
 			"name": "CM Workflow",
 			"packageName": "@aibyzero/cm-workflow",
 			"version": "0.10.4",
-			"source": "github:kingxiaozhe/cm-workflow#a0d6631b2fb1857c6f9a79940c475b903d422cb5",
+			"source": "github:kingxiaozhe/cm-workflow#f181e3169a8deb3adf431860c30214fd49c249d7",
 			"license": "MIT",
 			"bundled": true,
 			"bundledPath": "workflows/cm",
