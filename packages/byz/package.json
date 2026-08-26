@@ -1,0 +1,61 @@
+{
+	"name": "@aibyzero/byz",
+	"version": "0.1.0",
+	"description": "Business-first coding agent built on Pi",
+	"type": "module",
+	"piConfig": {
+		"name": "byz",
+		"configDir": ".byz"
+	},
+	"bin": {
+		"byz": "dist/cli.js"
+	},
+	"main": "./dist/runtime/bundle/index.js",
+	"types": "./dist/runtime/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/runtime/index.d.ts",
+			"import": "./dist/runtime/bundle/index.js"
+		},
+		"./rpc-entry": {
+			"import": "./dist/runtime/bundle/rpc-entry.js"
+		}
+	},
+	"files": [
+		"dist",
+		"CHANGELOG.md",
+		"docs",
+		"examples",
+		"LICENSE",
+		"README.md",
+		"upstream.json"
+	],
+	"scripts": {
+		"clean": "node ./scripts/clean.mjs",
+		"build": "node ./scripts/build.mjs",
+		"test": "node --test test/*.test.mjs"
+	},
+	"dependencies": {
+		"@silvia-odwyer/photon-node": "0.3.4",
+		"jiti": "2.7.0"
+	},
+	"optionalDependencies": {
+		"@mariozechner/clipboard": "0.3.9"
+	},
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"keywords": [
+		"coding-agent",
+		"ai",
+		"pi",
+		"business-first"
+	],
+	"author": "Zero / 王者与",
+	"license": "MIT",
+	"homepage": "https://byz.aibyzero.com",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/kingxiaozhe/byz.git"
+	}
+}
