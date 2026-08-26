@@ -27,6 +27,10 @@
 		"includes": [
 			"packages/*/src/**/*.ts",
 			"packages/*/test/**/*.ts",
+			"packages/byz/src/**/*.js",
+			"packages/byz/scripts/**/*.mjs",
+			"packages/byz/test/**/*.mjs",
+			"packages/byz/*.json",
 			"packages/session-backends/*/src/**/*.ts",
 			"packages/session-backends/*/test/**/*.ts",
 			"packages/coding-agent/examples/**/*.ts",

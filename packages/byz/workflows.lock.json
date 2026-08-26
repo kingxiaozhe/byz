@@ -1,0 +1,39 @@
+{
+	"schemaVersion": 1,
+	"workflows": {
+		"cm": {
+			"name": "CM Workflow",
+			"packageName": "@aibyzero/cm-workflow",
+			"version": "0.10.4",
+			"source": "github:kingxiaozhe/cm-workflow#f181e3169a8deb3adf431860c30214fd49c249d7",
+			"license": "MIT",
+			"bundled": true,
+			"bundledPath": "workflows/cm",
+			"envRoot": "BYZ_CM_WORKFLOW_ROOT",
+			"skillsPaths": [
+				"skills/cm-ai",
+				"skills/cm-check",
+				"skills/cm-fix",
+				"skills/cm-idea",
+				"skills/cm-init",
+				"skills/cm-prd",
+				"skills/cm-refactor",
+				"skills/cm-test"
+			],
+			"promptsPath": "compat/claude-commands",
+			"requiredFiles": ["VERSION", "skills/cm-check/SKILL.md"]
+		},
+		"cm-plugin": {
+			"name": "CM Plugin Workflow",
+			"packageName": "@aibyzero/cm-plugin-workflow",
+			"version": "0.5.0",
+			"bundled": false,
+			"private": true,
+			"sourceEnv": "BYZ_CM_PLUGIN_WORKFLOW_SOURCE",
+			"envRoot": "BYZ_CM_PLUGIN_WORKFLOW_ROOT",
+			"skillsPaths": ["skills"],
+			"promptsPath": "commands",
+			"requiredFiles": ["VERSION", "commands/cm-plugin:check.md"]
+		}
+	}
+}

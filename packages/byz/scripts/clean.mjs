@@ -7,4 +7,5 @@ await Promise.all([
 	rm(join(packageDir, "dist"), { force: true, recursive: true }),
 	rm(join(packageDir, "docs"), { force: true, recursive: true }),
 	rm(join(packageDir, "examples"), { force: true, recursive: true }),
+	rm(join(packageDir, "workflows"), { force: true, recursive: true }),
 ]);

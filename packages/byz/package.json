@@ -28,7 +28,9 @@
 		"examples",
 		"LICENSE",
 		"README.md",
-		"upstream.json"
+		"upstream.json",
+		"workflows.lock.json",
+		"workflows"
 	],
 	"scripts": {
 		"clean": "node ./scripts/clean.mjs",
@@ -57,5 +59,8 @@
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/kingxiaozhe/byz.git"
+	},
+	"devDependencies": {
+		"@aibyzero/cm-workflow": "github:kingxiaozhe/cm-workflow#f181e3169a8deb3adf431860c30214fd49c249d7"
 	}
 }
