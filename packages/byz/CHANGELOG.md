@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.1 - 2026-08-27
+
 ### Added
 
 - Established the BYZ distribution package on a pinned Pi upstream baseline.
