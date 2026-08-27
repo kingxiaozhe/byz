@@ -30,6 +30,10 @@ promotes the Pi source baseline, or updates workflow packages independently.
 When a new public CM version is accepted into BYZ, it ships in a new BYZ
 version. Users receive it through the same `byz update` command.
 
+Workflows do not have an end-user update or rollback command. Every BYZ release
+selects one CM version and one compatible CM Plugin version; users run the
+versions selected by their installed BYZ release.
+
 ## Workflows
 
 ```bash
@@ -69,6 +73,22 @@ BYZ preserves Pi's MIT-licensed runtime and records the exact upstream baseline
 in `upstream.json`. Public workflow versions, source commits, licenses, and
 bundle boundaries are recorded in `workflows.lock.json`. Private source identity
 stays in the authorized user's `.byz` package configuration.
+
+Repository maintainers inspect a clean workflow checkout, then explicitly apply
+its version and Pi resource manifest to the next BYZ release branch:
+
+```bash
+npm run byz:sync-cm -- --root /path/to/cm-workflow
+npm run byz:sync-cm -- --root /path/to/cm-workflow --apply
+
+npm run byz:sync-cm-plugin -- --root /path/to/cm-plugin-workflow
+npm run byz:sync-cm-plugin -- --root /path/to/cm-plugin-workflow --apply
+```
+
+These repository commands never commit, push, open a pull request, tag, or
+publish. The CM command refreshes the root lockfile with lifecycle scripts
+disabled. The private CM Plugin command writes only its public-safe version and
+resource contract; it never persists the private checkout path or source.
 
 ## Releasing BYZ
 
