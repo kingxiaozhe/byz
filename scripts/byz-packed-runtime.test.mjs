@@ -28,7 +28,7 @@ function waitForTuiStartup(command, cwd, env) {
 
 		const collect = (chunk) => {
 			output += chunk.toString();
-			if (!started && output.includes("byz v")) {
+			if (!started && output.includes("No models available")) {
 				started = true;
 				child.stdin.write("\u0003\u0003");
 			}
