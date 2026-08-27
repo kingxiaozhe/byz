@@ -10,6 +10,9 @@ export {
 	getExamplesPath,
 	getPackageDir,
 	getReadmePath,
+	getSelfUpdateCommand,
+	getSelfUpdateManualCommand,
+	type SelfUpdateCommand,
 	VERSION,
 } from "./config.ts";
 export {

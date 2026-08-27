@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { main } from "./runtime/bundle/index.js";
+import { handleByzUpdate } from "./update.js";
 import {
 	getWorkflowInstallRequest,
 	handleWorkflowCommand,
@@ -13,6 +14,8 @@ process.title = "byz";
 process.env.BYZ_CODING_AGENT = "true";
 process.env.PI_CODING_AGENT = "true";
 process.env.AI_AGENT = "byz";
+process.env.PI_SKIP_VERSION_CHECK = "1";
+process.env.PI_TELEMETRY = "0";
 
 const args = process.argv.slice(2);
 
@@ -30,7 +33,7 @@ try {
 	const commandArgs = parsedWorkflow.forwardedArgs;
 	const isRootHelp = commandArgs.length === 1 && (commandArgs[0] === "--help" || commandArgs[0] === "-h");
 	if (isRootHelp) {
-		console.error("Bootstrap note: BYZ update is not available yet; Pi's update command is guarded.");
+		console.error("BYZ updates: byz update (npm-managed global installations only)");
 		console.error("BYZ workflows: --workflow <cm|cm-plugin|none> (default: BYZ_WORKFLOW or cm)");
 		console.error("Commands: byz workflow <list|status|check|install> [cm|cm-plugin]");
 	}
@@ -40,10 +43,8 @@ try {
 		await installWorkflowPackage(installRequest);
 	} else if (await handleWorkflowCommand(commandArgs)) {
 		// BYZ-owned command handled without starting the Pi runtime.
-	} else if (commandArgs[0] === "update") {
-		console.error("BYZ update is not available in the bootstrap build.");
-		console.error("This guard prevents BYZ from using Pi's release channel.");
-		process.exitCode = 2;
+	} else if (await handleByzUpdate(commandArgs)) {
+		// BYZ release metadata and package target stay independent from Pi.
 	} else {
 		const prepared = await prepareWorkflowRuntimeArgs(args, { load: shouldLoadWorkflow(commandArgs) });
 		await main(prepared.args);

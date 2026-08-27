@@ -1,3 +1,26 @@
+# BYZ
+
+BYZ is Zero's business-first coding agent, built as a traceable fork of Pi. It
+keeps the Pi runtime while adding an independent `byz` package identity,
+`.byz` configuration, and isolated built-in business workflows.
+
+After the first npm release:
+
+```bash
+npm install -g --ignore-scripts @aibyzero/byz
+byz
+```
+
+The public `cm-workflow` is bundled; users do not install it globally. The
+private `cm-plugin-workflow` remains separate and is never included in the
+public package. See [packages/byz/README.md](packages/byz/README.md) for usage,
+workflow isolation, updates, and maintainer operations.
+
+BYZ preserves Pi's MIT license and upstream history. The remainder of this
+document describes the upstream Pi monorepo retained by the fork.
+
+---
+
 <p align="center">
   <a href="https://pi.dev">
     <img alt="pi logo" src="https://pi.dev/logo-auto.svg" width="128">

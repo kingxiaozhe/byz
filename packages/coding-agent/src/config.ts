@@ -318,9 +318,19 @@ export function getSelfUpdateCommand(
 	npmCommand?: string[],
 	updatePackageTarget: SelfUpdatePackageTarget = packageName,
 ): SelfUpdateCommand | undefined {
+	const command = getSelfUpdateManualCommand(packageName, npmCommand, updatePackageTarget);
+	if (!command || !isSelfUpdatePathWritable()) return undefined;
+	return command;
+}
+
+export function getSelfUpdateManualCommand(
+	packageName: string,
+	npmCommand?: string[],
+	updatePackageTarget: SelfUpdatePackageTarget = packageName,
+): SelfUpdateCommand | undefined {
 	const method = detectInstallMethod();
 	const command = getSelfUpdateCommandForMethod(method, packageName, updatePackageTarget, npmCommand);
-	if (!command || !isManagedByGlobalPackageManager(method, packageName, npmCommand) || !isSelfUpdatePathWritable()) {
+	if (!command || !isManagedByGlobalPackageManager(method, packageName, npmCommand)) {
 		return undefined;
 	}
 	return command;
