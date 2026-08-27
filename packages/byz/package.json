@@ -62,6 +62,7 @@
 		"url": "git+https://github.com/kingxiaozhe/byz.git"
 	},
 	"devDependencies": {
+		"@aibyzero/cm-plugin-workflow": "github:kingxiaozhe/cm-plugin-workflow#d9158aa5c6e143b6a39bfba415cb1d8a2a4051b1",
 		"@aibyzero/cm-workflow": "github:kingxiaozhe/cm-workflow#f181e3169a8deb3adf431860c30214fd49c249d7"
 	}
 }

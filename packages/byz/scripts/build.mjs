@@ -22,19 +22,26 @@ const runtimeAssetPaths = [
 const workflowsDir = join(packageDir, "workflows");
 const byzPackageJson = JSON.parse(await readFile(join(packageDir, "package.json"), "utf8"));
 const workflowLock = JSON.parse(await readFile(join(packageDir, "workflows.lock.json"), "utf8"));
-const cmWorkflow = workflowLock.workflows.cm;
-const cmPackageJsonPath = require.resolve(`${cmWorkflow.packageName}/package.json`);
-const cmPackageDir = dirname(cmPackageJsonPath);
-const cmPackageJson = JSON.parse(await readFile(cmPackageJsonPath, "utf8"));
-
-if (byzPackageJson.devDependencies?.[cmWorkflow.packageName] !== cmWorkflow.source) {
-	throw new Error(`CM package source mismatch for ${cmWorkflow.packageName}.`);
-}
-if (cmPackageJson.name !== cmWorkflow.packageName || cmPackageJson.version !== cmWorkflow.version) {
-	throw new Error(
-		`CM package lock mismatch: expected ${cmWorkflow.packageName}@${cmWorkflow.version}, ` +
-			`found ${cmPackageJson.name}@${cmPackageJson.version}.`,
-	);
+const bundledPackages = [];
+for (const workflow of Object.values(workflowLock.workflows)) {
+	if (!workflow.bundled || !workflow.bundledPath) continue;
+	const workflowPackageJsonPath = require.resolve(`${workflow.packageName}/package.json`);
+	const workflowPackageDir = dirname(workflowPackageJsonPath);
+	const workflowPackageJson = JSON.parse(await readFile(workflowPackageJsonPath, "utf8"));
+	if (byzPackageJson.devDependencies?.[workflow.packageName] !== workflow.source) {
+		throw new Error(`Workflow package source mismatch for ${workflow.packageName}.`);
+	}
+	if (
+		workflowPackageJson.name !== workflow.packageName ||
+		workflowPackageJson.version !== workflow.version ||
+		workflowPackageJson.license !== workflow.license
+	) {
+		throw new Error(
+			`Workflow package lock mismatch: expected ${workflow.packageName}@${workflow.version} (${workflow.license}), ` +
+				`found ${workflowPackageJson.name}@${workflowPackageJson.version} (${workflowPackageJson.license}).`,
+		);
+	}
+	bundledPackages.push({ packageDir: workflowPackageDir, workflow });
 }
 
 await Promise.all([
@@ -72,10 +79,14 @@ await cp(join(codingAgentDir, "examples"), join(packageDir, "examples"), {
 	force: true,
 	recursive: true,
 });
-await cp(cmPackageDir, join(packageDir, cmWorkflow.bundledPath), {
-	force: true,
-	recursive: true,
-});
+await Promise.all(
+	bundledPackages.map(({ packageDir: workflowPackageDir, workflow }) =>
+		cp(workflowPackageDir, join(packageDir, workflow.bundledPath), {
+			force: true,
+			recursive: true,
+		}),
+	),
+);
 await chmod(join(distDir, "cli.js"), 0o755);
 
-console.log("Built BYZ from pinned Pi artifacts and the locked CM workflow package.");
+console.log("Built BYZ from pinned Pi artifacts and locked workflow packages.");
