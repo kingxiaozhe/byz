@@ -3,6 +3,10 @@
 </p>
 
 <p align="center">
+  <strong>English</strong> · <a href="./README.zh-CN.md">简体中文</a>
+</p>
+
+<p align="center">
   <a href="https://www.npmjs.com/package/@aibyzero/byz"><img alt="npm version" src="https://img.shields.io/npm/v/%40aibyzero%2Fbyz?style=flat-square&color=F5B942&labelColor=09111F"></a>
   <a href="./packages/byz/package.json"><img alt="Node.js 22.19 or newer" src="https://img.shields.io/badge/node-%3E%3D22.19.0-F5B942?style=flat-square&labelColor=09111F"></a>
   <a href="./LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-F5B942?style=flat-square&labelColor=09111F"></a>
