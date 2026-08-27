@@ -56,7 +56,7 @@ jobs:
       - name: Test BYZ release boundary
         run: |
           npm --prefix packages/byz test
-          node --test scripts/byz-release.test.mjs scripts/check-byz-public-package.test.mjs
+          node --test scripts/byz-release.test.mjs scripts/byz-packed-runtime.test.mjs scripts/check-byz-public-package.test.mjs
 
       - name: Upgrade npm for trusted publishing
         run: |

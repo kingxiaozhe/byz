@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Restored the package-root runtime assets required by the installed TUI and HTML exporter.
+
 ## 0.1.1 - 2026-08-27
 
 ### Added
