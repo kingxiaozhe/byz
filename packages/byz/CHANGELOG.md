@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Bundled the pinned public CM Plugin Workflow with BYZ, keeping CM and CM Plugin independently selectable while preventing separate end-user installation or updates ([#12](https://github.com/kingxiaozhe/byz/pull/12)).
+
 ### Fixed
 
 - Restored the package-root runtime assets required by the installed TUI and HTML exporter.
