@@ -1,0 +1,318 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "BYZ 高层运行时架构",
+    "locale": "zh-CN",
+    "output": "byz-runtime-architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/kingxiaozhe/byz",
+      "revision": "85858e34a7cd4fd627def6691287fec1ae9dc58b"
+    },
+    "viewBox": [1380, 650],
+    "views": [
+      {
+        "id": "main-runtime",
+        "label": "主运行路径",
+        "focus": ["user", "byz_cli", "workflow_gate", "pi_runtime", "session_resources", "agent_loop", "model_runtime", "llm_provider"],
+        "note": "从终端命令进入 BYZ，加载一个工作流后交给 Pi 完成会话与模型推理。"
+      },
+      {
+        "id": "tool-cycle",
+        "label": "工具执行回路",
+        "focus": ["agent_loop", "tool_layer", "workspace_os"],
+        "note": "模型产生工具调用，工具使用当前进程权限操作项目，结果回到 Agent Loop。"
+      },
+      {
+        "id": "trust-boundaries",
+        "label": "安全与信任边界",
+        "focus": ["workflow_gate", "cm_workflow", "cm_plugin_workflow", "session_resources", "tool_layer", "workspace_os"],
+        "note": "工作流校验、项目资源信任与操作系统权限是三种不同边界。"
+      }
+    ],
+    "legend": {
+      "mode": "hidden"
+    }
+  },
+  "components": [
+    {
+      "id": "user",
+      "type": "frontend",
+      "label": "开发者",
+      "sublabel": "Terminal / Prompt",
+      "pos": [20, 270],
+      "size": [110, 68],
+      "sources": [
+        { "path": "packages/byz/src/cli.js", "line": 31, "end_line": 50, "label": "CLI 入口" }
+      ]
+    },
+    {
+      "id": "byz_cli",
+      "type": "backend",
+      "label": "BYZ CLI",
+      "sublabel": "命令分流",
+      "tag": "npm update / workflow / run",
+      "pos": [160, 270],
+      "size": [125, 68],
+      "sources": [
+        { "path": "packages/byz/src/cli.js", "line": 31, "end_line": 50, "label": "分流顺序" },
+        { "path": "packages/byz/src/update.js", "line": 80, "end_line": 133, "label": "BYZ 自更新" }
+      ]
+    },
+    {
+      "id": "workflow_gate",
+      "type": "security",
+      "label": "工作流选择与校验",
+      "sublabel": "lock + 路径隔离",
+      "tag": "每次最多一个",
+      "pos": [315, 270],
+      "size": [140, 68],
+      "sources": [
+        { "path": "packages/byz/src/workflows.js", "line": 208, "end_line": 230, "label": "完整性校验" },
+        { "path": "packages/byz/src/workflows.js", "line": 299, "end_line": 350, "label": "选择与注入" }
+      ]
+    },
+    {
+      "id": "cm_workflow",
+      "type": "backend",
+      "label": "CM Workflow",
+      "sublabel": "内置默认工作流",
+      "tag": "v0.10.4",
+      "pos": [315, 70],
+      "size": [140, 64],
+      "sources": [
+        { "path": "packages/byz/workflows.lock.json", "line": 4, "end_line": 24, "label": "固定版本" }
+      ]
+    },
+    {
+      "id": "cm_plugin_workflow",
+      "type": "security",
+      "label": "CM Plugin Workflow",
+      "sublabel": "私有按需工作流",
+      "tag": "private Git / pinned",
+      "pos": [315, 525],
+      "size": [140, 64],
+      "sources": [
+        { "path": "packages/byz/workflows.lock.json", "line": 26, "end_line": 36, "label": "私有来源" },
+        { "path": "packages/byz/src/workflows.js", "line": 208, "end_line": 230, "label": "安装后校验" }
+      ]
+    },
+    {
+      "id": "pi_runtime",
+      "type": "backend",
+      "label": "Pi Coding Agent",
+      "sublabel": "运行模式入口",
+      "tag": "interactive / print / RPC",
+      "pos": [490, 270],
+      "size": [145, 68],
+      "sources": [
+        { "path": "packages/coding-agent/src/main.ts", "line": 839, "end_line": 845, "label": "创建运行时" },
+        { "path": "packages/coding-agent/src/main.ts", "line": 925, "end_line": 968, "label": "运行模式" },
+        { "path": "packages/byz/upstream.json", "line": 2, "end_line": 5, "label": "Pi 基座锁" }
+      ]
+    },
+    {
+      "id": "session_resources",
+      "type": "security",
+      "label": "会话与资源",
+      "sublabel": "会话与加载资源",
+      "tag": "项目资源信任门",
+      "pos": [670, 270],
+      "size": [150, 68],
+      "sources": [
+        { "path": "packages/coding-agent/src/core/agent-session-services.ts", "line": 135, "end_line": 190, "label": "服务与资源" },
+        { "path": "packages/coding-agent/src/core/project-trust.ts", "line": 24, "end_line": 95, "label": "项目信任" }
+      ]
+    },
+    {
+      "id": "agent_loop",
+      "type": "backend",
+      "label": "Agent Loop",
+      "sublabel": "推理与工具编排",
+      "tag": "stream → call → result",
+      "pos": [855, 270],
+      "size": [140, 68],
+      "sources": [
+        { "path": "packages/agent/src/agent-loop.ts", "line": 169, "end_line": 224, "label": "主循环" },
+        { "path": "packages/agent/src/agent-loop.ts", "line": 281, "end_line": 312, "label": "模型流" },
+        { "path": "packages/agent/src/agent-loop.ts", "line": 411, "end_line": 425, "label": "工具执行" }
+      ]
+    },
+    {
+      "id": "model_runtime",
+      "type": "cloud",
+      "label": "Model Runtime",
+      "sublabel": "provider + credentials",
+      "tag": "流式适配",
+      "pos": [1030, 270],
+      "size": [130, 68],
+      "sources": [
+        { "path": "packages/coding-agent/src/core/model-runtime.ts", "line": 573, "end_line": 624, "label": "认证与流式调用" }
+      ]
+    },
+    {
+      "id": "llm_provider",
+      "type": "external",
+      "label": "外部 LLM Provider",
+      "sublabel": "模型 API",
+      "tag": "HTTPS + credentials",
+      "pos": [1200, 270],
+      "size": [140, 68],
+      "sources": [
+        { "path": "packages/coding-agent/src/core/model-runtime.ts", "line": 610, "end_line": 624, "label": "Provider stream" }
+      ]
+    },
+    {
+      "id": "tool_layer",
+      "type": "security",
+      "label": "工具执行层",
+      "sublabel": "内置读写与命令",
+      "tag": "cwd 绑定",
+      "pos": [855, 465],
+      "size": [140, 68],
+      "sources": [
+        { "path": "packages/coding-agent/src/core/tools/index.ts", "line": 93, "end_line": 170, "label": "内置工具" },
+        { "path": "packages/agent/src/agent-loop.ts", "line": 433, "end_line": 486, "label": "调用执行" }
+      ]
+    },
+    {
+      "id": "workspace_os",
+      "type": "external",
+      "label": "项目目录与操作系统",
+      "sublabel": "文件 / 进程 / 网络",
+      "tag": "继承用户权限",
+      "pos": [1030, 465],
+      "size": [150, 68],
+      "sources": [
+        { "path": "packages/coding-agent/docs/containerization.md", "line": 1, "end_line": 17, "label": "默认权限模型" },
+        { "path": "packages/coding-agent/src/core/tools/index.ts", "line": 118, "end_line": 170, "label": "cwd 工具" }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "BYZ / Pi 单进程运行时",
+      "wraps": ["byz_cli", "workflow_gate", "pi_runtime", "session_resources", "agent_loop", "model_runtime", "tool_layer"],
+      "pad": 24
+    },
+    {
+      "kind": "security-group",
+      "label": "工作流隔离：CM 与 CM Plugin 不同时加载",
+      "wraps": ["workflow_gate", "cm_workflow", "cm_plugin_workflow"],
+      "pad": 18
+    },
+    {
+      "kind": "security-group",
+      "label": "操作系统权限边界：默认不是沙箱",
+      "wraps": ["tool_layer", "workspace_os"],
+      "pad": 18
+    }
+  ],
+  "connections": [
+    {
+      "id": "prompt_to_cli",
+      "from": "user",
+      "to": "byz_cli",
+      "label": "命令 / Prompt",
+      "variant": "emphasis",
+      "labelAt": [145, 352],
+      "width": 2
+    },
+    {
+      "id": "cli_to_workflow",
+      "from": "byz_cli",
+      "to": "workflow_gate",
+      "label": "选择",
+      "variant": "emphasis",
+      "labelAt": [300, 266],
+      "width": 2
+    },
+    {
+      "id": "workflow_to_pi",
+      "from": "workflow_gate",
+      "to": "pi_runtime",
+      "label": "注入 skill / prompt",
+      "variant": "emphasis",
+      "labelAt": [472, 266],
+      "width": 2
+    },
+    {
+      "id": "pi_to_session",
+      "from": "pi_runtime",
+      "to": "session_resources",
+      "label": "创建会话",
+      "variant": "emphasis",
+      "labelAt": [652, 352],
+      "width": 2
+    },
+    {
+      "id": "session_to_loop",
+      "from": "session_resources",
+      "to": "agent_loop",
+      "label": "上下文 + 工具",
+      "variant": "emphasis",
+      "labelAt": [837, 266],
+      "width": 2
+    },
+    {
+      "id": "loop_to_model",
+      "from": "agent_loop",
+      "to": "model_runtime",
+      "label": "流式推理",
+      "variant": "emphasis",
+      "labelAt": [1012, 352],
+      "width": 2
+    },
+    {
+      "id": "model_to_provider",
+      "from": "model_runtime",
+      "to": "llm_provider",
+      "label": "请求 / 响应",
+      "variant": "security",
+      "labelAt": [1180, 266],
+      "width": 2
+    },
+    {
+      "id": "loop_to_tools",
+      "from": "agent_loop",
+      "to": "tool_layer",
+      "label": "tool call / result",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "orthogonal-v",
+      "width": 2
+    },
+    {
+      "id": "tools_to_os",
+      "from": "tool_layer",
+      "to": "workspace_os",
+      "label": "文件 / 进程",
+      "variant": "security",
+      "labelAt": [1012, 547],
+      "width": 2
+    },
+    {
+      "id": "cm_to_gate",
+      "from": "cm_workflow",
+      "to": "workflow_gate",
+      "label": "默认",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "orthogonal-v"
+    },
+    {
+      "id": "plugin_to_gate",
+      "from": "cm_plugin_workflow",
+      "to": "workflow_gate",
+      "label": "按需",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "route": "orthogonal-v"
+    }
+  ]
+}
