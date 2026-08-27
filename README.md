@@ -1,137 +1,130 @@
-# BYZ
+<p align="center">
+  <img src="./assets/readme/hero.svg" alt="BYZ — Business first. Tooling handled." width="1200">
+</p>
 
-BYZ is Zero's business-first coding agent, built as a traceable fork of Pi. It
-keeps the Pi runtime while adding an independent `byz` package identity,
-`.byz` configuration, and isolated built-in business workflows.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@aibyzero/byz"><img alt="npm version" src="https://img.shields.io/npm/v/%40aibyzero%2Fbyz?style=flat-square&color=F5B942&labelColor=09111F"></a>
+  <a href="./packages/byz/package.json"><img alt="Node.js 22.19 or newer" src="https://img.shields.io/badge/node-%3E%3D22.19.0-F5B942?style=flat-square&labelColor=09111F"></a>
+  <a href="./LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-F5B942?style=flat-square&labelColor=09111F"></a>
+</p>
 
-After the first npm release:
+<p align="center">
+  <strong>BYZ is Zero's business-first coding agent: one command, isolated workflows, and a traceable Pi foundation.</strong>
+</p>
+
+<p align="center">
+  <a href="#start-here">Start here</a> ·
+  <a href="#workflow-isolation">Workflows</a> ·
+  <a href="#one-update-path">Updates</a> ·
+  <a href="#built-on-pi">Built on Pi</a> ·
+  <a href="./packages/byz/README.md">Full reference</a>
+</p>
+
+## Start here
+
+Install the public npm package and start BYZ:
 
 ```bash
 npm install -g --ignore-scripts @aibyzero/byz
+byz --version
+byz workflow check cm
 byz
 ```
 
-The public `cm-workflow` is bundled; users do not install it globally. The
-private `cm-plugin-workflow` remains separate and is never included in the
-public package. See [packages/byz/README.md](packages/byz/README.md) for usage,
-workflow isolation, updates, and maintainer operations.
+BYZ stores its user configuration under `.byz`, not `.pi`. The public CM Workflow is bundled and selected by default, so there is no separate workflow installation step for the normal path.
 
-BYZ preserves Pi's MIT license and upstream history. The remainder of this
-document describes the upstream Pi monorepo retained by the fork.
+## What BYZ handles
 
----
+| You focus on | BYZ keeps explicit |
+| --- | --- |
+| The business goal and product behavior | Which managed workflow is active |
+| Implementation and verification | Workflow versions selected by the BYZ release |
+| Shipping useful software | The exact Pi source baseline underneath |
+| Your own project configuration | An isolated `.byz` runtime boundary |
+
+BYZ is intentionally a thin product layer. It does not try to replace every tool. It provides one stable entry point and owns the compatibility decisions around that entry point.
+
+## Workflow isolation
 
 <p align="center">
-  <a href="https://pi.dev">
-    <img alt="pi logo" src="https://pi.dev/logo-auto.svg" width="128">
-  </a>
+  <img src="./assets/readme/workflow-boundaries.svg" alt="BYZ selects one isolated managed workflow per session: CM, CM Plugin, or none." width="1200">
 </p>
+
+BYZ loads at most one managed workflow per session:
+
+| Selection | Availability | Behavior |
+| --- | --- | --- |
+| `cm` | Public and bundled | Default; uses the CM version shipped by the installed BYZ release |
+| `cm-plugin` | Private and opt-in | Installed separately from an authorized, commit-pinned source; never bundled publicly |
+| `none` | Always available | Starts the base runtime without a managed workflow |
+
+```bash
+byz workflow list
+byz workflow check cm
+byz --workflow cm
+byz --workflow none
+```
+
+Authorized CM Plugin users can install and select it explicitly:
+
+```bash
+export BYZ_CM_PLUGIN_WORKFLOW_SOURCE='git:git@github.com:OWNER/PRIVATE_REPO@<40-character-commit-sha>'
+byz workflow install cm-plugin
+byz workflow check cm-plugin
+byz --workflow cm-plugin
+```
+
+CM and CM Plugin use separate package roots. BYZ does not cross-load them, and the public package never stores the private repository identity. See the [full workflow reference](./packages/byz/README.md#workflows) for the private installation contract and development overrides.
+
+## One update path
+
 <p align="center">
-  <a href="https://discord.com/invite/3cU7Bz4UPx"><img alt="Discord" src="https://img.shields.io/badge/discord-community-5865F2?style=flat-square&logo=discord&logoColor=white" /></a>
-  <a href="https://www.npmjs.com/package/@earendil-works/pi-coding-agent"><img alt="npm" src="https://img.shields.io/npm/v/@earendil-works/pi-coding-agent?style=flat-square" /></a>
+  <img src="./assets/readme/release-contract.svg" alt="The byz update command installs one BYZ release with its selected workflow versions and Pi baseline." width="1200">
 </p>
 
-> New issues and PRs from new contributors are auto-closed by default. Maintainers review auto-closed issues daily. See [CONTRIBUTING.md](CONTRIBUTING.md).
+```bash
+byz update
+```
 
-# Pi Agent Harness
+`byz update` updates only the npm-managed global `@aibyzero/byz` installation. It does not call Pi's release channel and it does not update CM or CM Plugin independently.
 
-This is the home of the Pi agent harness project including our self extensible coding agent.
+Each BYZ release selects its compatible CM version, CM Plugin contract, and Pi baseline. Maintainers change those selections while developing a new BYZ version; users receive the resulting set through the next BYZ release. There is no end-user workflow-only update or rollback command.
 
-* **[@earendil-works/pi-coding-agent](packages/coding-agent)**: Interactive coding agent CLI
-* **[@earendil-works/pi-agent-core](packages/agent)**: Agent runtime with tool calling and state management
-* **[@earendil-works/pi-ai](packages/ai)**: Unified multi-provider LLM API (OpenAI, Anthropic, Google, …)
+Current `0.1.1` release contract:
 
-To learn more about Pi:
+| Component | Selected version | Distribution |
+| --- | --- | --- |
+| BYZ | `0.1.1` | Public npm package |
+| CM Workflow | `0.10.4` | Bundled with BYZ |
+| CM Plugin Workflow | `0.5.0` contract | Private, opt-in install |
+| Pi coding-agent baseline | `0.84.3` | Pinned source foundation |
 
-* [Visit pi.dev](https://pi.dev), the project website with demos
-* [Read the documentation](https://pi.dev/docs/latest), but you can also ask the agent to explain itself
+## Built on Pi
 
-## All Packages
+BYZ is built on the MIT-licensed [Pi coding agent](https://pi.dev/) and preserves its upstream Git history. The exact source commit and coding-agent version are recorded in [`packages/byz/upstream.json`](./packages/byz/upstream.json); workflow versions and bundle boundaries are recorded in [`packages/byz/workflows.lock.json`](./packages/byz/workflows.lock.json).
 
-| Package | Description |
-|---------|-------------|
-| **[@earendil-works/pi-telemetry](packages/telemetry)** | Vendor-neutral telemetry contracts, reference adapter, conformance tests, and typed schemas |
-| **[@earendil-works/pi-ai](packages/ai)** | Unified multi-provider LLM API (OpenAI, Anthropic, Google, etc.) |
-| **[@earendil-works/pi-agent-core](packages/agent)** | Agent runtime with tool calling and state management |
-| **[@earendil-works/pi-coding-agent](packages/coding-agent)** | Interactive coding agent CLI |
-| **[@earendil-works/pi-tui](packages/tui)** | Terminal UI library with differential rendering |
+BYZ changes the product boundary, command, configuration root, workflow lifecycle, and release channel. It does not hide its foundation or pretend the runtime was built from zero.
 
-For Slack/chat automation and workflows see [earendil-works/pi-chat](https://github.com/earendil-works/pi-chat).
+### Security boundary
 
-## Permissions & Containerization
-
-Pi does not include a built-in permission system for restricting filesystem, process, network, or credential access. By default, it runs with the permissions of the user and process that launched it.
-
-If you need stronger boundaries, containerize or sandbox Pi. See [packages/coding-agent/docs/containerization.md](packages/coding-agent/docs/containerization.md) for three patterns:
-
-- **Gondolin extension**: keep `pi` and provider auth on the host while routing built-in tools and `!` commands into a local Linux micro-VM.
-- **Plain Docker**: run the whole `pi` process in a local container for simple isolation.
-- **OpenShell**: run the whole `pi` process in a policy-controlled sandbox.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and [AGENTS.md](AGENTS.md) for project-specific rules (for both humans and agents).  Longer term plans for Pi can also be found in [RFCs](https://rfc.earendil.com/keyword/pi/).
+Like Pi, BYZ runs with the permissions of the process that starts it. It does not provide a built-in permission sandbox. For untrusted work, use an operating-system account, container, or another isolation boundary. Pi's [containerization guide](./packages/coding-agent/docs/containerization.md) describes one option.
 
 ## Development
 
-```bash
-npm install --ignore-scripts  # Install all dependencies without running lifecycle scripts
-npm run build         # Refresh model data, then build all packages
-npm run build:offline # Rebuild using existing model data without network access
-npm run check         # Lint, format, and type check
-./test.sh            # Run tests (skips LLM-dependent tests without API keys)
-./pi-test.sh         # Run pi from sources (can be run from any directory)
-```
-
-## Building standalone binaries from release source
-
-GitHub releases include a versioned source archive covered by the release's `SHA256SUMS` file. Extract it and run the same build script used for the official standalone binaries:
+The repository keeps Pi as the source base and develops BYZ changes through focused feature branches and reviewed pull requests.
 
 ```bash
-VERSION="<release-version>"
-tar -xzf "pi-${VERSION}-source.tar.gz"
-cd "pi-${VERSION}"
-./scripts/build-binaries.sh --offline-model-data --platform linux-x64 --out "$PWD/out"
+npm ci --ignore-scripts
+npm run hydrate:model-data
+npm run build:byz:offline
+npm --prefix packages/byz test
+npm run check
 ```
 
-The source archive includes the generated provider model data used for the release. `--offline-model-data` builds with that snapshot instead of refreshing it from live provider catalogs. The script still installs dependencies, builds the monorepo, compiles the Bun executable, and stages its runtime assets. Package maintainers who provide dependencies separately can pass `--skip-install --skip-deps`.
+Maintainer-only operations for synchronizing CM, recording the CM Plugin contract, upgrading the Pi baseline, and releasing BYZ are documented in [`packages/byz/README.md`](./packages/byz/README.md). Those commands inspect or prepare repository changes; they do not give end users independent workflow update channels.
 
-## Supply-chain hardening
-
-We treat npm dependency changes as reviewed code changes.
-
-- Direct external dependencies are pinned to exact versions. Internal workspace packages remain version-ranged.
-- `.npmrc` sets `save-exact=true` and `min-release-age=2` to avoid same-day dependency releases during npm resolution.
-- `package-lock.json` is the dependency ground truth. Pre-commit blocks accidental lockfile commits unless `PI_ALLOW_LOCKFILE_CHANGE=1` is set.
-- `npm run check` verifies pinned direct deps, native TypeScript import compatibility, and the generated coding-agent shrinkwrap.
-- The published CLI package includes `packages/coding-agent/npm-shrinkwrap.json`, generated from the root lockfile, to pin transitive deps for npm users.
-- Release smoke tests use `npm run release:local` to build, pack, and create isolated npm and Bun installs outside the repo before tagging a release.
-- Local release installs, documented npm installs, and `pi update --self` use `--ignore-scripts` where supported.
-- CI installs with `npm ci --ignore-scripts`, and a scheduled GitHub workflow runs `npm audit --omit=dev` plus `npm audit signatures --omit=dev`.
-- Shrinkwrap generation has an explicit allowlist for dependency lifecycle scripts; new lifecycle-script deps fail checks until reviewed.
-
-## Share your OSS coding agent sessions
-
-If you use Pi or other coding agents for open source work, please share your sessions.
-
-Public OSS session data helps improve coding agents with real-world tasks, tool use, failures, and fixes instead of toy benchmarks.
-
-For the full explanation, see [this post on X](https://x.com/badlogicgames/status/2037811643774652911).
-
-To publish sessions, use [`badlogic/pi-share-hf`](https://github.com/badlogic/pi-share-hf). Read its README.md for setup instructions. All you need is a Hugging Face account, the Hugging Face CLI, and `pi-share-hf`.
-
-You can also watch [this video](https://x.com/badlogicgames/status/2041151967695634619), where I show how I publish my `pi-mono` sessions.
-
-I regularly publish my own `pi-mono` work sessions here:
-
-- [badlogicgames/pi-mono on Hugging Face](https://huggingface.co/datasets/badlogicgames/pi-mono)
+Before contributing, read [`CONTRIBUTING.md`](./CONTRIBUTING.md) and the repository's [`AGENTS.md`](./AGENTS.md).
 
 ## License
 
-MIT
-
-<p align="center">
-  <a href="https://pi.dev">pi.dev</a> domain graciously donated by
-  <br /><br />
-  <a href="https://exe.dev"><img src="packages/coding-agent/docs/images/exy.png" alt="Exy mascot" width="48" /><br />exe.dev</a>
-</p>
+BYZ is released under the [MIT License](./LICENSE). The Pi-derived runtime and preserved upstream history remain under their original MIT terms.
