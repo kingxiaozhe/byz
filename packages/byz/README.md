@@ -47,3 +47,46 @@ BYZ preserves Pi's MIT-licensed runtime and records the exact upstream baseline
 in `upstream.json`. Public workflow versions, source commits, licenses, and
 bundle boundaries are recorded in `workflows.lock.json`. Private source identity
 stays in the authorized user's `.byz` package configuration.
+
+## Upgrading the Pi base
+
+This is a repository-maintainer operation. It is not an end-user BYZ update
+command.
+
+From a clean `main` that exactly matches `origin/main`, check the latest stable
+Pi tag without changing the checkout:
+
+```bash
+npm run byz:upgrade-pi
+```
+
+An explicit target can also be inspected without applying it:
+
+```bash
+npm run byz:upgrade-pi -- --to v0.85.0
+```
+
+After reviewing that target, create a local upgrade branch, merge Pi, update
+`upstream.json`, and run the required verification gates:
+
+```bash
+npm run byz:upgrade-pi -- --to v0.85.0 --apply
+```
+
+When the target changes dependency metadata, the inspection output adds an
+explicit authorization flag. Review the target first, then run the exact
+suggested command, for example:
+
+```bash
+npm run byz:upgrade-pi -- --to v0.85.0 --apply --allow-lockfile-change
+```
+
+`--to` accepts an upstream tag or a full 40-character commit SHA. The apply
+flow refuses dirty, divergent, downgraded, unrelated, or non-upstream targets.
+It never pushes, opens a PR, merges `main`, publishes BYZ, or resolves conflicts.
+On a conflict, resolve it on the generated `upgrade/pi-*` branch or run
+`git merge --abort`.
+
+Pi upgrade PRs must be merged with a real merge commit so Git retains Pi's
+upstream ancestry. Do not squash these PRs. This exception does not change the
+merge policy for normal BYZ feature PRs.
