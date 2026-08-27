@@ -4,13 +4,13 @@ BYZ is a business-first coding agent by Zero, built on the Pi coding-agent
 runtime. The command is `byz`; user configuration is stored under `.byz` rather
 than `.pi`.
 
-Status: pre-release development. The public `cm-workflow` package is bundled and
+Status: initial public release. The public `cm-workflow` package is bundled and
 loaded by default. The private `cm-plugin-workflow` package remains separately
 installed and is available only to users with repository access.
 
 ## Install and update
 
-After the first public package is published:
+Install the current public package from npm:
 
 ```bash
 npm install -g --ignore-scripts @aibyzero/byz
@@ -97,7 +97,7 @@ checkout, validate the single-package release contract without publishing:
 
 ```bash
 npm run build:byz:offline
-npm run release:byz -- --tag byz-v0.1.0
+npm run release:byz -- --tag byz-v0.1.1
 ```
 
 The dedicated GitHub Actions workflow publishes only `packages/byz` when an
