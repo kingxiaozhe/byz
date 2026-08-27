@@ -77,11 +77,13 @@ test("publishes only a tarball with the planned BYZ identity", () => {
 test("BYZ release workflow cannot invoke Pi publication machinery", async () => {
 	const workflow = await readFile(new URL("../.github/workflows/byz-release.yml", import.meta.url), "utf8");
 	assert.match(workflow, /byz-v\*/);
+	assert.match(workflow, /npm run hydrate:model-data/);
 	assert.match(workflow, /npm run build:byz:offline/);
 	assert.match(workflow, /node scripts\/byz-release\.mjs/);
 	assert.match(workflow, /node scripts\/check-byz-public-package\.mjs/);
 	assert.match(workflow, /--publish "\$BYZ_TARBALL"/);
 	assert.equal(workflow.match(/npm pack/g)?.length, 1);
+	assert.ok(workflow.indexOf("npm run hydrate:model-data") < workflow.indexOf("npm run build:byz:offline"));
 	assert.ok(workflow.indexOf("npm@11.16.0") < workflow.indexOf("npm pack"));
 	assert.doesNotMatch(workflow, /scripts\/publish\.mjs/);
 	assert.doesNotMatch(workflow, /release:(patch|minor|major)/);
