@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "task_id": "T-FIX-byz-release-model-data",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    ".github/workflows/byz-release.yml",
+    "docs/fixes/20260827-byz-release-model-data.md",
+    "scripts/byz-release.test.mjs"
+  ],
+  "implementation_sha256": "bd29e980875b1d88b0c0592f372f6244df4dd413954c833efc6de4f14ca47bac",
+  "verification": [
+    {
+      "command": "node --test scripts/byz-release.test.mjs",
+      "status": "passed",
+      "evidence": "5 tests passed after the new assertion first reproduced the missing hydration step."
+    },
+    {
+      "command": "npm run hydrate:model-data && npm run build:byz:offline",
+      "status": "passed",
+      "evidence": "Model data hydrated and BYZ completed its offline build."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "25 BYZ package tests passed."
+    },
+    {
+      "command": "node --test scripts/byz-release.test.mjs scripts/check-byz-public-package.test.mjs",
+      "status": "passed",
+      "evidence": "15 BYZ release-boundary tests passed."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Repository checks completed with exit code 0."
+    }
+  ],
+  "evidence": [
+    "GitHub Actions run 33058106445 failed before packaging because amazon-bedrock.json was absent.",
+    "The existing Build Binaries workflow already hydrates model data before its offline build.",
+    "git diff --check completed with exit code 0."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}
