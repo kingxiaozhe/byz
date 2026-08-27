@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.2 - 2026-08-27
+
 ### Added
 
 - Bundled the pinned public CM Plugin Workflow with BYZ, keeping CM and CM Plugin independently selectable while preventing separate end-user installation or updates ([#12](https://github.com/kingxiaozhe/byz/pull/12)).
