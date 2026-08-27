@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">BYZ workflow switchboard</title>
+  <desc id="desc">BYZ connects a business goal to one isolated workflow and a pinned Pi runtime.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#09111F"/><stop offset="1" stop-color="#101C30"/></linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#20304A"/></pattern>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="8" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <rect width="1200" height="520" rx="28" fill="url(#bg)"/>
+  <rect width="1200" height="520" rx="28" fill="url(#grid)" opacity=".42"/>
+  <path d="M36 88H1164M36 432H1164" stroke="#2A3A53"/>
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+    <g transform="translate(64 62)">
+      <rect width="86" height="32" rx="16" fill="#F5B942"/>
+      <text x="43" y="22" text-anchor="middle" font-size="15" font-weight="800" fill="#09111F" letter-spacing="1.2">BY ZERO</text>
+      <text x="0" y="114" font-size="76" font-weight="780" fill="#F7F2E8" letter-spacing="-3">BYZ</text>
+      <text x="0" y="170" font-size="30" font-weight="700" fill="#F7F2E8">Business first.</text>
+      <text x="0" y="208" font-size="30" font-weight="700" fill="#F7F2E8">Tooling handled.</text>
+      <text x="0" y="264" font-size="19" fill="#A9B8CC">A workflow-native coding agent that keeps</text>
+      <text x="0" y="293" font-size="19" fill="#A9B8CC">the runtime, updates, and boundaries explicit.</text>
+    </g>
+    <g transform="translate(520 64)">
+      <text x="0" y="18" font-size="14" font-weight="700" fill="#74869F" letter-spacing="2">WORKFLOW SWITCHBOARD</text>
+      <rect x="0" y="54" width="180" height="76" rx="16" fill="#131F33" stroke="#40516A"/>
+      <circle cx="28" cy="92" r="7" fill="#F5B942"/>
+      <text x="48" y="88" font-size="14" font-weight="700" fill="#7F90A8" letter-spacing="1">INPUT</text>
+      <text x="48" y="110" font-size="18" font-weight="700" fill="#F7F2E8">Business goal</text>
+      <path d="M180 92H236" stroke="#F5B942" stroke-width="3"/><path d="M226 84L238 92 226 100" fill="none" stroke="#F5B942" stroke-width="3"/>
+      <rect x="238" y="40" width="130" height="104" rx="20" fill="#F5B942" filter="url(#glow)"/>
+      <text x="303" y="86" text-anchor="middle" font-size="30" font-weight="850" fill="#09111F">BYZ</text>
+      <text x="303" y="112" text-anchor="middle" font-size="13" font-weight="800" fill="#384052" letter-spacing="1">CONTROL PLANE</text>
+      <path d="M368 92H418V51H450M418 92H450M418 92V133H450" fill="none" stroke="#F5B942" stroke-width="3"/><circle cx="418" cy="92" r="5" fill="#F5B942"/>
+      <g transform="translate(450 14)"><rect width="210" height="74" rx="14" fill="#17243A" stroke="#F5B942" stroke-width="2"/><text x="20" y="30" font-size="14" font-weight="700" fill="#F5B942" letter-spacing="1">DEFAULT · BUNDLED</text><text x="20" y="56" font-size="19" font-weight="750" fill="#F7F2E8">CM 0.10.4</text></g>
+      <g transform="translate(450 106)"><rect width="210" height="74" rx="14" fill="#131F33" stroke="#40516A"/><text x="20" y="30" font-size="14" font-weight="700" fill="#7F90A8" letter-spacing="1">PRIVATE · OPT-IN</text><text x="20" y="56" font-size="19" font-weight="750" fill="#F7F2E8">CM Plugin 0.5.0</text></g>
+      <g transform="translate(238 226)"><rect width="422" height="82" rx="16" fill="#0C1627" stroke="#40516A"/><text x="22" y="32" font-size="14" font-weight="700" fill="#7F90A8" letter-spacing="1">PINNED RUNTIME</text><text x="22" y="60" font-size="20" font-weight="750" fill="#F7F2E8">Pi 0.84.3 baseline</text><path d="M345 41H385" stroke="#40516A" stroke-width="2"/><circle cx="398" cy="41" r="7" fill="#F5B942"/></g>
+    </g>
+    <g transform="translate(64 458)" font-family="SFMono-Regular, Consolas, Liberation Mono, monospace"><text x="0" font-size="17" font-weight="700" fill="#F5B942">$</text><text x="24" font-size="17" fill="#D9E2EF">byz --workflow cm</text><text x="432" font-size="15" fill="#7F90A8">isolated .byz config</text><text x="804" font-size="15" fill="#7F90A8">one unified update path</text></g>
+  </g>
+</svg>
