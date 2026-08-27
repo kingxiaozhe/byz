@@ -4,9 +4,31 @@ BYZ is a business-first coding agent by Zero, built on the Pi coding-agent
 runtime. The command is `byz`; user configuration is stored under `.byz` rather
 than `.pi`.
 
-Status: bootstrap development. The public `cm-workflow` package is bundled and
+Status: pre-release development. The public `cm-workflow` package is bundled and
 loaded by default. The private `cm-plugin-workflow` package remains separately
 installed and is available only to users with repository access.
+
+## Install and update
+
+After the first public package is published:
+
+```bash
+npm install -g --ignore-scripts @aibyzero/byz
+byz --version
+byz
+```
+
+An npm-managed global installation updates through BYZ's own npm release
+channel:
+
+```bash
+byz update
+```
+
+This command updates only `@aibyzero/byz`. It never calls Pi's release channel,
+promotes the Pi source baseline, or updates workflow packages independently.
+When a new public CM version is accepted into BYZ, it ships in a new BYZ
+version. Users receive it through the same `byz update` command.
 
 ## Workflows
 
@@ -47,6 +69,25 @@ BYZ preserves Pi's MIT-licensed runtime and records the exact upstream baseline
 in `upstream.json`. Public workflow versions, source commits, licenses, and
 bundle boundaries are recorded in `workflows.lock.json`. Private source identity
 stays in the authorized user's `.byz` package configuration.
+
+## Releasing BYZ
+
+BYZ releases are independent from Pi's lockstep release scripts. From a built
+checkout, validate the single-package release contract without publishing:
+
+```bash
+npm run build:byz:offline
+npm run release:byz -- --tag byz-v0.1.0
+```
+
+The dedicated GitHub Actions workflow publishes only `packages/byz` when an
+explicit matching `byz-v*` tag is pushed from `main`. The npm trusted publisher
+must be bound to `.github/workflows/byz-release.yml` before the first tag is
+pushed. Do not run the root Pi `release:*` commands for a BYZ release.
+
+Rollback does not delete an npm version. If a release is broken, move npm's
+`latest` dist-tag back to the last verified BYZ version, then publish a forward
+patch after the fix passes the same gates.
 
 ## Upgrading the Pi base
 

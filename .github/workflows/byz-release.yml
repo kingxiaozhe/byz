@@ -1,0 +1,89 @@
+name: Publish BYZ
+
+on:
+  push:
+    tags:
+      - 'byz-v*'
+
+permissions: {}
+
+concurrency:
+  group: publish-byz-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch main release boundary
+        run: git fetch --no-tags origin main:refs/remotes/origin/main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev fd-find ripgrep
+          sudo ln -s $(which fdfind) /usr/local/bin/fd
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build BYZ
+        run: npm run build:byz:offline
+
+      - name: Check repository
+        run: npm run check
+
+      - name: Test BYZ release boundary
+        run: |
+          npm --prefix packages/byz test
+          node --test scripts/byz-release.test.mjs scripts/check-byz-public-package.test.mjs
+
+      - name: Upgrade npm for trusted publishing
+        run: |
+          npm install -g npm@11.16.0 --ignore-scripts
+          npm --version
+
+      - name: Pack BYZ release artifact
+        run: |
+          set -euo pipefail
+          package_dir="$RUNNER_TEMP/byz-package"
+          rm -rf "$package_dir"
+          mkdir -p "$package_dir"
+          (cd packages/byz && npm pack --pack-destination "$package_dir/" --ignore-scripts)
+          package_files=("$package_dir"/*.tgz)
+          test "${#package_files[@]}" -eq 1
+          echo "BYZ_TARBALL=${package_files[0]}" >> "$GITHUB_ENV"
+
+      - name: Smoke packed BYZ outside the repository
+        run: |
+          set -euo pipefail
+          prefix_dir="$(mktemp -d)"
+          home_dir="$(mktemp -d)"
+          inspect_dir="$(mktemp -d)"
+          trap 'rm -rf "$prefix_dir" "$home_dir" "$inspect_dir"' EXIT
+          tar -xzf "$BYZ_TARBALL" -C "$inspect_dir"
+          node scripts/check-byz-public-package.mjs "$inspect_dir/package"
+          npm install -g --prefix "$prefix_dir" --ignore-scripts "$BYZ_TARBALL"
+          HOME="$home_dir" "$prefix_dir/bin/byz" --version
+          HOME="$home_dir" "$prefix_dir/bin/byz" workflow check cm
+          HOME="$home_dir" node --input-type=module --eval 'import assert from "node:assert/strict"; import { realpathSync } from "node:fs"; import { pathToFileURL } from "node:url"; const [modulePath, prefix] = process.argv.slice(1); const { getByzManualUpdateCommand, getByzUpdateCommand } = await import(pathToFileURL(modulePath).href); for (const command of [getByzUpdateCommand("@aibyzero/byz@0.2.0"), getByzManualUpdateCommand("@aibyzero/byz@0.2.0")]) { assert.equal(command?.command, "npm"); assert.ok(command.args.includes("--@aibyzero:registry=https://registry.npmjs.org/")); const index = command.args.indexOf("--prefix"); assert.equal(realpathSync(command.args[index + 1]), realpathSync(prefix)); }' "$prefix_dir/lib/node_modules/@aibyzero/byz/dist/update.js" "$prefix_dir"
+
+      - name: Publish BYZ package
+        run: node scripts/byz-release.mjs --tag "$GITHUB_REF_NAME" --publish "$BYZ_TARBALL"

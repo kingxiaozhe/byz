@@ -43,6 +43,9 @@ await cp(join(packageDir, "src", "cli.js"), join(distDir, "cli.js"), {
 await cp(join(packageDir, "src", "workflows.js"), join(distDir, "workflows.js"), {
 	force: true,
 });
+await cp(join(packageDir, "src", "update.js"), join(distDir, "update.js"), {
+	force: true,
+});
 await cp(join(codingAgentDir, "docs"), join(packageDir, "docs"), {
 	force: true,
 	recursive: true,

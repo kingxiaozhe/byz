@@ -127,7 +127,7 @@ test("uses the BYZ command identity in help", async () => {
 	assert.equal(result.status, 0, result.stderr);
 	assert.match(result.stdout, /^byz - AI coding assistant/m);
 	assert.match(result.stdout, /Usage:\n {2}byz /);
-	assert.match(result.stderr, /BYZ update is not available yet/);
+	assert.match(result.stderr, /BYZ updates: byz update/);
 	assert.match(result.stderr, /--workflow <cm\|cm-plugin\|none>/);
 	assert.match(result.stderr, /workflow <list\|status\|check\|install>/);
 });
@@ -139,10 +139,15 @@ test("ships the documentation paths referenced by the Pi runtime", async () => {
 
 test("does not delegate updates to the Pi release channel", async () => {
 	const homeDir = await mkdtemp(join(tmpdir(), "byz-home-"));
-	for (const args of [["update"], ["--workflow", "none", "update", "--help"], ["--workflow=cm", "update", "--help"]]) {
+	for (const args of [
+		["update", "--help"],
+		["--workflow", "none", "update", "--help"],
+		["--workflow=cm", "update", "--help"],
+	]) {
 		const result = runByz(args, homeDir);
-		assert.equal(result.status, 2, result.stderr);
-		assert.match(result.stderr, /BYZ update is not available/);
+		assert.equal(result.status, 0, result.stderr);
+		assert.match(result.stdout, /Usage: byz update/);
+		assert.match(result.stdout, /@aibyzero\/byz/);
 		assert.doesNotMatch(result.stdout, /Update pi, installed packages/);
 	}
 });
