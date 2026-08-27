@@ -78,6 +78,10 @@ test("packed BYZ initializes its theme and exports HTML outside the repository",
 	};
 
 	const byzBin = join(installDir, "node_modules", ".bin", "byz");
+	for (const workflow of ["cm", "cm-plugin"]) {
+		const output = run(byzBin, ["workflow", "check", workflow], { cwd: root, env: isolatedEnv });
+		assert.match(output, new RegExp(`${workflow}: check passed`));
+	}
 	const tuiRunner = join(root, "start-byz-tui");
 	await writeFile(tuiRunner, `#!/bin/sh\nexec ${JSON.stringify(byzBin)} --offline\n`);
 	await chmod(tuiRunner, 0o755);

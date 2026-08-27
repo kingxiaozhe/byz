@@ -1,83 +1,98 @@
 #!/usr/bin/env node
 
-import { readFile, readdir } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { readFile, stat } from "node:fs/promises";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PRIVATE_WORKFLOW_PACKAGE = "@aibyzero/cm-plugin-workflow";
-const PRIVATE_WORKFLOW_PATH = "cm-plugin-workflow";
-const PRIVATE_REPOSITORY_IDENTITY = /kingxiaozhe[\\/]cm-plugin-workflow/i;
-const FORBIDDEN_PRIVATE_METADATA_KEYS = new Set(["commit", "repo", "repository", "revision", "sha", "source"]);
+const WORKFLOW_IDENTITIES = {
+	cm: "@aibyzero/cm-workflow",
+	"cm-plugin": "@aibyzero/cm-plugin-workflow",
+};
 
 function isRecord(value) {
 	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function containsForbiddenPrivateMetadata(value, seen = new Set()) {
-	if (!value || typeof value !== "object" || seen.has(value)) return false;
-	seen.add(value);
-	if (Array.isArray(value)) return value.some((item) => containsForbiddenPrivateMetadata(item, seen));
-	return Object.entries(value).some(
-		([key, child]) =>
-			FORBIDDEN_PRIVATE_METADATA_KEYS.has(key.toLowerCase()) || containsForbiddenPrivateMetadata(child, seen),
+function isSafeRelativePath(value) {
+	return (
+		typeof value === "string" &&
+		value.length > 0 &&
+		!isAbsolute(value) &&
+		!value.replaceAll("\\", "/").split("/").includes("..")
 	);
 }
 
-function inspectWorkflowLock(content) {
+function containsPath(parent, child) {
+	const relation = relative(parent, child);
+	return relation === "" || (!relation.startsWith(`..${sep}`) && relation !== ".." && !isAbsolute(relation));
+}
+
+async function isFile(path) {
+	try {
+		return (await stat(path)).isFile();
+	} catch {
+		return false;
+	}
+}
+
+export async function findPublicPackageViolations(packageRoot) {
+	const root = resolve(packageRoot);
 	let lock;
 	try {
-		lock = JSON.parse(content);
+		lock = JSON.parse(await readFile(resolve(root, "workflows.lock.json"), "utf8"));
 	} catch {
-		return "invalid BYZ workflow lock";
+		return [{ file: "workflows.lock.json", pattern: "invalid BYZ workflow lock" }];
 	}
-	if (!isRecord(lock) || !isRecord(lock.workflows) || !isRecord(lock.workflows["cm-plugin"])) {
-		return "invalid BYZ workflow lock";
+	if (lock.schemaVersion !== 1 || !isRecord(lock.workflows)) {
+		return [{ file: "workflows.lock.json", pattern: "invalid BYZ workflow lock" }];
 	}
-	const workflows = lock.workflows;
-	for (const [key, workflow] of Object.entries(workflows)) {
-		if (!workflow || typeof workflow !== "object" || Array.isArray(workflow)) continue;
-		if (key === "cm-plugin" || workflow.packageName === PRIVATE_WORKFLOW_PACKAGE) {
-			if (containsForbiddenPrivateMetadata(workflow)) return "private workflow source metadata";
-		}
-	}
-	return undefined;
-}
 
-async function listFiles(root) {
-	const files = [];
-	const pending = [root];
-	while (pending.length > 0) {
-		const directory = pending.pop();
-		if (!directory) continue;
-		for (const entry of await readdir(directory, { withFileTypes: true })) {
-			const path = resolve(directory, entry.name);
-			if (entry.isDirectory()) pending.push(path);
-			else if (entry.isFile()) files.push(path);
+	const records = [];
+	for (const [id, packageName] of Object.entries(WORKFLOW_IDENTITIES)) {
+		const workflow = lock.workflows[id];
+		if (!isRecord(workflow) || workflow.packageName !== packageName) {
+			return [{ file: "workflows.lock.json", pattern: "invalid BYZ workflow lock" }];
 		}
+		if (workflow.bundled !== true) {
+			return [{ file: "workflows.lock.json", pattern: "workflow must be bundled" }];
+		}
+		if (typeof workflow.source !== "string" || !/#[0-9a-f]{40}$/i.test(workflow.source)) {
+			return [{ file: "workflows.lock.json", pattern: "workflow source is not pinned" }];
+		}
+		if (!isSafeRelativePath(workflow.bundledPath) || !Array.isArray(workflow.requiredFiles)) {
+			return [{ file: "workflows.lock.json", pattern: "invalid BYZ workflow lock" }];
+		}
+		const bundleRoot = resolve(root, workflow.bundledPath);
+		if (!containsPath(root, bundleRoot)) {
+			return [{ file: "workflows.lock.json", pattern: "invalid BYZ workflow lock" }];
+		}
+		records.push({ bundleRoot, id, workflow });
 	}
-	return files.sort();
-}
 
-export async function findPrivateWorkflowLeaks(packageRoot) {
-	const root = resolve(packageRoot);
-	const leaks = [];
-	for (const path of await listFiles(root)) {
-		const packagePath = relative(root, path).replaceAll("\\", "/");
-		if (packagePath.split(/[\\/]/).some((segment) => segment.toLowerCase() === PRIVATE_WORKFLOW_PATH)) {
-			leaks.push({ file: packagePath, pattern: "private workflow package path" });
-			continue;
-		}
-		const content = (await readFile(path)).toString("utf8");
-		if (PRIVATE_REPOSITORY_IDENTITY.test(content)) {
-			leaks.push({ file: packagePath, pattern: "private workflow repository identity" });
-			continue;
-		}
-		if (packagePath === "workflows.lock.json") {
-			const violation = inspectWorkflowLock(content);
-			if (violation) leaks.push({ file: packagePath, pattern: violation });
+	for (let index = 0; index < records.length; index++) {
+		for (let otherIndex = index + 1; otherIndex < records.length; otherIndex++) {
+			if (
+				containsPath(records[index].bundleRoot, records[otherIndex].bundleRoot) ||
+				containsPath(records[otherIndex].bundleRoot, records[index].bundleRoot)
+			) {
+				return [{ file: "workflows.lock.json", pattern: "workflow bundle roots overlap" }];
+			}
 		}
 	}
-	return leaks;
+
+	for (const { bundleRoot, id, workflow } of records) {
+		for (const requiredFile of workflow.requiredFiles) {
+			if (!isSafeRelativePath(requiredFile)) {
+				return [{ file: "workflows.lock.json", pattern: "invalid BYZ workflow lock" }];
+			}
+			const target = resolve(bundleRoot, requiredFile);
+			if (!containsPath(bundleRoot, target) || !(await isFile(target))) {
+				return [{ file: `${workflow.bundledPath}/${requiredFile}`, pattern: "missing bundled workflow file", workflow: id }];
+			}
+		}
+	}
+
+	return [];
 }
 
 async function main() {
@@ -85,15 +100,15 @@ async function main() {
 	if (!packageRoot || process.argv.length !== 3) {
 		throw new Error("Usage: node scripts/check-byz-public-package.mjs <extracted-package-root>");
 	}
-	const leaks = await findPrivateWorkflowLeaks(packageRoot);
-	if (leaks.length > 0) {
+	const violations = await findPublicPackageViolations(packageRoot);
+	if (violations.length > 0) {
 		throw new Error(
-			`Private workflow source leaked into the BYZ package:\n${leaks
-				.map((leak) => `- ${leak.file}: ${leak.pattern}`)
+			`Invalid BYZ public package workflow contract:\n${violations
+				.map((violation) => `- ${violation.file}: ${violation.pattern}`)
 				.join("\n")}`,
 		);
 	}
-	console.log("BYZ public package boundary check passed.");
+	console.log("BYZ public package workflow contract passed.");
 }
 
 const currentFile = fileURLToPath(import.meta.url);

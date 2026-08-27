@@ -42,7 +42,7 @@ async function createWorkflow(t, id, version) {
 	const packageJson = {
 		name: cm ? "@aibyzero/cm-workflow" : "@aibyzero/cm-plugin-workflow",
 		version,
-		license: cm ? "MIT" : "UNLICENSED",
+		license: "MIT",
 		pi: { prompts, skills },
 	};
 	await write(join(root, "package.json"), `${JSON.stringify(packageJson, null, 2)}\n`);
@@ -58,6 +58,7 @@ async function createByzFixture(t, branch = "feature/test") {
 	const byzPackage = {
 		name: "@aibyzero/byz",
 		devDependencies: {
+			"@aibyzero/cm-plugin-workflow": `github:kingxiaozhe/cm-plugin-workflow#${"b".repeat(40)}`,
 			"@aibyzero/cm-workflow": `github:kingxiaozhe/cm-workflow#${"a".repeat(40)}`,
 		},
 	};
@@ -81,9 +82,10 @@ async function createByzFixture(t, branch = "feature/test") {
 				name: "CM Plugin Workflow",
 				packageName: "@aibyzero/cm-plugin-workflow",
 				version: "0.5.0",
-				bundled: false,
-				private: true,
-				sourceEnv: "BYZ_CM_PLUGIN_WORKFLOW_SOURCE",
+				source: `github:kingxiaozhe/cm-plugin-workflow#${"b".repeat(40)}`,
+				license: "MIT",
+				bundled: true,
+				bundledPath: "workflows/cm-plugin",
 				envRoot: "BYZ_CM_PLUGIN_WORKFLOW_ROOT",
 				skillsPaths: ["skills"],
 				promptsPath: "commands",
@@ -145,7 +147,7 @@ test("applies bundled CM metadata and requests a lockfile refresh", async (t) =>
 	assert.match(lock.workflows.cm.source, new RegExp(`${result.commit}$`));
 });
 
-test("applies private plugin compatibility without persisting private source metadata", async (t) => {
+test("applies bundled CM Plugin metadata and requests a lockfile refresh", async (t) => {
 	const byz = await createByzFixture(t);
 	const workflow = await createWorkflow(t, "cm-plugin", "0.6.0");
 	let refreshes = 0;
@@ -159,66 +161,19 @@ test("applies private plugin compatibility without persisting private source met
 		write() {},
 	});
 	const content = await readFile(join(byz, "packages/byz/workflows.lock.json"), "utf8");
+	const byzPackage = JSON.parse(await readFile(join(byz, "packages/byz/package.json"), "utf8"));
 	const plugin = JSON.parse(content).workflows["cm-plugin"];
 	assert.equal(result.status, "applied");
-	assert.equal(refreshes, 0);
+	assert.equal(refreshes, 1);
 	assert.equal(plugin.version, "0.6.0");
 	assert.deepEqual(plugin.skillsPaths, ["skills"]);
 	assert.equal(plugin.promptsPath, "commands");
+	assert.equal(plugin.license, "MIT");
+	assert.equal(plugin.bundled, true);
+	assert.equal(plugin.bundledPath, "workflows/cm-plugin");
+	assert.equal(byzPackage.devDependencies["@aibyzero/cm-plugin-workflow"], plugin.source);
+	assert.match(plugin.source, new RegExp(`${result.commit}$`));
 	assert.doesNotMatch(content, new RegExp(workflow.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-	for (const key of ["source", "repository", "repo", "commit", "revision", "sha"]) {
-		assert.equal(plugin[key], undefined, key);
-	}
-});
-
-test("rejects unapproved private source metadata before writing", async (t) => {
-	for (const [key, value] of Object.entries({
-		checkoutPath: "/private/cm-plugin",
-		installSource: "ssh://private/cm-plugin",
-		metadata: { repositoryUrl: "ssh://private/cm-plugin" },
-		repositoryUrl: "ssh://private/cm-plugin",
-	})) {
-		const byz = await createByzFixture(t);
-		const workflow = await createWorkflow(t, "cm-plugin", "0.6.0");
-		const lockPath = join(byz, "packages/byz/workflows.lock.json");
-		const lock = JSON.parse(await readFile(lockPath, "utf8"));
-		lock.workflows["cm-plugin"][key] = value;
-		await writeFile(lockPath, `${JSON.stringify(lock, null, "\t")}\n`);
-		commitAll(byz, `add invalid private metadata ${key}`);
-		await assert.rejects(
-			runWorkflowSync({
-				argv: ["--root", workflow, "--apply"],
-				repositoryRoot: byz,
-				workflowId: "cm-plugin",
-				write() {},
-			}),
-			new RegExp(`Private workflow lock must not contain ${key}`),
-		);
-	}
-});
-
-test("rejects noncanonical private workflow contract values", async (t) => {
-	for (const [key, value] of Object.entries({
-		envRoot: "/private/cm-plugin",
-		sourceEnv: "ssh://private/cm-plugin",
-	})) {
-		const byz = await createByzFixture(t);
-		const workflow = await createWorkflow(t, "cm-plugin", "0.6.0");
-		const lockPath = join(byz, "packages/byz/workflows.lock.json");
-		const lock = JSON.parse(await readFile(lockPath, "utf8"));
-		lock.workflows["cm-plugin"][key] = value;
-		await writeFile(lockPath, `${JSON.stringify(lock, null, "\t")}\n`);
-		commitAll(byz, `add noncanonical private value ${key}`);
-		await assert.rejects(
-			runWorkflowSync({
-				argv: ["--root", workflow, "--apply"],
-				repositoryRoot: byz,
-				workflowId: "cm-plugin",
-				write() {},
-			}),
-			new RegExp(`Private workflow lock ${key} must equal the BYZ contract value`),
-		);
-	}
 });
 
 test("rejects declared workflow resources that do not exist", async (t) => {
@@ -289,7 +244,7 @@ test("rejects dirty workflow checkouts and apply operations on BYZ main", async 
 	);
 });
 
-test("restores BYZ metadata if the CM lockfile refresh fails", async (t) => {
+test("restores BYZ metadata if a bundled workflow lockfile refresh fails", async (t) => {
 	const byz = await createByzFixture(t);
 	const workflow = await createWorkflow(t, "cm", "0.10.5");
 	const packagePath = join(byz, "packages/byz/package.json");

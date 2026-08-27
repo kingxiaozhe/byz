@@ -2,13 +2,7 @@
 
 import { main } from "./runtime/bundle/index.js";
 import { handleByzUpdate } from "./update.js";
-import {
-	getWorkflowInstallRequest,
-	handleWorkflowCommand,
-	installWorkflowPackage,
-	parseWorkflowOption,
-	prepareWorkflowRuntimeArgs,
-} from "./workflows.js";
+import { handleWorkflowCommand, parseWorkflowOption, prepareWorkflowRuntimeArgs } from "./workflows.js";
 
 process.title = "byz";
 process.env.BYZ_CODING_AGENT = "true";
@@ -35,13 +29,10 @@ try {
 	if (isRootHelp) {
 		console.error("BYZ updates: byz update (npm-managed global installations only)");
 		console.error("BYZ workflows: --workflow <cm|cm-plugin|none> (default: BYZ_WORKFLOW or cm)");
-		console.error("Commands: byz workflow <list|status|check|install> [cm|cm-plugin]");
+		console.error("Commands: byz workflow <list|status|check> [cm|cm-plugin]");
 	}
 
-	const installRequest = await getWorkflowInstallRequest(commandArgs);
-	if (installRequest) {
-		await installWorkflowPackage(installRequest);
-	} else if (await handleWorkflowCommand(commandArgs)) {
+	if (await handleWorkflowCommand(commandArgs)) {
 		// BYZ-owned command handled without starting the Pi runtime.
 	} else if (await handleByzUpdate(commandArgs)) {
 		// BYZ release metadata and package target stay independent from Pi.

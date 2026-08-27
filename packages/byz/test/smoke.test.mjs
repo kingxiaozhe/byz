@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { access, mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
-import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { CONFIG_DIR_NAME, DefaultPackageManager, SettingsManager } from "../dist/runtime/bundle/index.js";
-import { getWorkflowInstallRequest, prepareWorkflowRuntimeArgs } from "../dist/workflows.js";
+import { fileURLToPath } from "node:url";
+import { CONFIG_DIR_NAME } from "../dist/runtime/bundle/index.js";
+import { prepareWorkflowRuntimeArgs } from "../dist/workflows.js";
 
 const packageDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const cliPath = join(packageDir, "dist", "cli.js");
@@ -17,15 +16,6 @@ function runByz(args, homeDir, extraEnv = {}) {
 	return spawnSync(process.execPath, [cliPath, ...args], {
 		encoding: "utf8",
 		env: { ...process.env, HOME: homeDir, ...extraEnv },
-	});
-}
-
-function prepareArgsInByzHome(args, homeDir) {
-	const moduleUrl = pathToFileURL(join(packageDir, "dist", "workflows.js")).href;
-	const script = `const workflows = await import(${JSON.stringify(moduleUrl)}); console.log(JSON.stringify(await workflows.prepareWorkflowRuntimeArgs(${JSON.stringify(args)})));`;
-	return spawnSync(process.execPath, ["--input-type=module", "--eval", script], {
-		encoding: "utf8",
-		env: { ...process.env, HOME: homeDir },
 	});
 }
 
@@ -54,59 +44,6 @@ async function createWorkflowFixture(baseDir, id) {
 	return root;
 }
 
-async function createManagedPluginFixture(baseDir) {
-	const root = await createWorkflowFixture(join(baseDir, "owner"), "cm-plugin");
-	await writeFile(
-		join(root, "package.json"),
-		JSON.stringify({
-			name: "@aibyzero/cm-plugin-workflow",
-			version: "0.5.0",
-			private: true,
-			pi: { prompts: ["./commands"], skills: ["./skills"] },
-		}),
-	);
-	for (const args of [
-		["init"],
-		["config", "user.email", "byz-test@example.invalid"],
-		["config", "user.name", "BYZ Test"],
-		["add", "."],
-		["commit", "-m", "test fixture"],
-	]) {
-		const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
-		assert.equal(result.status, 0, result.stderr);
-	}
-	const revision = spawnSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim();
-	const port = await new Promise((resolvePort, reject) => {
-		const server = createServer();
-		server.once("error", reject);
-		server.listen(0, "127.0.0.1", () => {
-			const address = server.address();
-			server.close(() => resolvePort(address.port));
-		});
-	});
-	const daemon = spawn(
-		"git",
-		[
-			"daemon",
-			"--reuseaddr",
-			"--export-all",
-			`--base-path=${baseDir}`,
-			"--listen=127.0.0.1",
-			`--port=${port}`,
-			baseDir,
-		],
-		{ stdio: "ignore" },
-	);
-	const repositoryUrl = `git://127.0.0.1:${port}/owner/cm-plugin`;
-	for (let attempt = 0; attempt < 20; attempt++) {
-		const ready = spawnSync("git", ["ls-remote", repositoryUrl], { encoding: "utf8", timeout: 500 });
-		if (ready.status === 0) return { daemon, source: `git:${repositoryUrl}@${revision}` };
-		await new Promise((resolveWait) => setTimeout(resolveWait, 25));
-	}
-	daemon.kill();
-	throw new Error("Test Git daemon did not become ready.");
-}
-
 test("reports the BYZ package version", async () => {
 	const homeDir = await mkdtemp(join(tmpdir(), "byz-home-"));
 	const packageJson = JSON.parse(await readFile(join(packageDir, "package.json"), "utf8"));
@@ -129,7 +66,7 @@ test("uses the BYZ command identity in help", async () => {
 	assert.match(result.stdout, /Usage:\n {2}byz /);
 	assert.match(result.stderr, /BYZ updates: byz update/);
 	assert.match(result.stderr, /--workflow <cm\|cm-plugin\|none>/);
-	assert.match(result.stderr, /workflow <list\|status\|check\|install>/);
+	assert.match(result.stderr, /workflow <list\|status\|check>/);
 });
 
 test("ships the documentation paths referenced by the Pi runtime", async () => {
@@ -173,21 +110,25 @@ test("does not expose end-user workflow update or rollback commands", async () =
 	for (const command of ["update", "rollback"]) {
 		const result = runByz(["workflow", command, "cm"], homeDir);
 		assert.equal(result.status, 1);
-		assert.match(result.stderr, /Expected list, status, check, or install/);
+		assert.match(result.stderr, /Expected list, status, or check/);
 	}
 });
 
-test("loads the bundled CM package without a global install", async () => {
+test("loads both bundled workflow packages without global installs", async () => {
 	const homeDir = await mkdtemp(join(tmpdir(), "byz-home-"));
-	const result = runByz(["workflow", "status", "cm"], homeDir, {
-		BYZ_CM_PLUGIN_WORKFLOW_ROOT: "",
-		BYZ_CM_WORKFLOW_ROOT: "",
-	});
-
-	assert.equal(result.status, 0, result.stderr);
-	assert.match(result.stdout, /cm: available/);
-	assert.match(result.stdout, /source: bundled/);
-	assert.match(result.stdout, /version: 0\.10\.4/);
+	for (const [id, version] of [
+		["cm", "0.10.4"],
+		["cm-plugin", "0.5.0"],
+	]) {
+		const result = runByz(["workflow", "status", id], homeDir, {
+			BYZ_CM_PLUGIN_WORKFLOW_ROOT: "",
+			BYZ_CM_WORKFLOW_ROOT: "",
+		});
+		assert.equal(result.status, 0, result.stderr);
+		assert.match(result.stdout, new RegExp(`${id}: available`));
+		assert.match(result.stdout, /source: bundled/);
+		assert.match(result.stdout, new RegExp(`version: ${version.replaceAll(".", "\\.")}`));
+	}
 });
 
 test("injects only the selected workflow resources", async () => {
@@ -252,118 +193,21 @@ test("respects Pi resource disable flags", async () => {
 	assert.deepEqual(prepared.args, ["--no-skills", "--no-prompt-templates", "--mode", "rpc"]);
 });
 
-test("keeps the private plugin install source separate", async () => {
-	const previousSource = process.env.BYZ_CM_PLUGIN_WORKFLOW_SOURCE;
-	try {
-		delete process.env.BYZ_CM_PLUGIN_WORKFLOW_SOURCE;
-		await assert.rejects(
-			getWorkflowInstallRequest(["workflow", "install", "cm-plugin"]),
-			/BYZ_CM_PLUGIN_WORKFLOW_SOURCE/,
-		);
-		process.env.BYZ_CM_PLUGIN_WORKFLOW_SOURCE = `git:github.com/owner/private@${"a".repeat(40)}`;
-		const request = await getWorkflowInstallRequest(["workflow", "install", "cm-plugin"]);
-		assert.equal(request.id, "cm-plugin");
-		assert.equal(request.source, process.env.BYZ_CM_PLUGIN_WORKFLOW_SOURCE);
-		for (const invalidSource of ["git:github.com/owner/private@abc1234", `/tmp/private-workflow@${"a".repeat(40)}`]) {
-			process.env.BYZ_CM_PLUGIN_WORKFLOW_SOURCE = invalidSource;
-			await assert.rejects(
-				getWorkflowInstallRequest(["workflow", "install", "cm-plugin"]),
-				/must be a Git source pinned to a full 40-character commit SHA/,
-			);
-		}
-		await assert.rejects(getWorkflowInstallRequest(["workflow", "install", "cm"]), /bundled with BYZ/);
-	} finally {
-		if (previousSource === undefined) delete process.env.BYZ_CM_PLUGIN_WORKFLOW_SOURCE;
-		else process.env.BYZ_CM_PLUGIN_WORKFLOW_SOURCE = previousSource;
-	}
-});
-
-test("installs the private plugin disabled and loads it only by explicit workflow selection", async () => {
+test("does not expose separate installation for bundled workflows", async () => {
 	const homeDir = await mkdtemp(join(tmpdir(), "byz-home-"));
-	const fixtureDir = await mkdtemp(join(tmpdir(), "byz-workflows-"));
-	const plugin = await createManagedPluginFixture(fixtureDir);
-	try {
-		const installResult = runByz(["workflow", "install", "cm-plugin"], homeDir, {
-			BYZ_CM_PLUGIN_WORKFLOW_SOURCE: plugin.source,
-		});
-		assert.equal(installResult.status, 0, installResult.stderr);
-		assert.match(installResult.stdout, /autoload disabled/);
-
-		const statusResult = runByz(["workflow", "status", "cm-plugin"], homeDir);
-		assert.equal(statusResult.status, 0, statusResult.stderr);
-		assert.match(statusResult.stdout, /cm-plugin: available/);
-		assert.match(statusResult.stdout, /source: managed/);
-		assert.match(statusResult.stdout, /version: 0\.5\.0/);
-		assert.equal(
-			await access(join(homeDir, ".codex")).then(
-				() => true,
-				() => false,
-			),
-			false,
-		);
-
-		const agentDir = join(homeDir, ".byz", "agent");
-		const settingsManager = SettingsManager.create(process.cwd(), agentDir);
-		const packageManager = new DefaultPackageManager({ cwd: process.cwd(), agentDir, settingsManager });
-		const resolved = await packageManager.resolve();
-		assert.ok(!resolved.skills.some((resource) => resource.enabled && resource.metadata.source === plugin.source));
-		assert.ok(!resolved.prompts.some((resource) => resource.enabled && resource.metadata.source === plugin.source));
-
-		const checkResult = runByz(["workflow", "check", "cm-plugin"], homeDir);
-		assert.equal(checkResult.status, 0, checkResult.stderr);
-		const configured = packageManager
-			.listConfiguredPackages()
-			.find((candidate) => candidate.source === plugin.source);
-		assert.ok(configured?.installedPath);
-		const preparedResult = prepareArgsInByzHome(["--workflow", "cm-plugin", "--mode", "rpc"], homeDir);
-		assert.equal(preparedResult.status, 0, preparedResult.stderr);
-		const prepared = JSON.parse(preparedResult.stdout);
-		assert.ok(prepared.args.includes(join(await realpath(configured.installedPath), "skills")));
-		assert.ok(prepared.args.includes(join(await realpath(configured.installedPath), "commands")));
-
-		const originalSettings = settingsManager.getGlobalSettings().packages;
-		const packageJsonPath = join(configured.installedPath, "package.json");
-		const originalPackageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
-
-		settingsManager.setPackages([{ source: plugin.source, autoload: true }]);
-		await settingsManager.flush();
-		const autoloadResult = runByz(["workflow", "check", "cm-plugin"], homeDir);
-		assert.equal(autoloadResult.status, 1);
-		assert.match(autoloadResult.stderr, /autoload disabled/);
-		settingsManager.setPackages(originalSettings);
-		await settingsManager.flush();
-
-		const wrongCommit = plugin.source.replace(/[0-9a-f]{40}$/i, "f".repeat(40));
-		settingsManager.setPackages([{ source: wrongCommit, autoload: false }]);
-		await settingsManager.flush();
-		const headResult = runByz(["workflow", "check", "cm-plugin"], homeDir);
-		assert.equal(headResult.status, 1);
-		assert.match(headResult.stderr, /source mismatch/);
-		settingsManager.setPackages(originalSettings);
-		await settingsManager.flush();
-
-		await writeFile(
-			packageJsonPath,
-			JSON.stringify({ ...originalPackageJson, pi: { ...originalPackageJson.pi, skills: ["./wrong"] } }),
-		);
-		const manifestResult = runByz(["workflow", "check", "cm-plugin"], homeDir);
-		assert.equal(manifestResult.status, 1);
-		assert.match(manifestResult.stderr, /Pi manifest does not match/);
-
-		await writeFile(packageJsonPath, JSON.stringify({ ...originalPackageJson, name: "@invalid/private-workflow" }));
-		const packageResult = runByz(["workflow", "check", "cm-plugin"], homeDir);
-		assert.equal(packageResult.status, 1);
-		assert.match(packageResult.stderr, /unavailable/);
-		await writeFile(packageJsonPath, JSON.stringify(originalPackageJson));
-	} finally {
-		plugin.daemon.kill();
+	for (const id of ["cm", "cm-plugin"]) {
+		const result = runByz(["workflow", "install", id], homeDir);
+		assert.equal(result.status, 1);
+		assert.match(result.stderr, /Expected list, status, or check/);
 	}
 });
 
-test("does not publish the private workflow repository identity", async () => {
+test("locks both bundled workflow sources to full commits", async () => {
 	const lock = JSON.parse(await readFile(join(packageDir, "workflows.lock.json"), "utf8"));
-	assert.equal(lock.workflows["cm-plugin"].source, undefined);
-	assert.equal(lock.workflows["cm-plugin"].sourceEnv, "BYZ_CM_PLUGIN_WORKFLOW_SOURCE");
+	for (const id of ["cm", "cm-plugin"]) {
+		assert.equal(lock.workflows[id].bundled, true);
+		assert.match(lock.workflows[id].source, /#[0-9a-f]{40}$/);
+	}
 });
 
 test("checks both workflow roots independently", async () => {

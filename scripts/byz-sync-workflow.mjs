@@ -11,26 +11,11 @@ const defaultRepositoryRoot = dirname(dirname(currentFile));
 const WORKFLOW_CONTRACTS = {
 	cm: { bundled: true, name: "CM Workflow", packageName: "@aibyzero/cm-workflow" },
 	"cm-plugin": {
-		bundled: false,
+		bundled: true,
 		name: "CM Plugin Workflow",
 		packageName: "@aibyzero/cm-plugin-workflow",
 	},
 };
-const PRIVATE_WORKFLOW_CONTRACT = {
-	name: "CM Plugin Workflow",
-	packageName: "@aibyzero/cm-plugin-workflow",
-	bundled: false,
-	private: true,
-	sourceEnv: "BYZ_CM_PLUGIN_WORKFLOW_SOURCE",
-	envRoot: "BYZ_CM_PLUGIN_WORKFLOW_ROOT",
-	requiredFiles: ["VERSION", "commands/cm-plugin:check.md"],
-};
-const PRIVATE_RECORD_KEYS = new Set([
-	...Object.keys(PRIVATE_WORKFLOW_CONTRACT),
-	"version",
-	"skillsPaths",
-	"promptsPath",
-]);
 
 export class WorkflowSyncError extends Error {}
 
@@ -87,35 +72,6 @@ function parseArguments(args) {
 	}
 	if (!help && !root) throw new WorkflowSyncError("--root is required.");
 	return { apply, help, root };
-}
-
-function assertPrivateRecordSafe(value) {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		throw new WorkflowSyncError("Private workflow lock record must be an object.");
-	}
-	for (const key of Object.keys(value)) {
-		if (!PRIVATE_RECORD_KEYS.has(key)) {
-			throw new WorkflowSyncError(`Private workflow lock must not contain ${key}.`);
-		}
-	}
-	for (const [key, expected] of Object.entries(PRIVATE_WORKFLOW_CONTRACT)) {
-		const matches = Array.isArray(expected)
-			? Array.isArray(value[key]) && expected.length === value[key].length && expected.every((item, index) => item === value[key][index])
-			: value[key] === expected;
-		if (!matches) {
-			throw new WorkflowSyncError(`Private workflow lock ${key} must equal the BYZ contract value.`);
-		}
-	}
-	for (const key of ["version", "promptsPath"]) {
-		if (typeof value[key] !== "string" || !value[key]) {
-			throw new WorkflowSyncError(`Private workflow lock ${key} must be a non-empty string.`);
-		}
-	}
-	for (const key of ["skillsPaths"]) {
-		if (!Array.isArray(value[key]) || value[key].some((item) => typeof item !== "string")) {
-			throw new WorkflowSyncError(`Private workflow lock ${key} must contain only string paths.`);
-		}
-	}
 }
 
 async function resolveCheckoutResource(root, path, label) {
@@ -184,7 +140,7 @@ async function inspectWorkflowCheckout(workflowId, root, runner = run) {
 
 function sourceAtCommit(source, commit) {
 	if (typeof source !== "string" || !source.includes("#")) {
-		throw new WorkflowSyncError("Bundled CM source must be a Git package pinned with #<commit>.");
+		throw new WorkflowSyncError("Bundled workflow source must be a Git package pinned with #<commit>.");
 	}
 	return `${source.slice(0, source.lastIndexOf("#"))}#${commit}`;
 }
@@ -196,33 +152,23 @@ export function createWorkflowSyncPlan({ byzPackageJson, checkout, workflowId, w
 		throw new WorkflowSyncError(`BYZ workflow lock is missing ${workflowId}.`);
 	}
 	const current = workflowLock.workflows[workflowId];
-	if (!contract.bundled) assertPrivateRecordSafe(current);
-	const nextRecord = contract.bundled
-		? {
-				...current,
-				version: checkout.version,
-				skillsPaths: checkout.skillsPaths,
-				promptsPath: checkout.promptsPath,
-			}
-		: {
-				...PRIVATE_WORKFLOW_CONTRACT,
-				version: checkout.version,
-				skillsPaths: checkout.skillsPaths,
-				promptsPath: checkout.promptsPath,
-			};
+	const nextRecord = {
+		...current,
+		version: checkout.version,
+		skillsPaths: checkout.skillsPaths,
+		promptsPath: checkout.promptsPath,
+	};
 	const nextByzPackageJson = structuredClone(byzPackageJson);
-	if (contract.bundled) {
-		if (typeof checkout.packageJson.license !== "string" || !checkout.packageJson.license) {
-			throw new WorkflowSyncError(`${contract.name} package must declare a license.`);
-		}
-		const source = sourceAtCommit(current.source, checkout.commit);
-		nextRecord.source = source;
-		nextRecord.license = checkout.packageJson.license;
-		if (nextByzPackageJson.devDependencies?.[contract.packageName] === undefined) {
-			throw new WorkflowSyncError(`BYZ package is missing ${contract.packageName} devDependency.`);
-		}
-		nextByzPackageJson.devDependencies[contract.packageName] = source;
+	if (typeof checkout.packageJson.license !== "string" || !checkout.packageJson.license) {
+		throw new WorkflowSyncError(`${contract.name} package must declare a license.`);
 	}
+	const source = sourceAtCommit(current.source, checkout.commit);
+	nextRecord.source = source;
+	nextRecord.license = checkout.packageJson.license;
+	if (nextByzPackageJson.devDependencies?.[contract.packageName] === undefined) {
+		throw new WorkflowSyncError(`BYZ package is missing ${contract.packageName} devDependency.`);
+	}
+	nextByzPackageJson.devDependencies[contract.packageName] = source;
 	const nextWorkflowLock = structuredClone(workflowLock);
 	nextWorkflowLock.workflows[workflowId] = nextRecord;
 	return {
@@ -231,7 +177,7 @@ export function createWorkflowSyncPlan({ byzPackageJson, checkout, workflowId, w
 		nextByzPackageJson,
 		nextVersion: checkout.version,
 		nextWorkflowLock,
-		refreshLockfile: contract.bundled,
+		refreshLockfile: true,
 		workflowId,
 		workflowName: contract.name,
 	};

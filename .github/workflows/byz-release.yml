@@ -86,6 +86,7 @@ jobs:
           npm install -g --prefix "$prefix_dir" --ignore-scripts "$BYZ_TARBALL"
           HOME="$home_dir" "$prefix_dir/bin/byz" --version
           HOME="$home_dir" "$prefix_dir/bin/byz" workflow check cm
+          HOME="$home_dir" "$prefix_dir/bin/byz" workflow check cm-plugin
           HOME="$home_dir" node --input-type=module --eval 'import assert from "node:assert/strict"; import { realpathSync } from "node:fs"; import { pathToFileURL } from "node:url"; const [modulePath, prefix] = process.argv.slice(1); const { getByzManualUpdateCommand, getByzUpdateCommand } = await import(pathToFileURL(modulePath).href); for (const command of [getByzUpdateCommand("@aibyzero/byz@0.2.0"), getByzManualUpdateCommand("@aibyzero/byz@0.2.0")]) { assert.equal(command?.command, "npm"); assert.ok(command.args.includes("--@aibyzero:registry=https://registry.npmjs.org/")); const index = command.args.indexOf("--prefix"); assert.equal(realpathSync(command.args[index + 1]), realpathSync(prefix)); }' "$prefix_dir/lib/node_modules/@aibyzero/byz/dist/update.js" "$prefix_dir"
 
       - name: Publish BYZ package

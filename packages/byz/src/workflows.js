@@ -1,14 +1,7 @@
-import { execFileSync } from "node:child_process";
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-	DefaultPackageManager,
-	getAgentDir,
-	loadSkillsFromDir,
-	parseGitUrl,
-	SettingsManager,
-} from "./runtime/bundle/index.js";
+import { loadSkillsFromDir } from "./runtime/bundle/index.js";
 
 const lockPath = fileURLToPath(new URL("../workflows.lock.json", import.meta.url));
 const packageDir = dirname(lockPath);
@@ -48,48 +41,8 @@ async function resolveBundledRoot(workflow) {
 	}
 }
 
-async function resolveManagedRoot(workflow) {
-	const cwd = process.cwd();
-	const agentDir = getAgentDir();
-	const settingsManager = SettingsManager.create(cwd, agentDir);
-	const packageManager = new DefaultPackageManager({ cwd, agentDir, settingsManager });
-
-	for (const configured of packageManager.listConfiguredPackages()) {
-		if (!configured.installedPath) continue;
-		try {
-			const packageJson = JSON.parse(await readFile(resolve(configured.installedPath, "package.json"), "utf8"));
-			if (packageJson.name === workflow.packageName) {
-				const settings =
-					configured.scope === "user" ? settingsManager.getGlobalSettings() : settingsManager.getProjectSettings();
-				const packageConfig = (settings.packages ?? []).find(
-					(candidate) => (typeof candidate === "string" ? candidate : candidate.source) === configured.source,
-				);
-				const autoloadDisabled =
-					typeof packageConfig === "object" &&
-					packageConfig.autoload === false &&
-					["extensions", "skills", "prompts", "themes"].every(
-						(resourceType) => !packageConfig[resourceType] || packageConfig[resourceType].length === 0,
-					);
-				return {
-					root: await realpath(configured.installedPath),
-					source: "managed",
-					configuredSource: configured.source,
-					autoloadDisabled,
-				};
-			}
-		} catch {
-			// Ignore unrelated or incomplete configured packages.
-		}
-	}
-	return undefined;
-}
-
 async function resolveWorkflowRoot(workflow) {
-	return (
-		(await resolveConfiguredRoot(workflow)) ??
-		(await resolveBundledRoot(workflow)) ??
-		(await resolveManagedRoot(workflow))
-	);
+	return (await resolveConfiguredRoot(workflow)) ?? (await resolveBundledRoot(workflow));
 }
 
 async function assertDistinctRoots() {
@@ -139,24 +92,6 @@ async function getWorkflowStatus(workflow) {
 		...resolved,
 		resolvedVersion: await readWorkflowVersion(resolved.root),
 	};
-}
-
-function extractPinnedGitCommit(source) {
-	const parsed = source ? parseGitUrl(source) : null;
-	return parsed?.ref && /^[0-9a-f]{40}$/i.test(parsed.ref) ? parsed.ref.toLowerCase() : undefined;
-}
-
-function readGitHead(root) {
-	try {
-		return execFileSync("git", ["-C", root, "rev-parse", "HEAD"], {
-			encoding: "utf8",
-			stdio: ["ignore", "pipe", "ignore"],
-		})
-			.trim()
-			.toLowerCase();
-	} catch {
-		return undefined;
-	}
 }
 
 async function validateRequiredFile(root, relativePath, missingFiles) {
@@ -209,10 +144,7 @@ async function checkWorkflow(workflow) {
 	await assertDistinctRoots();
 	const status = await getWorkflowStatus(workflow);
 	if (!status.available) {
-		const installHint = workflow.private
-			? ` Run "byz workflow install ${workflow.id}" with repository access.`
-			: " Reinstall BYZ or set its local development override.";
-		throw new Error(`${workflow.name} is unavailable.${installHint}`);
+		throw new Error(`${workflow.name} is unavailable. Reinstall BYZ or set its local development override.`);
 	}
 
 	const missingFiles = [];
@@ -229,21 +161,6 @@ async function checkWorkflow(workflow) {
 	}
 	await validateWorkflowResources(status);
 	await validatePackageManifest(status);
-	if (status.source === "managed") {
-		if (!status.autoloadDisabled) {
-			throw new Error(`${workflow.name} must be installed with Pi package autoload disabled.`);
-		}
-		const pinnedCommit = extractPinnedGitCommit(status.configuredSource);
-		if (!pinnedCommit) {
-			throw new Error(`${workflow.name} managed source must be pinned to a full Git commit SHA.`);
-		}
-		const installedCommit = readGitHead(status.root);
-		if (installedCommit !== pinnedCommit) {
-			throw new Error(
-				`${workflow.name} source mismatch: configured ${pinnedCommit}, installed ${installedCommit ?? "unknown"}.`,
-			);
-		}
-	}
 	return status;
 }
 
@@ -254,46 +171,6 @@ function printStatus(status) {
 	console.log(`  expected: ${status.version}`);
 	if (status.resolvedVersion) console.log(`  version: ${status.resolvedVersion}`);
 	if (status.root) console.log(`  root: ${status.root}`);
-}
-
-export async function getWorkflowInstallRequest(args) {
-	if (args[0] !== "workflow" || args[1] !== "install") return undefined;
-	const workflow = await getWorkflow(args[2]);
-	if (workflow.bundled) {
-		throw new Error(`${workflow.name} is bundled with BYZ and does not need installation.`);
-	}
-	const source = process.env[workflow.sourceEnv];
-	if (!source) {
-		throw new Error(
-			`${workflow.sourceEnv} must contain the authorized private Git source pinned to a full commit SHA.`,
-		);
-	}
-	if (!extractPinnedGitCommit(source)) {
-		throw new Error(`${workflow.sourceEnv} must be a Git source pinned to a full 40-character commit SHA.`);
-	}
-	return { id: workflow.id, source };
-}
-
-export async function installWorkflowPackage(request) {
-	const workflow = await getWorkflow(request.id);
-	const cwd = process.cwd();
-	const agentDir = getAgentDir();
-	const settingsManager = SettingsManager.create(cwd, agentDir);
-	const packageManager = new DefaultPackageManager({ cwd, agentDir, settingsManager });
-	await packageManager.installAndPersist(request.source);
-
-	const packages = settingsManager.getGlobalSettings().packages ?? [];
-	let updated = false;
-	const disabledPackages = packages.map((configured) => {
-		const source = typeof configured === "string" ? configured : configured.source;
-		if (source !== request.source) return configured;
-		updated = true;
-		return { source, autoload: false };
-	});
-	if (!updated) throw new Error(`Installed ${workflow.name}, but its BYZ package setting was not found.`);
-	settingsManager.setPackages(disabledPackages);
-	await settingsManager.flush();
-	console.log(`Installed ${workflow.name} with package autoload disabled.`);
 }
 
 export function parseWorkflowOption(args) {
@@ -378,11 +255,7 @@ export async function handleWorkflowCommand(args) {
 			return true;
 		}
 
-		if (command === "install") {
-			throw new Error("Workflow installation could not be delegated to the BYZ package manager.");
-		}
-
-		throw new Error(`Unknown workflow command: ${command}. Expected list, status, check, or install.`);
+		throw new Error(`Unknown workflow command: ${command}. Expected list, status, or check.`);
 	} catch (error) {
 		console.error(error instanceof Error ? error.message : String(error));
 		process.exitCode = 1;
