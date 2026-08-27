@@ -8,6 +8,17 @@ const packageDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const codingAgentDir = join(packageDir, "..", "coding-agent");
 const codingAgentDist = join(codingAgentDir, "dist");
 const distDir = join(packageDir, "dist");
+const runtimeAssetPaths = [
+	"modes/interactive/theme/dark.json",
+	"modes/interactive/theme/light.json",
+	"modes/interactive/theme/theme-schema.json",
+	"modes/interactive/assets/clankolas.png",
+	"core/export-html/template.html",
+	"core/export-html/template.css",
+	"core/export-html/template.js",
+	"core/export-html/vendor/marked.min.js",
+	"core/export-html/vendor/highlight.min.js",
+];
 const workflowsDir = join(packageDir, "workflows");
 const byzPackageJson = JSON.parse(await readFile(join(packageDir, "package.json"), "utf8"));
 const workflowLock = JSON.parse(await readFile(join(packageDir, "workflows.lock.json"), "utf8"));
@@ -37,6 +48,13 @@ await cp(codingAgentDist, join(distDir, "runtime"), {
 	force: true,
 	recursive: true,
 });
+await Promise.all(
+	runtimeAssetPaths.map(async (relativePath) => {
+		const targetPath = join(distDir, relativePath);
+		await mkdir(dirname(targetPath), { recursive: true });
+		await cp(join(codingAgentDist, relativePath), targetPath, { force: true });
+	}),
+);
 await cp(join(packageDir, "src", "cli.js"), join(distDir, "cli.js"), {
 	force: true,
 });

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "task_id": "T-FIX-byz-runtime-assets",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    ".github/workflows/byz-release.yml",
+    "docs/fixes/.reviews/fix-byz-runtime-assets-cause-r1.md",
+    "docs/fixes/20260827-byz-runtime-assets.md",
+    "packages/byz/CHANGELOG.md",
+    "packages/byz/scripts/build.mjs",
+    "packages/byz/test/smoke.test.mjs",
+    "scripts/byz-packed-runtime.test.mjs"
+  ],
+  "implementation_sha256": "681f92228b4fdb20f336064813d975d4989f02483d5dfe384d19074e1637cc0e",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "26 BYZ package tests passed after the runtime asset assertion first failed on dist/modes/interactive/theme/dark.json."
+    },
+    {
+      "command": "node --test scripts/byz-packed-runtime.test.mjs",
+      "status": "passed",
+      "evidence": "A real BYZ tarball was installed outside the repository and completed runtime-asset and HTML-export checks."
+    },
+    {
+      "command": "node --test scripts/byz-release.test.mjs scripts/byz-packed-runtime.test.mjs scripts/check-byz-public-package.test.mjs",
+      "status": "passed",
+      "evidence": "16 BYZ release-boundary tests passed."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Repository checks completed with exit code 0 and no warnings from checked files."
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed",
+      "evidence": "No whitespace errors were found."
+    }
+  ],
+  "evidence": [
+    "The installed @aibyzero/byz@0.1.1 TUI failed before the fix because package-root dist/modes/interactive/theme/dark.json was absent.",
+    "The built coding-agent output contains exactly the nine static assets copied by its existing asset contract.",
+    "A temporary tarball installation started the BYZ TUI in tmux and displayed bundled CM resources without an asset ENOENT.",
+    "No npm publication command was run."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

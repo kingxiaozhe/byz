@@ -137,6 +137,22 @@ test("ships the documentation paths referenced by the Pi runtime", async () => {
 	await readFile(join(packageDir, "examples", "README.md"), "utf8");
 });
 
+test("ships runtime assets at the package-root paths expected by Pi", async () => {
+	for (const relativePath of [
+		["dist", "modes", "interactive", "theme", "dark.json"],
+		["dist", "modes", "interactive", "theme", "light.json"],
+		["dist", "modes", "interactive", "theme", "theme-schema.json"],
+		["dist", "modes", "interactive", "assets", "clankolas.png"],
+		["dist", "core", "export-html", "template.html"],
+		["dist", "core", "export-html", "template.css"],
+		["dist", "core", "export-html", "template.js"],
+		["dist", "core", "export-html", "vendor", "marked.min.js"],
+		["dist", "core", "export-html", "vendor", "highlight.min.js"],
+	]) {
+		await access(join(packageDir, ...relativePath));
+	}
+});
+
 test("does not delegate updates to the Pi release channel", async () => {
 	const homeDir = await mkdtemp(join(tmpdir(), "byz-home-"));
 	for (const args of [
