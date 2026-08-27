@@ -152,6 +152,15 @@ test("does not delegate updates to the Pi release channel", async () => {
 	}
 });
 
+test("does not expose end-user workflow update or rollback commands", async () => {
+	const homeDir = await mkdtemp(join(tmpdir(), "byz-home-"));
+	for (const command of ["update", "rollback"]) {
+		const result = runByz(["workflow", command, "cm"], homeDir);
+		assert.equal(result.status, 1);
+		assert.match(result.stderr, /Expected list, status, check, or install/);
+	}
+});
+
 test("loads the bundled CM package without a global install", async () => {
 	const homeDir = await mkdtemp(join(tmpdir(), "byz-home-"));
 	const result = runByz(["workflow", "status", "cm"], homeDir, {
