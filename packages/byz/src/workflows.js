@@ -236,7 +236,7 @@ export async function prepareWorkflowRuntimeArgs(args, options = {}) {
 	};
 }
 
-export async function handleWorkflowCommand(args) {
+export async function handleWorkflowCommand(args, options = {}) {
 	if (args[0] !== "workflow") return false;
 
 	try {
@@ -250,8 +250,14 @@ export async function handleWorkflowCommand(args) {
 		}
 
 		if (command === "status") {
+			const activeWorkflowId = options.workflowId ?? parseWorkflowOption([]).workflowId;
+			const targetWorkflowId = args[2] ?? activeWorkflowId;
+			if (targetWorkflowId === "none") {
+				console.log(`none: ${activeWorkflowId === "none" ? "active" : "available"}`);
+				return true;
+			}
 			await assertDistinctRoots();
-			printStatus(await getWorkflowStatus(await getWorkflow(args[2])));
+			printStatus(await getWorkflowStatus(await getWorkflow(targetWorkflowId)));
 			return true;
 		}
 

@@ -29,10 +29,12 @@ try {
 		console.error("BYZ updates: byz update (npm-managed global installations only)");
 		console.error("BYZ Fast: --fast (thinking=low; optional model: BYZ_FAST_MODEL)");
 		console.error("BYZ workflows: --workflow <cm|cm-plugin|none> (default: BYZ_WORKFLOW or cm)");
-		console.error("Commands: byz workflow <list|status|check> [cm|cm-plugin]");
+		console.error(
+			"Commands: byz workflow list | byz workflow status [cm|cm-plugin|none] | byz workflow check <cm|cm-plugin>",
+		);
 	}
 
-	if (await handleWorkflowCommand(commandArgs)) {
+	if (await handleWorkflowCommand(commandArgs, { workflowId: parsedWorkflow.workflowId })) {
 		// BYZ-owned command handled without starting the Pi runtime.
 	} else if (await handleByzUpdate(commandArgs)) {
 		// BYZ release metadata and package target stay independent from Pi.
