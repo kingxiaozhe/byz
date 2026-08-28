@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { prepareFastRuntimeArgs } from "../dist/fast.js";
 import { CONFIG_DIR_NAME } from "../dist/runtime/bundle/index.js";
 import { prepareWorkflowRuntimeArgs } from "../dist/workflows.js";
 
@@ -65,8 +66,82 @@ test("uses the BYZ command identity in help", async () => {
 	assert.match(result.stdout, /^byz - AI coding assistant/m);
 	assert.match(result.stdout, /Usage:\n {2}byz /);
 	assert.match(result.stderr, /BYZ updates: byz update/);
+	assert.match(result.stderr, /BYZ Fast: --fast/);
 	assert.match(result.stderr, /--workflow <cm\|cm-plugin\|none>/);
 	assert.match(result.stderr, /workflow <list\|status\|check>/);
+});
+
+test("applies Fast defaults without removing workflow resources", async () => {
+	const fast = prepareFastRuntimeArgs(["--fast", "--workflow", "cm", "--mode", "rpc"], {
+		BYZ_FAST_MODEL: "openai/example-fast",
+	});
+	const prepared = await prepareWorkflowRuntimeArgs(fast.args);
+
+	assert.equal(fast.enabled, true);
+	assert.equal(fast.model, "openai/example-fast");
+	assert.equal(fast.thinking, "low");
+	assert.equal(prepared.workflowId, "cm");
+	assert.ok(prepared.args.includes("--skill"));
+	assert.ok(prepared.args.includes("--prompt-template"));
+	assert.deepEqual(prepared.args.slice(-6), ["--model", "openai/example-fast", "--thinking", "low", "--mode", "rpc"]);
+});
+
+test("gives explicit model and thinking options priority over Fast defaults", () => {
+	const prepared = prepareFastRuntimeArgs(
+		["--fast", "--model", "anthropic/explicit", "--thinking", "medium", "prompt"],
+		{ BYZ_FAST_MODEL: "openai/example-fast" },
+	);
+
+	assert.deepEqual(prepared.args, ["--model", "anthropic/explicit", "--thinking", "medium", "prompt"]);
+	assert.equal(prepared.model, "anthropic/explicit");
+	assert.equal(prepared.thinking, "medium");
+});
+
+test("preserves an explicit thinking suffix on the selected model", () => {
+	const prepared = prepareFastRuntimeArgs(["--fast", "--model", "anthropic/sonnet:high", "prompt"], {
+		BYZ_FAST_MODEL: "openai/example-fast",
+	});
+
+	assert.deepEqual(prepared.args, ["--model", "anthropic/sonnet:high", "prompt"]);
+	assert.equal(prepared.model, "anthropic/sonnet:high");
+	assert.equal(prepared.thinking, "high");
+});
+
+test("keeps the saved model when Fast resumes an existing session", () => {
+	for (const sessionArgs of [["--continue"], ["-c"], ["--resume"], ["-r"], ["--session", "session-id"]]) {
+		const prepared = prepareFastRuntimeArgs(["--fast", ...sessionArgs], {
+			BYZ_FAST_MODEL: "openai/example-fast",
+		});
+		assert.equal(prepared.model, "session");
+		assert.ok(!prepared.args.includes("openai/example-fast"));
+		assert.deepEqual(prepared.args.slice(0, 2), ["--thinking", "low"]);
+	}
+});
+
+test("ignores BYZ_FAST_MODEL outside Fast mode", () => {
+	const prepared = prepareFastRuntimeArgs(["--mode", "rpc"], { BYZ_FAST_MODEL: "openai/example-fast" });
+	assert.equal(prepared.enabled, false);
+	assert.deepEqual(prepared.args, ["--mode", "rpc"]);
+});
+
+test("preserves --fast after Pi's double-dash argument terminator", () => {
+	const prepared = prepareFastRuntimeArgs(["-p", "--", "--fast"]);
+	assert.equal(prepared.enabled, false);
+	assert.deepEqual(prepared.args, ["-p", "--", "--fast"]);
+});
+
+test("rejects duplicate or valued Fast options", () => {
+	assert.throws(() => prepareFastRuntimeArgs(["--fast", "--fast"]), /may only be specified once/);
+	assert.throws(() => prepareFastRuntimeArgs(["--fast=on"]), /does not accept a value/);
+});
+
+test("does not reorder Pi-owned commands in Fast mode", async () => {
+	const homeDir = await mkdtemp(join(tmpdir(), "byz-home-"));
+	const result = runByz(["--fast", "auth", "--help"], homeDir);
+
+	assert.equal(result.status, 0, result.stderr);
+	assert.match(result.stdout, /Usage:\n {2}pi auth print-api-key/);
+	assert.doesNotMatch(result.stdout, /^byz - AI coding assistant/m);
 });
 
 test("ships the documentation paths referenced by the Pi runtime", async () => {
