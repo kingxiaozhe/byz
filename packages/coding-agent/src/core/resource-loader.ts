@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import chalk from "chalk";
-import { CONFIG_DIR_NAME } from "../config.ts";
+import { APP_NAME, CONFIG_DIR_NAME } from "../config.ts";
 import { loadThemeFromPath, type Theme } from "../modes/interactive/theme/theme.ts";
 import type { ResourceDiagnostic } from "./diagnostics.ts";
 
@@ -467,7 +467,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 
 		const skillPaths = this.noSkills
 			? this.mergePaths(cliEnabledSkills, this.additionalSkillPaths)
-			: this.mergePaths([...cliEnabledSkills, ...enabledSkills], this.additionalSkillPaths);
+			: this.mergeDiscoverableResourcePaths([...cliEnabledSkills, ...enabledSkills], this.additionalSkillPaths);
 
 		this.lastSkillPaths = skillPaths;
 		this.updateSkillsFromPaths(skillPaths, metadataByPath);
@@ -482,7 +482,10 @@ export class DefaultResourceLoader implements ResourceLoader {
 
 		const promptPaths = this.noPromptTemplates
 			? this.mergePaths(cliEnabledPrompts, this.additionalPromptTemplatePaths)
-			: this.mergePaths([...cliEnabledPrompts, ...enabledPrompts], this.additionalPromptTemplatePaths);
+			: this.mergeDiscoverableResourcePaths(
+					[...cliEnabledPrompts, ...enabledPrompts],
+					this.additionalPromptTemplatePaths,
+				);
 
 		this.lastPromptPaths = promptPaths;
 		this.updatePromptsFromPaths(promptPaths, metadataByPath);
@@ -856,6 +859,12 @@ export class DefaultResourceLoader implements ResourceLoader {
 		}
 
 		return merged;
+	}
+
+	private mergeDiscoverableResourcePaths(discovered: string[], additional: string[]): string[] {
+		// BYZ injects its version-locked workflow through explicit paths. Those
+		// resources must win same-name collisions without hiding unrelated host resources.
+		return APP_NAME === "byz" ? this.mergePaths(additional, discovered) : this.mergePaths(discovered, additional);
 	}
 
 	private resolveResourcePath(p: string): string {
