@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.5 - 2026-08-28
+
+### Fixed
+
+- Made `byz workflow status` report the effective workflow when no target is given, distinguish active and available `none` states, and avoid unrelated workflow-root checks for `none` ([#20](https://github.com/kingxiaozhe/byz/pull/20)).
+
 ## 0.1.4 - 2026-08-27
 
 ### Added
