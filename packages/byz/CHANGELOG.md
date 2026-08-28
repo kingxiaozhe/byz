@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.4 - 2026-08-27
+
+### Added
+
+- Added same-session `/workflow` hot switching between the bundled CM Workflow, CM Plugin Workflow, and no managed workflow while preserving conversation, model, thinking, Fast Mode, and unrelated host resources ([#18](https://github.com/kingxiaozhe/byz/pull/18)).
+
 ## 0.1.3 - 2026-08-27
 
 ### Added
