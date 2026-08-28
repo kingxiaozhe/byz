@@ -16,7 +16,13 @@ import {
 	loadExtensionFromFactory,
 	loadExtensionsCached,
 } from "./extensions/loader.ts";
-import type { Extension, ExtensionRuntime, InlineExtension, LoadExtensionsResult } from "./extensions/types.ts";
+import type {
+	Extension,
+	ExtensionFactory,
+	ExtensionRuntime,
+	InlineExtension,
+	LoadExtensionsResult,
+} from "./extensions/types.ts";
 import { findGitPaths } from "./footer-data-provider.ts";
 import { DefaultPackageManager, type PathMetadata, type ResolvedResource } from "./package-manager.ts";
 import type { PromptTemplate } from "./prompt-templates.ts";
@@ -28,9 +34,9 @@ import { createSourceInfo, type SourceInfo } from "./source-info.ts";
 import { resetTimings } from "./timings.ts";
 
 export interface ResourceExtensionPaths {
-	skillPaths?: Array<{ path: string; metadata: PathMetadata }>;
-	promptPaths?: Array<{ path: string; metadata: PathMetadata }>;
-	themePaths?: Array<{ path: string; metadata: PathMetadata }>;
+	skillPaths?: Array<{ path: string; metadata: PathMetadata; owner?: string }>;
+	promptPaths?: Array<{ path: string; metadata: PathMetadata; owner?: string }>;
+	themePaths?: Array<{ path: string; metadata: PathMetadata; owner?: string }>;
 }
 
 export interface ResourceLoaderReloadOptions {
@@ -48,6 +54,8 @@ export interface ResourceLoader {
 	getAppendSystemPrompt(): string[];
 	getAppendSystemPromptSources(): Array<{ path: string }>;
 	extendResources(paths: ResourceExtensionPaths): void;
+	registerByzWorkflowResourceOwner?(owner: string): void;
+	replaceByzWorkflowResources?(owner: string, paths: ResourceExtensionPaths): void;
 	reload(options?: ResourceLoaderReloadOptions): Promise<void>;
 }
 
@@ -166,6 +174,7 @@ export interface DefaultResourceLoaderOptions {
 	additionalPromptTemplatePaths?: string[];
 	additionalThemePaths?: string[];
 	extensionFactories?: InlineExtension[];
+	byzWorkflowExtensionFactory?: ExtensionFactory;
 	noExtensions?: boolean;
 	noSkills?: boolean;
 	noPromptTemplates?: boolean;
@@ -204,6 +213,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 	private additionalPromptTemplatePaths: string[];
 	private additionalThemePaths: string[];
 	private extensionFactories: InlineExtension[];
+	private byzWorkflowExtensionFactory?: ExtensionFactory;
 	private noExtensions: boolean;
 	private noSkills: boolean;
 	private noPromptTemplates: boolean;
@@ -246,6 +256,19 @@ export class DefaultResourceLoader implements ResourceLoader {
 	private extensionSkillSourceInfos: Map<string, SourceInfo>;
 	private extensionPromptSourceInfos: Map<string, SourceInfo>;
 	private extensionThemeSourceInfos: Map<string, SourceInfo>;
+	private extensionSkillOwners: Map<string, string>;
+	private extensionPromptOwners: Map<string, string>;
+	private extensionThemeOwners: Map<string, string>;
+	private workflowResourceOwners: Set<string>;
+	private extensionResourceBaselines: Map<
+		string,
+		{
+			skills: Skill[];
+			skillDiagnostics: ResourceDiagnostic[];
+			prompts: PromptTemplate[];
+			promptDiagnostics: ResourceDiagnostic[];
+		}
+	>;
 	private resourceMetadataByPath: Map<string, PathMetadata>;
 	private lastPromptPaths: string[];
 	private lastThemePaths: string[];
@@ -266,6 +289,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 		this.additionalPromptTemplatePaths = options.additionalPromptTemplatePaths ?? [];
 		this.additionalThemePaths = options.additionalThemePaths ?? [];
 		this.extensionFactories = options.extensionFactories ?? [];
+		this.byzWorkflowExtensionFactory = options.byzWorkflowExtensionFactory;
 		this.noExtensions = options.noExtensions ?? false;
 		this.noSkills = options.noSkills ?? false;
 		this.noPromptTemplates = options.noPromptTemplates ?? false;
@@ -295,6 +319,11 @@ export class DefaultResourceLoader implements ResourceLoader {
 		this.extensionSkillSourceInfos = new Map();
 		this.extensionPromptSourceInfos = new Map();
 		this.extensionThemeSourceInfos = new Map();
+		this.extensionSkillOwners = new Map();
+		this.extensionPromptOwners = new Map();
+		this.extensionThemeOwners = new Map();
+		this.workflowResourceOwners = new Set();
+		this.extensionResourceBaselines = new Map();
 		this.resourceMetadataByPath = new Map();
 		this.lastPromptPaths = [];
 		this.lastThemePaths = [];
@@ -342,29 +371,71 @@ export class DefaultResourceLoader implements ResourceLoader {
 		const promptPaths = this.normalizeExtensionPaths(paths.promptPaths ?? []);
 		const themePaths = this.normalizeExtensionPaths(paths.themePaths ?? []);
 
+		if (APP_NAME === "byz" && this.workflowResourceOwners.size > 0) {
+			this.extendNormalizedResources({
+				skillPaths: skillPaths.filter((entry) => !entry.owner || !this.workflowResourceOwners.has(entry.owner)),
+				promptPaths: promptPaths.filter((entry) => !entry.owner || !this.workflowResourceOwners.has(entry.owner)),
+				themePaths: themePaths.filter((entry) => !entry.owner || !this.workflowResourceOwners.has(entry.owner)),
+			});
+			for (const owner of this.workflowResourceOwners) {
+				this.extensionResourceBaselines.set(owner, {
+					skills: this.skills,
+					skillDiagnostics: this.skillDiagnostics,
+					prompts: this.prompts,
+					promptDiagnostics: this.promptDiagnostics,
+				});
+			}
+			this.extendNormalizedResources({
+				skillPaths: skillPaths.filter((entry) => entry.owner && this.workflowResourceOwners.has(entry.owner)),
+				promptPaths: promptPaths.filter((entry) => entry.owner && this.workflowResourceOwners.has(entry.owner)),
+				themePaths: [],
+			});
+			return;
+		}
+
+		this.extendNormalizedResources({ skillPaths, promptPaths, themePaths });
+	}
+
+	private extendNormalizedResources(paths: Required<ResourceExtensionPaths>): void {
+		const { skillPaths, promptPaths, themePaths } = paths;
+		const mergeExtensionPaths = (currentPaths: string[], entries: typeof skillPaths): string[] => {
+			if (APP_NAME !== "byz") {
+				return this.mergePaths(
+					currentPaths,
+					entries.map((entry) => entry.path),
+				);
+			}
+
+			const workflowPaths: string[] = [];
+			const otherExtensionPaths: string[] = [];
+			for (const entry of entries) {
+				const target =
+					entry.owner && this.workflowResourceOwners.has(entry.owner) ? workflowPaths : otherExtensionPaths;
+				target.push(entry.path);
+			}
+			return this.mergePaths(workflowPaths, this.mergePaths(currentPaths, otherExtensionPaths));
+		};
+
 		for (const entry of skillPaths) {
 			this.extensionSkillSourceInfos.set(entry.path, createSourceInfo(entry.path, entry.metadata));
+			if (entry.owner) this.extensionSkillOwners.set(entry.path, entry.owner);
 		}
 		for (const entry of promptPaths) {
 			this.extensionPromptSourceInfos.set(entry.path, createSourceInfo(entry.path, entry.metadata));
+			if (entry.owner) this.extensionPromptOwners.set(entry.path, entry.owner);
 		}
 		for (const entry of themePaths) {
 			this.extensionThemeSourceInfos.set(entry.path, createSourceInfo(entry.path, entry.metadata));
+			if (entry.owner) this.extensionThemeOwners.set(entry.path, entry.owner);
 		}
 
 		if (skillPaths.length > 0) {
-			this.lastSkillPaths = this.mergePaths(
-				this.lastSkillPaths,
-				skillPaths.map((entry) => entry.path),
-			);
+			this.lastSkillPaths = mergeExtensionPaths(this.lastSkillPaths, skillPaths);
 			this.updateSkillsFromPaths(this.lastSkillPaths, this.resourceMetadataByPath);
 		}
 
 		if (promptPaths.length > 0) {
-			this.lastPromptPaths = this.mergePaths(
-				this.lastPromptPaths,
-				promptPaths.map((entry) => entry.path),
-			);
+			this.lastPromptPaths = mergeExtensionPaths(this.lastPromptPaths, promptPaths);
 			this.updatePromptsFromPaths(this.lastPromptPaths, this.resourceMetadataByPath);
 		}
 
@@ -375,6 +446,170 @@ export class DefaultResourceLoader implements ResourceLoader {
 			);
 			this.updateThemesFromPaths(this.lastThemePaths, this.resourceMetadataByPath);
 		}
+	}
+
+	registerByzWorkflowResourceOwner(owner: string): void {
+		if (APP_NAME !== "byz" || this.workflowResourceOwners.has(owner)) return;
+		this.workflowResourceOwners.add(owner);
+		this.extensionResourceBaselines.set(owner, {
+			skills: this.skills,
+			skillDiagnostics: this.skillDiagnostics,
+			prompts: this.prompts,
+			promptDiagnostics: this.promptDiagnostics,
+		});
+	}
+
+	replaceByzWorkflowResources(owner: string, paths: ResourceExtensionPaths): void {
+		const skillPaths = this.normalizeExtensionPaths(paths.skillPaths ?? []);
+		const promptPaths = this.normalizeExtensionPaths(paths.promptPaths ?? []);
+		const themePaths = this.normalizeExtensionPaths(paths.themePaths ?? []);
+		if (!this.workflowResourceOwners.has(owner)) {
+			throw new Error("Scoped resource updates are reserved for the active BYZ workflow.");
+		}
+		if (themePaths.length > 0) {
+			throw new Error("Scoped extension resource updates support skills and prompts only.");
+		}
+		if (
+			[...skillPaths, ...promptPaths].some(
+				(entry) => entry.owner !== owner || entry.metadata.source !== "extension:inline:byz-workflow",
+			)
+		) {
+			throw new Error("Scoped resource updates must contain only resources owned by the active BYZ workflow.");
+		}
+
+		const ownedSkillRoots = [...this.extensionSkillOwners.entries()]
+			.filter((entry) => entry[1] === owner)
+			.map((entry) => entry[0]);
+		const ownedPromptRoots = [...this.extensionPromptOwners.entries()]
+			.filter((entry) => entry[1] === owner)
+			.map((entry) => entry[0]);
+		const belongsToRoots = (path: string | undefined, roots: string[]): boolean =>
+			path !== undefined && roots.some((root) => this.isUnderPath(resolve(path), root));
+		const diagnosticBelongsToRoots = (diagnostic: ResourceDiagnostic, roots: string[]): boolean =>
+			belongsToRoots(diagnostic.path, roots) ||
+			belongsToRoots(diagnostic.collision?.winnerPath, roots) ||
+			belongsToRoots(diagnostic.collision?.loserPath, roots);
+		const baseline = this.extensionResourceBaselines.get(owner) ?? {
+			skills: this.skills.filter((skill) => !belongsToRoots(skill.filePath, ownedSkillRoots)),
+			skillDiagnostics: this.skillDiagnostics.filter(
+				(diagnostic) => !diagnosticBelongsToRoots(diagnostic, ownedSkillRoots),
+			),
+			prompts: this.prompts.filter((prompt) => !belongsToRoots(prompt.filePath, ownedPromptRoots)),
+			promptDiagnostics: this.promptDiagnostics.filter(
+				(diagnostic) => !diagnosticBelongsToRoots(diagnostic, ownedPromptRoots),
+			),
+		};
+		this.extensionResourceBaselines.set(owner, baseline);
+
+		const nextSkillSourceInfos = new Map(this.extensionSkillSourceInfos);
+		const nextPromptSourceInfos = new Map(this.extensionPromptSourceInfos);
+		const nextSkillOwners = new Map(this.extensionSkillOwners);
+		const nextPromptOwners = new Map(this.extensionPromptOwners);
+		const replacePaths = (
+			currentPaths: string[],
+			currentSourceInfos: Map<string, SourceInfo>,
+			currentOwners: Map<string, string>,
+			entries: Array<{ path: string; metadata: PathMetadata; owner?: string }>,
+		): string[] => {
+			let insertionIndex = this.workflowResourceOwners.has(owner) ? 0 : currentPaths.length;
+			const retainedPaths = currentPaths.filter((path, index) => {
+				if (currentOwners.get(path) !== owner) return true;
+				insertionIndex = Math.min(insertionIndex, index);
+				currentSourceInfos.delete(path);
+				currentOwners.delete(path);
+				return false;
+			});
+			const replacementPaths = entries.map((entry) => {
+				currentSourceInfos.set(entry.path, createSourceInfo(entry.path, entry.metadata));
+				currentOwners.set(entry.path, owner);
+				return entry.path;
+			});
+			const nextPaths = [
+				...retainedPaths.slice(0, insertionIndex),
+				...replacementPaths,
+				...retainedPaths.slice(insertionIndex),
+			];
+			return this.mergePaths(nextPaths, []);
+		};
+
+		const nextSkillPaths = replacePaths(this.lastSkillPaths, nextSkillSourceInfos, nextSkillOwners, skillPaths);
+		const nextPromptPaths = replacePaths(this.lastPromptPaths, nextPromptSourceInfos, nextPromptOwners, promptPaths);
+		let replacementSkills = loadSkills({
+			cwd: this.cwd,
+			agentDir: this.agentDir,
+			skillPaths: skillPaths.map((entry) => entry.path),
+			includeDefaults: false,
+		});
+		replacementSkills = this.skillsOverride ? this.skillsOverride(replacementSkills) : replacementSkills;
+		const mappedReplacementSkills = replacementSkills.skills.map((skill) => ({
+			...skill,
+			sourceInfo:
+				this.findSourceInfoForPath(skill.filePath, nextSkillSourceInfos, this.resourceMetadataByPath) ??
+				skill.sourceInfo,
+		}));
+		let replacementPrompts = this.dedupePrompts(
+			loadPromptTemplates({
+				cwd: this.cwd,
+				agentDir: this.agentDir,
+				promptPaths: promptPaths.map((entry) => entry.path),
+				includeDefaults: false,
+			}),
+		);
+		replacementPrompts = this.promptsOverride ? this.promptsOverride(replacementPrompts) : replacementPrompts;
+		const mappedReplacementPrompts = replacementPrompts.prompts.map((prompt) => ({
+			...prompt,
+			sourceInfo:
+				this.findSourceInfoForPath(prompt.filePath, nextPromptSourceInfos, this.resourceMetadataByPath) ??
+				prompt.sourceInfo,
+		}));
+
+		const workflowPriority = this.workflowResourceOwners.has(owner);
+		const orderedSkills = workflowPriority
+			? [...mappedReplacementSkills, ...baseline.skills]
+			: [...baseline.skills, ...mappedReplacementSkills];
+		const skillsByName = new Map<string, Skill>();
+		const skillCollisionDiagnostics: ResourceDiagnostic[] = [];
+		for (const skill of orderedSkills) {
+			const existing = skillsByName.get(skill.name);
+			if (!existing) {
+				skillsByName.set(skill.name, skill);
+				continue;
+			}
+			skillCollisionDiagnostics.push({
+				type: "collision",
+				message: `name "${skill.name}" collision`,
+				path: skill.filePath,
+				collision: {
+					resourceType: "skill",
+					name: skill.name,
+					winnerPath: existing.filePath,
+					loserPath: skill.filePath,
+				},
+			});
+		}
+		const orderedPrompts = workflowPriority
+			? [...mappedReplacementPrompts, ...baseline.prompts]
+			: [...baseline.prompts, ...mappedReplacementPrompts];
+		const mergedPrompts = this.dedupePrompts(orderedPrompts);
+
+		this.extensionSkillSourceInfos = nextSkillSourceInfos;
+		this.extensionPromptSourceInfos = nextPromptSourceInfos;
+		this.extensionSkillOwners = nextSkillOwners;
+		this.extensionPromptOwners = nextPromptOwners;
+		this.lastSkillPaths = nextSkillPaths;
+		this.lastPromptPaths = nextPromptPaths;
+		this.skills = [...skillsByName.values()];
+		this.skillDiagnostics = [
+			...replacementSkills.diagnostics,
+			...baseline.skillDiagnostics,
+			...skillCollisionDiagnostics,
+		];
+		this.prompts = mergedPrompts.prompts;
+		this.promptDiagnostics = [
+			...replacementPrompts.diagnostics,
+			...baseline.promptDiagnostics,
+			...mergedPrompts.diagnostics,
+		];
 	}
 
 	async loadProjectTrustExtensions(): Promise<LoadExtensionsResult> {
@@ -412,6 +647,11 @@ export class DefaultResourceLoader implements ResourceLoader {
 		this.extensionSkillSourceInfos = new Map();
 		this.extensionPromptSourceInfos = new Map();
 		this.extensionThemeSourceInfos = new Map();
+		this.extensionSkillOwners = new Map();
+		this.extensionPromptOwners = new Map();
+		this.extensionThemeOwners = new Map();
+		this.workflowResourceOwners = new Set();
+		this.extensionResourceBaselines = new Map();
 
 		// Helper to extract enabled paths and store metadata
 		const getEnabledResources = (resources: ResolvedResource[]): ResolvedResource[] => {
@@ -659,8 +899,8 @@ export class DefaultResourceLoader implements ResourceLoader {
 	}
 
 	private normalizeExtensionPaths(
-		entries: Array<{ path: string; metadata: PathMetadata }>,
-	): Array<{ path: string; metadata: PathMetadata }> {
+		entries: Array<{ path: string; metadata: PathMetadata; owner?: string }>,
+	): Array<{ path: string; metadata: PathMetadata; owner?: string }> {
 		return entries.map((entry) => {
 			const metadata = entry.metadata.baseDir
 				? { ...entry.metadata, baseDir: this.resolveResourcePath(entry.metadata.baseDir) }
@@ -668,6 +908,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 			return {
 				path: this.resolveResourcePath(entry.path),
 				metadata,
+				owner: entry.owner,
 			};
 		});
 	}
@@ -966,6 +1207,25 @@ export class DefaultResourceLoader implements ResourceLoader {
 			try {
 				const extension = await loadExtensionFromFactory(factory, this.cwd, this.eventBus, runtime, extensionPath);
 				extension.hidden = isNamed && input.hidden;
+				extensions.push(extension);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : "failed to load extension";
+				errors.push({ path: extensionPath, error: message });
+			}
+		}
+
+		if (this.byzWorkflowExtensionFactory) {
+			const extensionPath = "<inline:byz-workflow>";
+			try {
+				const extension = await loadExtensionFromFactory(
+					this.byzWorkflowExtensionFactory,
+					this.cwd,
+					this.eventBus,
+					runtime,
+					extensionPath,
+				);
+				extension.hidden = true;
+				extension.byzWorkflow = true;
 				extensions.push(extension);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : "failed to load extension";

@@ -3,7 +3,13 @@
 import { prepareFastRuntimeArgs } from "./fast.js";
 import { main } from "./runtime/bundle/index.js";
 import { handleByzUpdate } from "./update.js";
-import { handleWorkflowCommand, parseWorkflowOption, prepareWorkflowRuntimeArgs } from "./workflows.js";
+import { createWorkflowSwitchExtension, shouldEnableWorkflowSwitch, shouldLoadWorkflow } from "./workflow-switch.js";
+import {
+	handleWorkflowCommand,
+	parseWorkflowOption,
+	prepareWorkflowRuntimeArgs,
+	resolveWorkflowRuntimeResources,
+} from "./workflows.js";
 
 process.title = "byz";
 process.env.BYZ_CODING_AGENT = "true";
@@ -13,15 +19,6 @@ process.env.PI_SKIP_VERSION_CHECK = "1";
 process.env.PI_TELEMETRY = "0";
 
 const args = process.argv.slice(2);
-
-function shouldLoadWorkflow(runtimeArgs) {
-	const terminatorIndex = runtimeArgs.indexOf("--");
-	const optionArgs = runtimeArgs.slice(0, terminatorIndex === -1 ? runtimeArgs.length : terminatorIndex);
-	if (optionArgs.some((arg) => ["--help", "-h", "--version", "-v", "--export", "--list-models"].includes(arg))) {
-		return false;
-	}
-	return !["auth", "config", "install", "list", "remove", "uninstall", "update"].includes(optionArgs[0]);
-}
 
 try {
 	const fastRuntime = prepareFastRuntimeArgs(args);
@@ -42,20 +39,30 @@ try {
 	} else {
 		const loadWorkflow = shouldLoadWorkflow(commandArgs);
 		const runtimeArgs = loadWorkflow ? fastRuntime.args : fastRuntime.commandArgs;
-		const prepared = await prepareWorkflowRuntimeArgs(runtimeArgs, { load: loadWorkflow });
-		const optionArgs = commandArgs.slice(
-			0,
-			commandArgs.indexOf("--") === -1 ? commandArgs.length : commandArgs.indexOf("--"),
-		);
-		const isInteractive = !optionArgs.some((arg) =>
-			["--help", "-h", "--version", "-v", "--export", "--list-models", "--print", "-p", "--mode"].includes(arg),
-		);
+		const isInteractive = shouldEnableWorkflowSwitch(commandArgs, {
+			stdinIsTTY: process.stdin.isTTY,
+			stdoutIsTTY: process.stdout.isTTY,
+		});
 		if (fastRuntime.enabled && loadWorkflow && isInteractive) {
 			console.error(
-				`BYZ Fast: model=${fastRuntime.model}, thinking=${fastRuntime.thinking}, workflow=${prepared.workflowId}`,
+				`BYZ Fast: model=${fastRuntime.model}, thinking=${fastRuntime.thinking}, workflow=${parsedWorkflow.workflowId}`,
 			);
 		}
-		await main(prepared.args);
+
+		if (loadWorkflow && isInteractive) {
+			const parsedRuntimeWorkflow = parseWorkflowOption(runtimeArgs);
+			const resolveResources = (workflowId) =>
+				resolveWorkflowRuntimeResources(workflowId, parsedRuntimeWorkflow.forwardedArgs);
+			const workflowExtension = createWorkflowSwitchExtension({
+				initialResources: await resolveResources(parsedRuntimeWorkflow.workflowId),
+				initialWorkflowId: parsedRuntimeWorkflow.workflowId,
+				resolveResources,
+			});
+			await main(parsedRuntimeWorkflow.forwardedArgs, { byzWorkflowExtensionFactory: workflowExtension });
+		} else {
+			const prepared = await prepareWorkflowRuntimeArgs(runtimeArgs, { load: loadWorkflow });
+			await main(prepared.args);
+		}
 	}
 } catch (error) {
 	console.error(error instanceof Error ? error.message : String(error));

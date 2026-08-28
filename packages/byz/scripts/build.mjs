@@ -68,6 +68,9 @@ await cp(join(packageDir, "src", "cli.js"), join(distDir, "cli.js"), {
 await cp(join(packageDir, "src", "fast.js"), join(distDir, "fast.js"), {
 	force: true,
 });
+await cp(join(packageDir, "src", "workflow-switch.js"), join(distDir, "workflow-switch.js"), {
+	force: true,
+});
 await cp(join(packageDir, "src", "workflows.js"), join(distDir, "workflows.js"), {
 	force: true,
 });
