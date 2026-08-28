@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "task_id": "T-FIX-workflow-status-semantics",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "docs/fixes/20260828-workflow-status-semantics.md",
+    "packages/byz/src/cli.js",
+    "packages/byz/src/workflows.js",
+    "packages/byz/test/smoke.test.mjs"
+  ],
+  "implementation_sha256": "e321caeb222924dcb815147db23ba577fb1241afe3d812bb82ea447c583edcaa",
+  "verification": [
+    {
+      "command": "node --test test/smoke.test.mjs",
+      "status": "passed",
+      "evidence": "All 31 BYZ smoke tests passed, including the effective-selection matrix and none/root-isolation regression."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "All 49 BYZ package tests passed."
+    },
+    {
+      "command": "node --test scripts/byz-release.test.mjs scripts/byz-packed-runtime.test.mjs scripts/check-byz-public-package.test.mjs",
+      "status": "passed",
+      "evidence": "All 13 BYZ packed-runtime and release-contract tests passed."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Repository formatting, dependency, lock, TypeScript, and browser-smoke checks completed with exit code 0."
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed",
+      "evidence": "No whitespace errors were reported."
+    }
+  ],
+  "evidence": [
+    "The clean BYZ 0.1.4 baseline passed all 47 existing package tests.",
+    "Before the implementation change, the new regression failed because status had no target and none queries validated overlapping CM roots.",
+    "Manual CLI checks reported cm: available, cm-plugin: available, none: active, and none: available for the mapped selection/query cases.",
+    "The first repository check lacked an ignored generated model-data directory in the fresh worktree; restoring that directory from the same main baseline made the unchanged check pass."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

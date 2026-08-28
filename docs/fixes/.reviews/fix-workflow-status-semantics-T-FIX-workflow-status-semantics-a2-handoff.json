@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "task_id": "T-FIX-workflow-status-semantics",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "docs/fixes/20260828-workflow-status-semantics.md",
+    "packages/byz/src/cli.js",
+    "packages/byz/src/workflows.js",
+    "packages/byz/test/smoke.test.mjs"
+  ],
+  "implementation_sha256": "0d25897ae8f304799702ca15d01e03682c15a9d4aba10629daa9fe47c061eea7",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "All 49 BYZ package tests passed after the command-specific help correction."
+    },
+    {
+      "command": "node --test scripts/byz-release.test.mjs scripts/byz-packed-runtime.test.mjs scripts/check-byz-public-package.test.mjs",
+      "status": "passed",
+      "evidence": "All 13 BYZ packed-runtime and release-contract tests passed on attempt 2."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Repository formatting, dependency, lock, TypeScript, and browser-smoke checks completed with exit code 0 on attempt 2."
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed",
+      "evidence": "No whitespace errors were reported."
+    }
+  ],
+  "evidence": [
+    "The clean BYZ 0.1.4 baseline passed all 47 existing package tests.",
+    "The regression first failed for the missing effective target and unrelated root validation, then passed after the status fix.",
+    "Round 1 review requested command-specific help because none is not a valid check target; attempt 2 now documents list, status, and check separately.",
+    "The defect record now describes the actual round 1 review correction without claiming a verdict that did not yet exist."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

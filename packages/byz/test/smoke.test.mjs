@@ -14,9 +14,12 @@ const cliPath = join(packageDir, "dist", "cli.js");
 const CM_ENTRY_SKILLS = ["cm-ai", "cm-check", "cm-fix", "cm-idea", "cm-init", "cm-prd", "cm-refactor", "cm-test"];
 
 function runByz(args, homeDir, extraEnv = {}) {
+	const env = Object.fromEntries(
+		Object.entries({ ...process.env, HOME: homeDir, ...extraEnv }).filter(([, value]) => value !== undefined),
+	);
 	return spawnSync(process.execPath, [cliPath, ...args], {
 		encoding: "utf8",
-		env: { ...process.env, HOME: homeDir, ...extraEnv },
+		env,
 	});
 }
 
@@ -68,7 +71,8 @@ test("uses the BYZ command identity in help", async () => {
 	assert.match(result.stderr, /BYZ updates: byz update/);
 	assert.match(result.stderr, /BYZ Fast: --fast/);
 	assert.match(result.stderr, /--workflow <cm\|cm-plugin\|none>/);
-	assert.match(result.stderr, /workflow <list\|status\|check>/);
+	assert.match(result.stderr, /workflow list \| byz workflow status \[cm\|cm-plugin\|none\]/);
+	assert.match(result.stderr, /workflow check <cm\|cm-plugin>/);
 });
 
 test("applies Fast defaults without removing workflow resources", async () => {
@@ -210,6 +214,61 @@ test("loads both bundled workflow packages without global installs", async () =>
 		assert.match(result.stdout, /source: bundled/);
 		assert.match(result.stdout, new RegExp(`version: ${version.replaceAll(".", "\\.")}`));
 	}
+});
+
+test("reports the effective workflow when status has no target", async () => {
+	const homeDir = await mkdtemp(join(tmpdir(), "byz-home-"));
+	const cases = [
+		{
+			args: ["workflow", "status"],
+			env: { BYZ_WORKFLOW: undefined },
+			expected: /cm: available/,
+		},
+		{
+			args: ["workflow", "status"],
+			env: { BYZ_WORKFLOW: "cm-plugin" },
+			expected: /cm-plugin: available/,
+		},
+		{
+			args: ["--workflow", "cm-plugin", "workflow", "status"],
+			env: { BYZ_WORKFLOW: "cm" },
+			expected: /cm-plugin: available/,
+		},
+		{
+			args: ["--workflow", "cm-plugin", "workflow", "status", "cm"],
+			env: { BYZ_WORKFLOW: "cm-plugin" },
+			expected: /cm: available/,
+		},
+		{
+			args: ["--workflow", "none", "workflow", "status"],
+			env: {},
+			expected: /none: active/,
+		},
+		{
+			args: ["--workflow", "cm-plugin", "workflow", "status", "none"],
+			env: {},
+			expected: /none: available/,
+		},
+	];
+
+	for (const testCase of cases) {
+		const result = runByz(testCase.args, homeDir, testCase.env);
+		assert.equal(result.status, 0, result.stderr);
+		assert.match(result.stdout, testCase.expected);
+	}
+});
+
+test("reports an effective none workflow without validating unrelated roots", async () => {
+	const homeDir = await mkdtemp(join(tmpdir(), "byz-home-"));
+	const fixtureDir = await mkdtemp(join(tmpdir(), "byz-workflows-"));
+	const sharedRoot = await createWorkflowFixture(fixtureDir, "cm");
+	const result = runByz(["--workflow", "none", "workflow", "status"], homeDir, {
+		BYZ_CM_PLUGIN_WORKFLOW_ROOT: sharedRoot,
+		BYZ_CM_WORKFLOW_ROOT: sharedRoot,
+	});
+
+	assert.equal(result.status, 0, result.stderr);
+	assert.match(result.stdout, /none: active/);
 });
 
 test("injects only the selected workflow resources", async () => {
