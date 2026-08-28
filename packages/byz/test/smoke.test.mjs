@@ -130,6 +130,12 @@ test("preserves --fast after Pi's double-dash argument terminator", () => {
 	assert.deepEqual(prepared.args, ["-p", "--", "--fast"]);
 });
 
+test("preserves --fast when Pi consumes it as a mode value", () => {
+	const prepared = prepareFastRuntimeArgs(["--mode", "--fast", "hello"]);
+	assert.equal(prepared.enabled, false);
+	assert.deepEqual(prepared.args, ["--mode", "--fast", "hello"]);
+});
+
 test("rejects duplicate or valued Fast options", () => {
 	assert.throws(() => prepareFastRuntimeArgs(["--fast", "--fast"]), /may only be specified once/);
 	assert.throws(() => prepareFastRuntimeArgs(["--fast=on"]), /does not accept a value/);
@@ -252,6 +258,12 @@ test("preserves Pi's double-dash argument terminator", async () => {
 	const equalsForm = await prepareWorkflowRuntimeArgs(["-p", "--", "--workflow=none"]);
 	assert.equal(equalsForm.workflowId, "cm");
 	assert.deepEqual(equalsForm.args.slice(-3), ["-p", "--", "--workflow=none"]);
+});
+
+test("preserves --workflow when Pi consumes it as a mode value", async () => {
+	const prepared = await prepareWorkflowRuntimeArgs(["--mode", "--workflow", "cm-plugin"]);
+	assert.equal(prepared.workflowId, "cm");
+	assert.deepEqual(prepared.args.slice(-3), ["--mode", "--workflow", "cm-plugin"]);
 });
 
 test("respects Pi resource disable flags", async () => {

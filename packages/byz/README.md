@@ -67,9 +67,15 @@ byz --workflow cm-plugin
 byz --workflow none
 ```
 
-BYZ loads at most one workflow per session. Users do not install, update, or
-roll back either workflow separately. Local development can override package
-roots with `BYZ_CM_WORKFLOW_ROOT` or
+Inside an interactive session, `/workflow` shows the active workflow.
+`/workflow cm`, `/workflow cm-plugin`, and `/workflow none` switch it in place
+without starting a new conversation or calling the model. BYZ validates the
+target before replacing its managed skills and prompts, does not reload
+unrelated extensions, and rejects switching while the agent is running.
+
+BYZ loads at most one workflow at a time. Users do not install, update, or roll
+back either workflow separately. Local development can override package roots
+with `BYZ_CM_WORKFLOW_ROOT` or
 `BYZ_CM_PLUGIN_WORKFLOW_ROOT`; the two roots must remain distinct.
 
 ## Development

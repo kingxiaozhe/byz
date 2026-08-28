@@ -71,6 +71,17 @@ byz --workflow cm-plugin
 byz --workflow none
 ```
 
+进入 BYZ 交互会话后，可以在不新建对话的情况下切换当前工作流：
+
+```text
+/workflow
+/workflow cm
+/workflow cm-plugin
+/workflow none
+```
+
+切换只会在当前会话内替换 BYZ 管理的 skills 和 prompts，不会调用模型，也不会重载无关扩展。BYZ 会先验证目标工作流；智能体正在运行时会拒绝切换。
+
 CM 和 CM Plugin 使用各自独立的包目录，BYZ 不会交叉加载它们。本地开发覆盖方式请参阅[完整工作流参考](./packages/byz/README.md#workflows)。
 
 

@@ -1,3 +1,5 @@
+import { getActiveByzOptionIndexes } from "./workflow-switch.js";
+
 const SESSION_OPTIONS = new Set(["--continue", "-c", "--resume", "-r", "--session", "--session-id", "--fork"]);
 const THINKING_SUFFIX_PATTERN = /:(off|minimal|low|medium|high|xhigh|max)$/;
 
@@ -16,6 +18,7 @@ function findOptionValue(args, option) {
 
 export function prepareFastRuntimeArgs(args, env = process.env) {
 	const forwardedArgs = [];
+	const activeFastOptions = getActiveByzOptionIndexes(args, "fast");
 	let enabled = false;
 	for (let index = 0; index < args.length; index++) {
 		const arg = args[index];
@@ -23,12 +26,12 @@ export function prepareFastRuntimeArgs(args, env = process.env) {
 			forwardedArgs.push(...args.slice(index));
 			break;
 		}
-		if (arg === "--fast") {
+		if (arg === "--fast" && activeFastOptions.has(index)) {
 			if (enabled) throw new Error("--fast may only be specified once.");
 			enabled = true;
 			continue;
 		}
-		if (arg.startsWith("--fast=")) {
+		if (arg.startsWith("--fast=") && activeFastOptions.has(index)) {
 			throw new Error("--fast does not accept a value.");
 		}
 		forwardedArgs.push(arg);

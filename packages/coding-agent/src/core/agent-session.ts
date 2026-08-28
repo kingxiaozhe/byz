@@ -79,6 +79,7 @@ import {
 	type MessageStartEvent,
 	type MessageUpdateEvent,
 	type ReplacedSessionContext,
+	type ResourcesDiscoverResult,
 	type SessionBeforeCompactResult,
 	type SessionBeforeTreeResult,
 	type SessionCompactFailedEvent,
@@ -182,6 +183,7 @@ export type AgentSessionEvent =
 	  }
 	| { type: "summarization_retry_finished" }
 	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string }
+	| { type: "resources_changed" }
 	| { type: "bash_execution_update"; id?: string; delta: string };
 
 /** Listener function for agent session events */
@@ -1309,7 +1311,11 @@ export class AgentSession {
 		if (!command) return false;
 
 		// Get command context from extension runner (includes session control methods)
-		const ctx = this._extensionRunner.createCommandContext();
+		const ctx = this._extensionRunner.createCommandContext(
+			command.ownerId,
+			command.sourceInfo.path,
+			command.byzWorkflowOwner,
+		);
 
 		try {
 			await command.handler(args, ctx);
@@ -1591,6 +1597,33 @@ export class AgentSession {
 
 	get resourceLoader(): ResourceLoader {
 		return this._resourceLoader;
+	}
+
+	async replaceByzWorkflowResources(
+		extensionOwner: string,
+		extensionPath: string,
+		resources: ResourcesDiscoverResult,
+	): Promise<void> {
+		if (!this.isIdle || this.isCompacting) {
+			throw new Error("Extension resources cannot be updated while the agent is running.");
+		}
+		if (extensionPath !== "<inline:byz-workflow>") {
+			throw new Error("BYZ workflow resources can only be replaced by the built-in workflow extension.");
+		}
+		if (!this._resourceLoader.replaceByzWorkflowResources) {
+			throw new Error("The active resource loader does not support BYZ workflow resource updates.");
+		}
+		this._resourceLoader.replaceByzWorkflowResources(extensionOwner, {
+			promptPaths: this.buildExtensionResourcePaths(
+				(resources.promptPaths ?? []).map((path) => ({ path, extensionOwner, extensionPath })),
+			),
+			skillPaths: this.buildExtensionResourcePaths(
+				(resources.skillPaths ?? []).map((path) => ({ path, extensionOwner, extensionPath })),
+			),
+		});
+		this._baseSystemPrompt = this._rebuildSystemPrompt(this.getActiveToolNames());
+		this.agent.state.systemPrompt = this._baseSystemPrompt;
+		this._emit({ type: "resources_changed" });
 	}
 
 	/**
@@ -2444,35 +2477,41 @@ export class AgentSession {
 			return;
 		}
 
-		const { skillPaths, promptPaths, themePaths } = await this._extensionRunner.emitResourcesDiscover(
-			this._cwd,
-			reason,
-		);
+		const { skillPaths, promptPaths, themePaths, extensionOwners } =
+			await this._extensionRunner.emitResourcesDiscover(this._cwd, reason);
 
-		if (skillPaths.length === 0 && promptPaths.length === 0 && themePaths.length === 0) {
-			return;
+		for (const entry of extensionOwners) {
+			if (entry.byzWorkflowOwner) {
+				this._resourceLoader.registerByzWorkflowResourceOwner?.(entry.extensionOwner);
+			}
 		}
-
-		const extensionPaths: ResourceExtensionPaths = {
-			skillPaths: this.buildExtensionResourcePaths(skillPaths),
-			promptPaths: this.buildExtensionResourcePaths(promptPaths),
-			themePaths: this.buildExtensionResourcePaths(themePaths),
-		};
-
-		this._resourceLoader.extendResources(extensionPaths);
+		const hasResources = skillPaths.length > 0 || promptPaths.length > 0 || themePaths.length > 0;
+		if (hasResources) {
+			const extensionPaths: ResourceExtensionPaths = {
+				skillPaths: this.buildExtensionResourcePaths(skillPaths),
+				promptPaths: this.buildExtensionResourcePaths(promptPaths),
+				themePaths: this.buildExtensionResourcePaths(themePaths),
+			};
+			this._resourceLoader.extendResources(extensionPaths);
+		}
+		if (!hasResources) return;
 		this._baseSystemPrompt = this._rebuildSystemPrompt(this.getActiveToolNames());
 		this.agent.state.systemPrompt = this._baseSystemPrompt;
 	}
 
-	private buildExtensionResourcePaths(entries: Array<{ path: string; extensionPath: string }>): Array<{
+	private buildExtensionResourcePaths(
+		entries: Array<{ path: string; extensionOwner: string; extensionPath: string }>,
+	): Array<{
 		path: string;
 		metadata: { source: string; scope: "temporary"; origin: "top-level"; baseDir?: string };
+		owner: string;
 	}> {
 		return entries.map((entry) => {
 			const source = this.getExtensionSourceLabel(entry.extensionPath);
 			const baseDir = entry.extensionPath.startsWith("<") ? undefined : dirname(entry.extensionPath);
 			return {
 				path: entry.path,
+				owner: entry.extensionOwner,
 				metadata: {
 					source,
 					scope: "temporary",
@@ -2594,7 +2633,7 @@ export class AgentSession {
 			{
 				getModel: () => this.model,
 				getScopedModels: () => this._scopedModels,
-				isIdle: () => this.isIdle,
+				isIdle: () => this.isIdle && !this.isCompacting,
 				isProjectTrusted: () => this.settingsManager.isProjectTrusted(),
 				getSignal: () => this.agent.signal,
 				abort: () => {
@@ -2622,6 +2661,8 @@ export class AgentSession {
 				},
 				getSystemPrompt: () => this.systemPrompt,
 				getSystemPromptOptions: () => this._baseSystemPromptOptions,
+				replaceByzWorkflowResources: (extensionOwner, extensionPath, resources) =>
+					this.replaceByzWorkflowResources(extensionOwner, extensionPath, resources),
 			},
 			{
 				registerProvider: (name, config) => {

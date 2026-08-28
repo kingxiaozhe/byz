@@ -71,6 +71,17 @@ byz --workflow cm-plugin
 byz --workflow none
 ```
 
+Inside an interactive BYZ session, switch the active workflow without starting a new conversation:
+
+```text
+/workflow
+/workflow cm
+/workflow cm-plugin
+/workflow none
+```
+
+The switch replaces only BYZ-managed skills and prompts in place; it does not call the model or reload unrelated extensions. BYZ validates the target first and rejects switching while the agent is running.
+
 CM and CM Plugin use separate package roots, and BYZ does not cross-load them. See the [full workflow reference](./packages/byz/README.md#workflows) for development overrides.
 
 

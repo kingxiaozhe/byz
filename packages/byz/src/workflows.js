@@ -2,6 +2,7 @@ import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadSkillsFromDir } from "./runtime/bundle/index.js";
+import { getActiveByzOptionIndexes } from "./workflow-switch.js";
 
 const lockPath = fileURLToPath(new URL("../workflows.lock.json", import.meta.url));
 const packageDir = dirname(lockPath);
@@ -175,6 +176,7 @@ function printStatus(status) {
 
 export function parseWorkflowOption(args) {
 	const forwardedArgs = [];
+	const activeWorkflowOptions = getActiveByzOptionIndexes(args, "workflow");
 	let selected;
 	for (let index = 0; index < args.length; index++) {
 		const arg = args[index];
@@ -182,14 +184,14 @@ export function parseWorkflowOption(args) {
 			forwardedArgs.push(...args.slice(index));
 			break;
 		}
-		if (arg === "--workflow") {
+		if (arg === "--workflow" && activeWorkflowOptions.has(index)) {
 			if (selected !== undefined) throw new Error("--workflow may only be specified once.");
 			const value = args[++index];
 			if (!value || value.startsWith("-")) throw new Error("--workflow requires cm, cm-plugin, or none.");
 			selected = value;
 			continue;
 		}
-		if (arg.startsWith("--workflow=")) {
+		if (arg.startsWith("--workflow=") && activeWorkflowOptions.has(index)) {
 			if (selected !== undefined) throw new Error("--workflow may only be specified once.");
 			selected = arg.slice("--workflow=".length);
 			continue;
@@ -203,24 +205,31 @@ export function parseWorkflowOption(args) {
 	return { forwardedArgs, workflowId };
 }
 
-export async function prepareWorkflowRuntimeArgs(args, options = {}) {
-	const { forwardedArgs, workflowId } = parseWorkflowOption(args);
-	if (options.load === false || workflowId === "none") {
-		return { args: forwardedArgs, workflowId };
+export async function resolveWorkflowRuntimeResources(workflowId, args = []) {
+	if (workflowId === "none") {
+		return { promptPaths: [], skillPaths: [] };
 	}
 
 	const status = await checkWorkflow(await getWorkflow(workflowId));
-	const terminatorIndex = forwardedArgs.indexOf("--");
-	const optionArgs = forwardedArgs.slice(0, terminatorIndex === -1 ? forwardedArgs.length : terminatorIndex);
+	const terminatorIndex = args.indexOf("--");
+	const optionArgs = args.slice(0, terminatorIndex === -1 ? args.length : terminatorIndex);
 	const noSkills = optionArgs.some((arg) => arg === "--no-skills" || arg === "-ns");
 	const noPrompts = optionArgs.some((arg) => arg === "--no-prompt-templates" || arg === "-np");
-	const workflowArgs = [];
-	if (!noSkills) {
-		workflowArgs.push(...status.skillsPaths.flatMap((skillPath) => ["--skill", resolve(status.root, skillPath)]));
+	return {
+		promptPaths: noPrompts ? [] : [resolve(status.root, status.promptsPath)],
+		skillPaths: noSkills ? [] : status.skillsPaths.map((skillPath) => resolve(status.root, skillPath)),
+	};
+}
+
+export async function prepareWorkflowRuntimeArgs(args, options = {}) {
+	const { forwardedArgs, workflowId } = parseWorkflowOption(args);
+	if (options.load === false) {
+		return { args: forwardedArgs, workflowId };
 	}
-	if (!noPrompts) {
-		workflowArgs.push("--prompt-template", resolve(status.root, status.promptsPath));
-	}
+
+	const resources = await resolveWorkflowRuntimeResources(workflowId, forwardedArgs);
+	const workflowArgs = resources.skillPaths.flatMap((skillPath) => ["--skill", skillPath]);
+	workflowArgs.push(...resources.promptPaths.flatMap((promptPath) => ["--prompt-template", promptPath]));
 	return {
 		workflowId,
 		args: [...workflowArgs, ...forwardedArgs],
