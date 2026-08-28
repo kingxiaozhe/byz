@@ -1216,6 +1216,10 @@ export interface RegisteredCommand {
 
 export interface ResolvedCommand extends RegisteredCommand {
 	invocationName: string;
+	/** Stable runtime identity of the extension that owns this command. */
+	ownerId: string;
+	/** Internal capability marker for the dedicated BYZ workflow extension. */
+	byzWorkflowOwner: boolean;
 }
 
 // ============================================================================
@@ -1699,6 +1703,11 @@ export interface ExtensionContextActions {
 	compact: (options?: CompactOptions) => void;
 	getSystemPrompt: () => string;
 	getSystemPromptOptions?: () => BuildSystemPromptOptions;
+	replaceByzWorkflowResources?: (
+		extensionOwner: string,
+		extensionPath: string,
+		resources: ResourcesDiscoverResult,
+	) => Promise<void>;
 }
 
 /**
@@ -1738,6 +1747,8 @@ export interface Extension {
 	path: string;
 	resolvedPath: string;
 	hidden?: boolean;
+	/** Set only by the dedicated BYZ workflow factory loading path. */
+	byzWorkflow?: boolean;
 	sourceInfo: SourceInfo;
 	handlers: Map<string, HandlerFn[]>;
 	tools: Map<string, RegisteredTool>;

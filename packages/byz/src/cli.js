@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 
+import { prepareFastRuntimeArgs } from "./fast.js";
 import { main } from "./runtime/bundle/index.js";
 import { handleByzUpdate } from "./update.js";
+import { createWorkflowSwitchExtension, shouldEnableWorkflowSwitch, shouldLoadWorkflow } from "./workflow-switch.js";
 import {
-	getWorkflowInstallRequest,
 	handleWorkflowCommand,
-	installWorkflowPackage,
 	parseWorkflowOption,
 	prepareWorkflowRuntimeArgs,
+	resolveWorkflowRuntimeResources,
 } from "./workflows.js";
 
 process.title = "byz";
@@ -19,35 +20,51 @@ process.env.PI_TELEMETRY = "0";
 
 const args = process.argv.slice(2);
 
-function shouldLoadWorkflow(runtimeArgs) {
-	const terminatorIndex = runtimeArgs.indexOf("--");
-	const optionArgs = runtimeArgs.slice(0, terminatorIndex === -1 ? runtimeArgs.length : terminatorIndex);
-	if (optionArgs.some((arg) => ["--help", "-h", "--version", "-v", "--export", "--list-models"].includes(arg))) {
-		return false;
-	}
-	return !["auth", "config", "install", "list", "remove", "uninstall", "update"].includes(optionArgs[0]);
-}
-
 try {
-	const parsedWorkflow = parseWorkflowOption(args);
+	const fastRuntime = prepareFastRuntimeArgs(args);
+	const parsedWorkflow = parseWorkflowOption(fastRuntime.commandArgs);
 	const commandArgs = parsedWorkflow.forwardedArgs;
 	const isRootHelp = commandArgs.length === 1 && (commandArgs[0] === "--help" || commandArgs[0] === "-h");
 	if (isRootHelp) {
 		console.error("BYZ updates: byz update (npm-managed global installations only)");
+		console.error("BYZ Fast: --fast (thinking=low; optional model: BYZ_FAST_MODEL)");
 		console.error("BYZ workflows: --workflow <cm|cm-plugin|none> (default: BYZ_WORKFLOW or cm)");
-		console.error("Commands: byz workflow <list|status|check|install> [cm|cm-plugin]");
+		console.error(
+			"Commands: byz workflow list | byz workflow status [cm|cm-plugin|none] | byz workflow check <cm|cm-plugin>",
+		);
 	}
 
-	const installRequest = await getWorkflowInstallRequest(commandArgs);
-	if (installRequest) {
-		await installWorkflowPackage(installRequest);
-	} else if (await handleWorkflowCommand(commandArgs)) {
+	if (await handleWorkflowCommand(commandArgs, { workflowId: parsedWorkflow.workflowId })) {
 		// BYZ-owned command handled without starting the Pi runtime.
 	} else if (await handleByzUpdate(commandArgs)) {
 		// BYZ release metadata and package target stay independent from Pi.
 	} else {
-		const prepared = await prepareWorkflowRuntimeArgs(args, { load: shouldLoadWorkflow(commandArgs) });
-		await main(prepared.args);
+		const loadWorkflow = shouldLoadWorkflow(commandArgs);
+		const runtimeArgs = loadWorkflow ? fastRuntime.args : fastRuntime.commandArgs;
+		const isInteractive = shouldEnableWorkflowSwitch(commandArgs, {
+			stdinIsTTY: process.stdin.isTTY,
+			stdoutIsTTY: process.stdout.isTTY,
+		});
+		if (fastRuntime.enabled && loadWorkflow && isInteractive) {
+			console.error(
+				`BYZ Fast: model=${fastRuntime.model}, thinking=${fastRuntime.thinking}, workflow=${parsedWorkflow.workflowId}`,
+			);
+		}
+
+		if (loadWorkflow && isInteractive) {
+			const parsedRuntimeWorkflow = parseWorkflowOption(runtimeArgs);
+			const resolveResources = (workflowId) =>
+				resolveWorkflowRuntimeResources(workflowId, parsedRuntimeWorkflow.forwardedArgs);
+			const workflowExtension = createWorkflowSwitchExtension({
+				initialResources: await resolveResources(parsedRuntimeWorkflow.workflowId),
+				initialWorkflowId: parsedRuntimeWorkflow.workflowId,
+				resolveResources,
+			});
+			await main(parsedRuntimeWorkflow.forwardedArgs, { byzWorkflowExtensionFactory: workflowExtension });
+		} else {
+			const prepared = await prepareWorkflowRuntimeArgs(runtimeArgs, { load: loadWorkflow });
+			await main(prepared.args);
+		}
 	}
 } catch (error) {
 	console.error(error instanceof Error ? error.message : String(error));

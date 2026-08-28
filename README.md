@@ -36,7 +36,7 @@ byz workflow check cm
 byz
 ```
 
-BYZ stores its user configuration under `.byz`, not `.pi`. The public CM Workflow is bundled and selected by default, so there is no separate workflow installation step for the normal path.
+BYZ stores its user configuration under `.byz`, not `.pi`. CM and CM Plugin are bundled, so neither workflow has a separate installation step.
 
 ## What BYZ handles
 
@@ -74,26 +74,31 @@ BYZ loads at most one managed workflow per session:
 | Selection | Availability | Behavior |
 | --- | --- | --- |
 | `cm` | Public and bundled | Default; uses the CM version shipped by the installed BYZ release |
-| `cm-plugin` | Private and opt-in | Installed separately from an authorized, commit-pinned source; never bundled publicly |
+| `cm-plugin` | Public, bundled, and opt-in | Uses the CM Plugin version shipped by BYZ; selected explicitly |
 | `none` | Always available | Starts the base runtime without a managed workflow |
 
 ```bash
 byz workflow list
 byz workflow check cm
+byz workflow check cm-plugin
 byz --workflow cm
+byz --workflow cm-plugin
 byz --workflow none
 ```
 
-Authorized CM Plugin users can install and select it explicitly:
+Inside an interactive BYZ session, switch the active workflow without starting a new conversation:
 
-```bash
-export BYZ_CM_PLUGIN_WORKFLOW_SOURCE='git:git@github.com:OWNER/PRIVATE_REPO@<40-character-commit-sha>'
-byz workflow install cm-plugin
-byz workflow check cm-plugin
-byz --workflow cm-plugin
+```text
+/workflow
+/workflow cm
+/workflow cm-plugin
+/workflow none
 ```
 
-CM and CM Plugin use separate package roots. BYZ does not cross-load them, and the public package never stores the private repository identity. See the [full workflow reference](./packages/byz/README.md#workflows) for the private installation contract and development overrides.
+The switch replaces only BYZ-managed skills and prompts in place; it does not call the model or reload unrelated extensions. BYZ validates the target first and rejects switching while the agent is running.
+
+CM and CM Plugin use separate package roots, and BYZ does not cross-load them. See the [full workflow reference](./packages/byz/README.md#workflows) for development overrides.
+
 
 ## One update path
 
@@ -109,13 +114,13 @@ byz update
 
 Each BYZ release selects its compatible CM version, CM Plugin contract, and Pi baseline. Maintainers change those selections while developing a new BYZ version; users receive the resulting set through the next BYZ release. There is no end-user workflow-only update or rollback command.
 
-Current `0.1.1` release contract:
+Release contract in this source tree:
 
 | Component | Selected version | Distribution |
 | --- | --- | --- |
-| BYZ | `0.1.1` | Public npm package |
+| BYZ | See `packages/byz/package.json` | Public npm package |
 | CM Workflow | `0.10.4` | Bundled with BYZ |
-| CM Plugin Workflow | `0.5.0` contract | Private, opt-in install |
+| CM Plugin Workflow | `0.5.0` | Bundled with BYZ |
 | Pi coding-agent baseline | `0.84.3` | Pinned source foundation |
 
 ## Built on Pi
@@ -140,7 +145,7 @@ npm --prefix packages/byz test
 npm run check
 ```
 
-Maintainer-only operations for synchronizing CM, recording the CM Plugin contract, upgrading the Pi baseline, and releasing BYZ are documented in [`packages/byz/README.md`](./packages/byz/README.md). Those commands inspect or prepare repository changes; they do not give end users independent workflow update channels.
+Maintainer-only operations for synchronizing CM and CM Plugin, upgrading the Pi baseline, and releasing BYZ are documented in [`packages/byz/README.md`](./packages/byz/README.md). Those commands inspect or prepare repository changes; they do not give end users independent workflow update channels.
 
 Before contributing, read [`CONTRIBUTING.md`](./CONTRIBUTING.md) and the repository's [`AGENTS.md`](./AGENTS.md).
 

@@ -35,7 +35,7 @@ byz workflow check cm
 byz
 ```
 
-BYZ 将用户配置保存在 `.byz`，而不是 `.pi`。公开的 CM Workflow 已内置并默认启用，因此常规使用不需要单独安装工作流。
+BYZ 将用户配置保存在 `.byz`，而不是 `.pi`。CM 和 CM Plugin 都已内置，因此两个工作流都不需要单独安装。
 
 ## BYZ 帮你处理什么
 
@@ -59,26 +59,31 @@ BYZ 有意保持为一层轻量的产品封装。它并不试图替代所有工�
 | 选择 | 可用方式 | 行为 |
 | --- | --- | --- |
 | `cm` | 公开并内置 | 默认选项；使用当前 BYZ 版本附带的 CM 版本 |
-| `cm-plugin` | 私有并按需启用 | 从已授权、固定到具体提交的来源单独安装；绝不会包含在公开包中 |
+| `cm-plugin` | 公开内置，按需启用 | 使用当前 BYZ 版本附带的 CM Plugin 版本；需要显式选择 |
 | `none` | 始终可用 | 不加载托管工作流，只启动基础运行时 |
 
 ```bash
 byz workflow list
 byz workflow check cm
+byz workflow check cm-plugin
 byz --workflow cm
+byz --workflow cm-plugin
 byz --workflow none
 ```
 
-获得授权的 CM Plugin 用户可以显式安装并选择它：
+进入 BYZ 交互会话后，可以在不新建对话的情况下切换当前工作流：
 
-```bash
-export BYZ_CM_PLUGIN_WORKFLOW_SOURCE='git:git@github.com:OWNER/PRIVATE_REPO@<40-character-commit-sha>'
-byz workflow install cm-plugin
-byz workflow check cm-plugin
-byz --workflow cm-plugin
+```text
+/workflow
+/workflow cm
+/workflow cm-plugin
+/workflow none
 ```
 
-CM 和 CM Plugin 使用各自独立的包目录。BYZ 不会交叉加载它们，公开包也不会保存私有仓库地址。私有安装合同和本地开发覆盖方式请参阅[完整工作流参考](./packages/byz/README.md#workflows)。
+切换只会在当前会话内替换 BYZ 管理的 skills 和 prompts，不会调用模型，也不会重载无关扩展。BYZ 会先验证目标工作流；智能体正在运行时会拒绝切换。
+
+CM 和 CM Plugin 使用各自独立的包目录，BYZ 不会交叉加载它们。本地开发覆盖方式请参阅[完整工作流参考](./packages/byz/README.md#workflows)。
+
 
 ## 统一更新入口
 
@@ -94,13 +99,13 @@ byz update
 
 每个 BYZ 版本都会选择与之兼容的 CM 版本、CM Plugin 合同和 Pi 基线。维护者只在开发新 BYZ 版本时调整这些选择；用户通过下一个 BYZ 版本一次性获得完整组合。BYZ 不向最终用户提供只更新或回滚工作流的命令。
 
-当前 `0.1.1` 版本合同：
+当前源码树的发版合同：
 
 | 组件 | 选定版本 | 分发方式 |
 | --- | --- | --- |
-| BYZ | `0.1.1` | 公开 npm 包 |
+| BYZ | 见 `packages/byz/package.json` | 公开 npm 包 |
 | CM Workflow | `0.10.4` | 内置于 BYZ |
-| CM Plugin Workflow | `0.5.0` 合同 | 私有，按需安装 |
+| CM Plugin Workflow | `0.5.0` | 内置于 BYZ |
 | Pi coding-agent 基线 | `0.84.3` | 固定的源码基座 |
 
 ## 基于 Pi 构建
@@ -125,7 +130,7 @@ npm --prefix packages/byz test
 npm run check
 ```
 
-同步 CM、记录 CM Plugin 合同、升级 Pi 基线和发布 BYZ 都属于维护者操作，具体说明见 [`packages/byz/README.md`](./packages/byz/README.md)。这些命令只检查或准备仓库变更，不会为最终用户提供独立的工作流更新通道。
+同步 CM 和 CM Plugin、升级 Pi 基线和发布 BYZ 都属于维护者操作，具体说明见 [`packages/byz/README.md`](./packages/byz/README.md)。这些命令只检查或准备仓库变更，不会为最终用户提供独立的工作流更新通道。
 
 参与贡献前，请阅读 [`CONTRIBUTING.md`](./CONTRIBUTING.md) 和仓库的 [`AGENTS.md`](./AGENTS.md)。
 

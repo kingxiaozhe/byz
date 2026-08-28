@@ -515,4 +515,19 @@ describe("AgentSession model and extension characterization", () => {
 
 		expect(lifecycleEvents).toEqual(["start:startup", "shutdown:reload", "start:reload"]);
 	});
+
+	it("reports extension command context as busy during compaction", async () => {
+		const harness = await createHarness();
+		harnesses.push(harness);
+		let idleDuringCompaction: boolean | undefined;
+		harness.session.subscribe((event) => {
+			if (event.type === "compaction_start") {
+				idleDuringCompaction = harness.session.extensionRunner.createCommandContext().isIdle();
+			}
+		});
+
+		await expect(harness.session.compact()).rejects.toThrow("Nothing to compact");
+
+		expect(idleDuringCompaction).toBe(false);
+	});
 });

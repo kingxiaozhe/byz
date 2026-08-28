@@ -4,9 +4,9 @@ BYZ is a business-first coding agent by Zero, built on the Pi coding-agent
 runtime. The command is `byz`; user configuration is stored under `.byz` rather
 than `.pi`.
 
-Status: initial public release. The public `cm-workflow` package is bundled and
-loaded by default. The private `cm-plugin-workflow` package remains separately
-installed and is available only to users with repository access.
+Status: initial public release. `cm-workflow` and `cm-plugin-workflow` are
+locked to full Git commits and bundled as independent workflow roots. CM loads
+by default; CM Plugin loads only when explicitly selected.
 
 ## Install and update
 
@@ -27,37 +27,55 @@ byz update
 
 This command updates only `@aibyzero/byz`. It never calls Pi's release channel,
 promotes the Pi source baseline, or updates workflow packages independently.
-When a new public CM version is accepted into BYZ, it ships in a new BYZ
+When a new CM or CM Plugin version is accepted into BYZ, it ships in a new BYZ
 version. Users receive it through the same `byz update` command.
 
 Workflows do not have an end-user update or rollback command. Every BYZ release
 selects one CM version and one compatible CM Plugin version; users run the
 versions selected by their installed BYZ release.
 
+## Fast mode
+
+Use Fast mode for lower-latency, lower-token everyday work without removing the
+selected workflow's skills, prompts, context, or quality gates:
+
+```bash
+byz --fast
+byz --fast --workflow cm-plugin
+```
+
+Fast mode uses Pi's existing runtime controls and defaults thinking to `low`.
+Set an optional model once when a separate fast model is available:
+
+```bash
+export BYZ_FAST_MODEL="provider/model"
+byz --fast
+```
+
+An explicit `--model` or `--thinking` option always wins. Continuing or resuming
+an existing session keeps that session's model and applies the Fast thinking
+default. Normal `byz` runs ignore `BYZ_FAST_MODEL` and remain unchanged.
+
 ## Workflows
 
 ```bash
 byz workflow list
 byz workflow check cm
+byz workflow check cm-plugin
 byz --workflow cm
+byz --workflow cm-plugin
 byz --workflow none
 ```
 
-CM Plugin stays private and is not included in the public BYZ package:
+Inside an interactive session, `/workflow` shows the active workflow.
+`/workflow cm`, `/workflow cm-plugin`, and `/workflow none` switch it in place
+without starting a new conversation or calling the model. BYZ validates the
+target before replacing its managed skills and prompts, does not reload
+unrelated extensions, and rejects switching while the agent is running.
 
-```bash
-export BYZ_CM_PLUGIN_WORKFLOW_SOURCE='git:git@github.com:OWNER/PRIVATE_REPO@<40-character-commit-sha>'
-byz workflow install cm-plugin
-byz workflow check cm-plugin
-byz --workflow cm-plugin
-```
-
-The private source is supplied by the authorized user and is never shipped in
-BYZ's public lock file. `workflow install` requires a full commit SHA and stores
-the package with Pi autoload disabled; BYZ injects it only when
-`--workflow cm-plugin` is selected. BYZ therefore loads at most one managed
-workflow per session. Local development can override package roots with
-`BYZ_CM_WORKFLOW_ROOT` or
+BYZ loads at most one workflow at a time. Users do not install, update, or roll
+back either workflow separately. Local development can override package roots
+with `BYZ_CM_WORKFLOW_ROOT` or
 `BYZ_CM_PLUGIN_WORKFLOW_ROOT`; the two roots must remain distinct.
 
 ## Development
@@ -70,9 +88,8 @@ node packages/byz/dist/cli.js --help
 ```
 
 BYZ preserves Pi's MIT-licensed runtime and records the exact upstream baseline
-in `upstream.json`. Public workflow versions, source commits, licenses, and
-bundle boundaries are recorded in `workflows.lock.json`. Private source identity
-stays in the authorized user's `.byz` package configuration.
+in `upstream.json`. Workflow versions, source commits, licenses, and bundle
+boundaries are recorded in `workflows.lock.json`.
 
 Repository maintainers inspect a clean workflow checkout, then explicitly apply
 its version and Pi resource manifest to the next BYZ release branch:
@@ -86,9 +103,8 @@ npm run byz:sync-cm-plugin -- --root /path/to/cm-plugin-workflow --apply
 ```
 
 These repository commands never commit, push, open a pull request, tag, or
-publish. The CM command refreshes the root lockfile with lifecycle scripts
-disabled. The private CM Plugin command writes only its public-safe version and
-resource contract; it never persists the private checkout path or source.
+publish. Both commands refresh the root lockfile with lifecycle scripts
+disabled and pin the selected workflow to its full Git commit.
 
 ## Releasing BYZ
 

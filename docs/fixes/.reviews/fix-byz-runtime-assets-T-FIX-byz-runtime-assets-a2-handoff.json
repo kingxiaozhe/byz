@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "task_id": "T-FIX-byz-runtime-assets",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    ".github/workflows/byz-release.yml",
+    "docs/fixes/.reviews/fix-byz-runtime-assets-cause-r1.md",
+    "docs/fixes/20260827-byz-runtime-assets.md",
+    "packages/byz/CHANGELOG.md",
+    "packages/byz/scripts/build.mjs",
+    "packages/byz/test/smoke.test.mjs",
+    "scripts/byz-packed-runtime.test.mjs"
+  ],
+  "implementation_sha256": "121839af891c3ce5fa7a848ea41e4b89d86cf10810251033fc79ee1fc48cb59d",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "26 BYZ package tests passed."
+    },
+    {
+      "command": "node --test scripts/byz-packed-runtime.test.mjs",
+      "status": "passed",
+      "evidence": "The tarball installation and HTML export regression passed locally."
+    },
+    {
+      "command": "npm run check && git diff --check",
+      "status": "passed",
+      "evidence": "Repository and diff checks completed with exit code 0 after the CI marker correction."
+    }
+  ],
+  "evidence": [
+    "GitHub CI run 33074584969 rendered the installed BYZ TUI and bundled CM resources without an asset ENOENT.",
+    "The Linux regression timed out only because ANSI styling separated the previous 'byz v' marker.",
+    "The startup marker now uses the stable post-initialization warning text 'No models available'.",
+    "No npm publication command was run."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

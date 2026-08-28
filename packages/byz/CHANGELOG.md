@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+## 0.1.5 - 2026-08-28
+
+### Fixed
+
+- Made `byz workflow status` report the effective workflow when no target is given, distinguish active and available `none` states, and avoid unrelated workflow-root checks for `none` ([#20](https://github.com/kingxiaozhe/byz/pull/20)).
+
+## 0.1.4 - 2026-08-27
+
+### Added
+
+- Added same-session `/workflow` hot switching between the bundled CM Workflow, CM Plugin Workflow, and no managed workflow while preserving conversation, model, thinking, Fast Mode, and unrelated host resources ([#18](https://github.com/kingxiaozhe/byz/pull/18)).
+
+## 0.1.3 - 2026-08-27
+
+### Added
+
+- Added opt-in Fast Mode with the complete selected workflow, `thinking=low` by default, optional `BYZ_FAST_MODEL`, and explicit model or thinking options taking precedence ([#15](https://github.com/kingxiaozhe/byz/pull/15)).
+
+### Fixed
+
+- Made BYZ's bundled workflow skills and prompts win same-name host collisions while continuing to load unrelated host resources ([#16](https://github.com/kingxiaozhe/byz/pull/16)).
+
+## 0.1.2 - 2026-08-27
+
+### Added
+
+- Bundled the pinned public CM Plugin Workflow with BYZ, keeping CM and CM Plugin independently selectable while preventing separate end-user installation or updates ([#12](https://github.com/kingxiaozhe/byz/pull/12)).
+
+### Fixed
+
+- Restored the package-root runtime assets required by the installed TUI and HTML exporter.
+
 ## 0.1.1 - 2026-08-27
 
 ### Added

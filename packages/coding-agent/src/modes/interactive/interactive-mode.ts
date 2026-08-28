@@ -3197,6 +3197,12 @@ export class InteractiveMode {
 				this.ui.requestRender();
 				break;
 
+			case "resources_changed":
+				this.setupAutocompleteProvider();
+				this.showLoadedResources({ force: false, showDiagnosticsWhenQuiet: true });
+				this.ui.requestRender();
+				break;
+
 			case "entry_appended":
 				if (event.entry.type === "custom") {
 					this.addCustomEntryToChat(event.entry);
