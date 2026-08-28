@@ -18,6 +18,7 @@
 
 <p align="center">
   <a href="#start-here">Start here</a> ·
+  <a href="#runtime-architecture">Architecture</a> ·
   <a href="#workflow-isolation">Workflows</a> ·
   <a href="#one-update-path">Updates</a> ·
   <a href="#built-on-pi">Built on Pi</a> ·
@@ -47,6 +48,20 @@ BYZ stores its user configuration under `.byz`, not `.pi`. CM and CM Plugin are 
 | Your own project configuration | An isolated `.byz` runtime boundary |
 
 BYZ is intentionally a thin product layer. It does not try to replace every tool. It provides one stable entry point and owns the compatibility decisions around that entry point.
+
+## Runtime architecture
+
+BYZ owns command routing, workflow selection, and compatibility checks. Pi provides the session, agent loop, model runtime, and tool execution underneath that product boundary.
+
+<p align="center">
+  <a href="./docs/architecture/byz-runtime-architecture.png"><img src="./docs/architecture/byz-runtime-architecture.png" alt="BYZ runtime architecture showing the main Pi execution path, isolated workflows, external model provider, and operating-system permission boundary." width="1200"></a>
+</p>
+
+<p align="center">
+  <a href="./docs/architecture/byz-runtime-architecture.png">Full-size diagram</a> ·
+  <a href="./docs/architecture/byz-runtime-architecture.html">Standalone interactive HTML</a> ·
+  <a href="./docs/architecture/byz-runtime-architecture.architecture.json">Archify source</a>
+</p>
 
 ## Workflow isolation
 
