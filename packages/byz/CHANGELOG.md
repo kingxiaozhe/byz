@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.1.3 - 2026-08-27
+
+### Added
+
+- Added opt-in Fast Mode with the complete selected workflow, `thinking=low` by default, optional `BYZ_FAST_MODEL`, and explicit model or thinking options taking precedence ([#15](https://github.com/kingxiaozhe/byz/pull/15)).
+
+### Fixed
+
+- Made BYZ's bundled workflow skills and prompts win same-name host collisions while continuing to load unrelated host resources ([#16](https://github.com/kingxiaozhe/byz/pull/16)).
+
 ## 0.1.2 - 2026-08-27
 
 ### Added
