@@ -34,6 +34,28 @@ Workflows do not have an end-user update or rollback command. Every BYZ release
 selects one CM version and one compatible CM Plugin version; users run the
 versions selected by their installed BYZ release.
 
+## Fast mode
+
+Use Fast mode for lower-latency, lower-token everyday work without removing the
+selected workflow's skills, prompts, context, or quality gates:
+
+```bash
+byz --fast
+byz --fast --workflow cm-plugin
+```
+
+Fast mode uses Pi's existing runtime controls and defaults thinking to `low`.
+Set an optional model once when a separate fast model is available:
+
+```bash
+export BYZ_FAST_MODEL="provider/model"
+byz --fast
+```
+
+An explicit `--model` or `--thinking` option always wins. Continuing or resuming
+an existing session keeps that session's model and applies the Fast thinking
+default. Normal `byz` runs ignore `BYZ_FAST_MODEL` and remain unchanged.
+
 ## Workflows
 
 ```bash
