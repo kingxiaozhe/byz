@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "task_id": "T-FIX-fireworks-model-data-drift",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "docs/fixes/20260828-fireworks-model-data-drift.md",
+    "packages/ai/test/fireworks-models.test.ts"
+  ],
+  "implementation_sha256": "4b2cc214483c34b0105f4d10a10fee637919cf53fb7281cd02a2318f92089b2d",
+  "verification": [
+    {
+      "command": "npm run build:byz",
+      "status": "passed",
+      "evidence": "Hydrated the current models.dev catalog and completed the BYZ build."
+    },
+    {
+      "command": "node \"$(git rev-parse --show-toplevel)/node_modules/vitest/dist/cli.js\" --run test/fireworks-models.test.ts",
+      "status": "passed",
+      "evidence": "All 14 remaining Fireworks model and compatibility tests passed against the current catalog."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Repository checks completed with exit code 0."
+    },
+    {
+      "command": "PATH=\"/Users/zero/.pi/agent/bin:$PATH\" ./test.sh",
+      "status": "passed",
+      "evidence": "The complete repository regression completed with exit code 0."
+    }
+  ],
+  "evidence": [
+    "GitHub Actions run 33136540944 failed only at packages/ai/test/fireworks-models.test.ts:45 after current model-data hydration.",
+    "The failing assertion expected an accounts/fireworks/routers/*-turbo entry that the current upstream catalog no longer supplies.",
+    "PR #16's BYZ packed-runtime regression, build, and static checks passed before this independent model-data failure.",
+    "git diff --check completed with exit code 0."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}
