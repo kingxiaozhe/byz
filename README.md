@@ -20,6 +20,7 @@
   <a href="#start-here">Start here</a> ·
   <a href="#runtime-architecture">Architecture</a> ·
   <a href="#fast-mode">Fast mode</a> ·
+  <a href="#prewalk">Prewalk</a> ·
   <a href="#workflow-isolation">Workflows</a> ·
   <a href="#one-update-path">Updates</a> ·
   <a href="#built-on-pi">Built on Pi</a> ·
@@ -62,6 +63,18 @@ Start in Fast mode with `byz --fast`, or switch it in the current interactive se
 ```
 
 Fast keeps the active workflow and defaults thinking to `low`. If `BYZ_FAST_MODEL=provider/model` is configured, Fast also uses that authenticated model. Turning Fast off restores the model and thinking captured when it was enabled. Explicit model or thinking selections always win and exit Fast; state changes are rejected while the agent is running. See the [full Fast reference](./packages/byz/README.md#fast-mode) for startup and failure behavior.
+
+## Prewalk
+
+Prewalk lets the current model understand the task and complete the first successful workspace edit before handing the same conversation to the Fast target:
+
+```text
+/prewalk
+/prewalk status
+/prewalk cancel
+```
+
+Prewalk is explicit and one-shot. It triggers only after a successful built-in `edit` or `write` whose real target remains inside the trusted project. Read-only tools, failed writes, overridden tools, symlink escapes, and workspace-external paths do not trigger it. The handoff reuses `BYZ_FAST_MODEL` when configured and always requests `thinking=low`; it does not create another session, planning pass, or workflow. Explicit model/thinking changes cancel an armed Prewalk, and Prewalk refuses to arm while Fast is already active.
 
 ## Runtime architecture
 

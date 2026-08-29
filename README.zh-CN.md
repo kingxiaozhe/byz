@@ -19,6 +19,7 @@
 <p align="center">
   <a href="#快速开始">快速开始</a> ·
   <a href="#fast-mode">Fast Mode</a> ·
+  <a href="#prewalk">Prewalk</a> ·
   <a href="#工作流隔离">工作流</a> ·
   <a href="#统一更新入口">更新</a> ·
   <a href="#基于-pi-构建">基于 Pi 构建</a> ·
@@ -61,6 +62,18 @@ BYZ 有意保持为一层轻量的产品封装。它并不试图替代所有工�
 ```
 
 Fast 会保留当前工作流，并默认将 thinking 调整为 `low`。如果配置了已授权的 `BYZ_FAST_MODEL=provider/model`，Fast 也会切换到该模型。关闭 Fast 时，BYZ 会恢复开启前记录的模型和 thinking。用户显式选择模型或 thinking 时，用户选择优先并退出 Fast；智能体正在运行时会拒绝切换。启动参数和失败边界详见 [Fast 完整参考](./packages/byz/README.md#fast-mode)。
+
+## Prewalk
+
+Prewalk 让当前模型先理解任务并完成第一次成功的工作区写入，再把同一段对话一次性交给 Fast 目标继续执行：
+
+```text
+/prewalk
+/prewalk status
+/prewalk cancel
+```
+
+Prewalk 需要显式武装，而且只触发一次。只有 Pi 内置 `edit` 或 `write` 成功、且目标真实路径仍位于可信项目内时才会交接；读取工具、失败写入、同名覆盖工具、符号链接逃逸和工作区外路径都不会触发。交接复用已配置的 `BYZ_FAST_MODEL`，并请求 `thinking=low`；它不会新建会话、额外规划或更换工作流。用户显式切换模型或 thinking 会取消已武装的 Prewalk，Fast 已开启时也不能武装。
 
 ## 工作流隔离
 

@@ -73,6 +73,22 @@ or thinking level exits Fast and keeps that explicit choice. BYZ rejects Fast
 state changes while the agent is running, and an unavailable or unauthenticated
 configured model leaves the current state unchanged.
 
+## Prewalk
+
+Arm a one-time handoff when the current model should understand the task and perform the first successful workspace edit before Fast continues:
+
+```text
+/prewalk
+/prewalk status
+/prewalk cancel
+```
+
+`/prewalk` is available only in an interactive, trusted, idle session. It resolves and authenticates the same target used by Fast before arming. If `BYZ_FAST_MODEL` is unset, the current authenticated model remains selected and only thinking changes to `low` after the handoff.
+
+Only the first successful Pi built-in `edit` or `write` whose real target remains inside the current workspace consumes the armed state. Read-only tools, failed writes, extension tools with the same name, and file or directory symlink escapes do not trigger it. Parallel tool results are checked serially and can consume the state only once.
+
+Prewalk preserves the current conversation, session, workflow, skills, prompts, and tools. It does not add another model call for planning. An explicit model or thinking selection cancels an armed Prewalk and keeps the user's choice. Enabling Fast also cancels it; Prewalk refuses to arm when Fast is already active.
+
 ## Workflows
 
 ```bash

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { createFastSwitchExtension, prepareFastRuntimeArgs, selectFastRuntimeArgs } from "./fast.js";
+import { createFastSessionController, prepareFastRuntimeArgs, selectFastRuntimeArgs } from "./fast.js";
+import { createPrewalkExtension } from "./prewalk.js";
 import { main } from "./runtime/bundle/index.js";
 import { handleByzUpdate } from "./update.js";
 import { createWorkflowSwitchExtension, shouldEnableWorkflowSwitch, shouldLoadWorkflow } from "./workflow-switch.js";
@@ -28,6 +29,7 @@ try {
 	if (isRootHelp) {
 		console.error("BYZ updates: byz update (npm-managed global installations only)");
 		console.error("BYZ Fast: --fast (thinking=low; optional model: BYZ_FAST_MODEL)");
+		console.error("BYZ Prewalk: /prewalk (one-time handoff after the first successful workspace edit/write)");
 		console.error("BYZ workflows: --workflow <cm|cm-plugin|none> (default: BYZ_WORKFLOW or cm)");
 		console.error(
 			"Commands: byz workflow list | byz workflow status [cm|cm-plugin|none] | byz workflow check <cm|cm-plugin>",
@@ -60,14 +62,16 @@ try {
 				initialWorkflowId: parsedRuntimeWorkflow.workflowId,
 				resolveResources,
 			});
-			const fastExtension = createFastSwitchExtension({
+			const fastController = createFastSessionController({
 				initiallyEnabled: fastRuntime.enabled,
 				initialUseConfiguredModel: fastRuntime.useConfiguredModel,
 				initialUseLowThinking: fastRuntime.useLowThinking,
 			});
+			const prewalkExtension = createPrewalkExtension({ fastController });
 			const byzExtension = (pi) => {
 				workflowExtension(pi);
-				fastExtension(pi);
+				fastController.extension(pi);
+				prewalkExtension(pi);
 			};
 			await main(parsedRuntimeWorkflow.forwardedArgs, { byzWorkflowExtensionFactory: byzExtension });
 		} else {
