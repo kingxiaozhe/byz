@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { prepareFastRuntimeArgs } from "../dist/fast.js";
+import { prepareFastRuntimeArgs, selectFastRuntimeArgs } from "../dist/fast.js";
 import { CONFIG_DIR_NAME } from "../dist/runtime/bundle/index.js";
 import { prepareWorkflowRuntimeArgs } from "../dist/workflows.js";
 
@@ -90,6 +90,24 @@ test("applies Fast defaults without removing workflow resources", async () => {
 	assert.deepEqual(prepared.args.slice(-6), ["--model", "openai/example-fast", "--thinking", "low", "--mode", "rpc"]);
 });
 
+test("defers Fast defaults to the extension only for interactive sessions", () => {
+	const fast = prepareFastRuntimeArgs(["--fast", "--workflow", "cm"], {
+		BYZ_FAST_MODEL: "openai/example-fast",
+	});
+
+	assert.deepEqual(selectFastRuntimeArgs(fast, { isInteractive: true, loadWorkflow: true }), ["--workflow", "cm"]);
+	assert.deepEqual(selectFastRuntimeArgs(fast, { isInteractive: false, loadWorkflow: true }), [
+		"--model",
+		"openai/example-fast",
+		"--thinking",
+		"low",
+		"--workflow",
+		"cm",
+	]);
+	assert.equal(fast.useConfiguredModel, true);
+	assert.equal(fast.useLowThinking, true);
+});
+
 test("gives explicit model and thinking options priority over Fast defaults", () => {
 	const prepared = prepareFastRuntimeArgs(
 		["--fast", "--model", "anthropic/explicit", "--thinking", "medium", "prompt"],
@@ -99,6 +117,8 @@ test("gives explicit model and thinking options priority over Fast defaults", ()
 	assert.deepEqual(prepared.args, ["--model", "anthropic/explicit", "--thinking", "medium", "prompt"]);
 	assert.equal(prepared.model, "anthropic/explicit");
 	assert.equal(prepared.thinking, "medium");
+	assert.equal(prepared.useConfiguredModel, false);
+	assert.equal(prepared.useLowThinking, false);
 });
 
 test("preserves an explicit thinking suffix on the selected model", () => {
@@ -117,6 +137,8 @@ test("keeps the saved model when Fast resumes an existing session", () => {
 			BYZ_FAST_MODEL: "openai/example-fast",
 		});
 		assert.equal(prepared.model, "session");
+		assert.equal(prepared.useConfiguredModel, false);
+		assert.equal(prepared.useLowThinking, true);
 		assert.ok(!prepared.args.includes("openai/example-fast"));
 		assert.deepEqual(prepared.args.slice(0, 2), ["--thinking", "low"]);
 	}

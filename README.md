@@ -19,6 +19,7 @@
 <p align="center">
   <a href="#start-here">Start here</a> ·
   <a href="#runtime-architecture">Architecture</a> ·
+  <a href="#fast-mode">Fast mode</a> ·
   <a href="#workflow-isolation">Workflows</a> ·
   <a href="#one-update-path">Updates</a> ·
   <a href="#built-on-pi">Built on Pi</a> ·
@@ -48,6 +49,19 @@ BYZ stores its user configuration under `.byz`, not `.pi`. CM and CM Plugin are 
 | Your own project configuration | An isolated `.byz` runtime boundary |
 
 BYZ is intentionally a thin product layer. It does not try to replace every tool. It provides one stable entry point and owns the compatibility decisions around that entry point.
+
+## Fast mode
+
+Start in Fast mode with `byz --fast`, or switch it in the current interactive session without restarting or losing the conversation:
+
+```text
+/fast
+/fast on
+/fast off
+/fast status
+```
+
+Fast keeps the active workflow and defaults thinking to `low`. If `BYZ_FAST_MODEL=provider/model` is configured, Fast also uses that authenticated model. Turning Fast off restores the model and thinking captured when it was enabled. Explicit model or thinking selections always win and exit Fast; state changes are rejected while the agent is running. See the [full Fast reference](./packages/byz/README.md#fast-mode) for startup and failure behavior.
 
 ## Runtime architecture
 
