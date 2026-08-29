@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "task_id": "T-001",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [],
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "97 tests passed; Fast, Prewalk, workflow, update, CLI, smoke, and conversation tests included"
+    }
+  ],
+  "evidence": [
+    "Recorded packages/byz test baseline with 97 passing tests.",
+    "Baseline output includes Fast, Prewalk, workflow, update, CLI, smoke, and conversation coverage."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

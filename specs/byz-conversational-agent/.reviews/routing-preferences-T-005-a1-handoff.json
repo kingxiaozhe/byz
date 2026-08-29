@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "T-005",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/src/conversation/routing-policy.js",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "4813573d575e2de4e36203ce8da6a846e78f32c7c649623a78125d037bcfc8a2",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "97 tests passed"
+    }
+  ],
+  "evidence": [
+    "Covered classification, preference reset, fallback text, default-hidden details, and visible details mode in conversation tests.",
+    "Ran package regression coverage for conversation shell, Fast, Prewalk, workflow, CLI, and update tests.",
+    "Regression output passed without failures."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

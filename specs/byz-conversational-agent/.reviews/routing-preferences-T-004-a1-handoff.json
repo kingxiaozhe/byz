@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "T-004",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/src/conversation/routing-policy.js",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "4813573d575e2de4e36203ce8da6a846e78f32c7c649623a78125d037bcfc8a2",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "6 tests passed"
+    }
+  ],
+  "evidence": [
+    "Default before_agent_start route injection does not notify category or preferences.",
+    "Details mode notifies current category and active preferences.",
+    "No runtime switching APIs are called by the routing integration."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

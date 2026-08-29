@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "T-003",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/interaction-policy.js",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "221a67fec6446eb0e999f3e5329da8a61c137c1355befcaaa26412c0c0030ee7",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test; npm run check; focused adapter tests as applicable",
+      "status": "passed",
+      "evidence": "Relevant verification passed in this run"
+    }
+  ],
+  "evidence": [
+    "\u5c55\u793a\u7b56\u7565\u7eaf\u51fd\u6570\u5df2\u5b8c\u6210",
+    "Reviewed interaction policy behavior for six display states, one-shot progress, internal-term filtering, and detail bypass."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1.0",
+  "feature": "routing-preferences",
+  "cases": [
+    {
+      "id": "TC-001",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-001"],
+      "taskIds": ["T-001", "T-002", "T-005"],
+      "title": "常见任务形态被确定性分类",
+      "preconditions": [],
+      "steps": ["分别输入研究链接、创意请求、可复现缺陷、新功能和恢复请求", "读取分类结果"],
+      "expected": ["每类输入对应预期 kind", "未知请求归为 general"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-002",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-002", "AC-005"],
+      "taskIds": ["T-003", "T-004", "T-005"],
+      "title": "会话偏好即时生效且默认隐藏",
+      "preconditions": ["新建默认会话"],
+      "steps": ["输入“直接做，先给三个方向”", "请求展开细节", "重载会话"],
+      "expected": ["偏好影响本轮协作提示", "详情显示类别与偏好", "重载后恢复默认偏好"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-003",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-003"],
+      "taskIds": ["T-003", "T-004", "T-005"],
+      "title": "路由不改变底层运行时控制",
+      "preconditions": ["存在已选模型、workflow 与会话资源"],
+      "steps": ["处理每种分类和偏好组合", "检查模型、thinking、workflow、skill 与文件状态"],
+      "expected": ["底层控制均未改变", "未创建持久化文件"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-004",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-004"],
+      "taskIds": ["T-002", "T-003", "T-005"],
+      "title": "缺少资料时提供诚实降级路径",
+      "preconditions": ["研究请求缺少可访问内容或关键输入"],
+      "steps": ["分类并生成协作提示", "读取用户可见失败说明"],
+      "expected": ["说明未完成部分", "提供补充资料或替代处理路径"],
+      "cleanup": []
+    }
+  ]
+}

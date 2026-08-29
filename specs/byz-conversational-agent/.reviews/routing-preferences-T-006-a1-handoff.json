@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "task_id": "T-006",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/src/conversation/routing-policy.js",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "98e7bf6cf8e7e8ac7ecc8170916a7426bf6bff0a5441ebbb8baacfe07786f0bf",
+  "verification": [
+    {
+      "command": "tmux new-session -d -s pi-routing-tty -x 80 -y 24 './pi-test.sh' && ...",
+      "status": "passed",
+      "evidence": "80-column TTY session started; submitted 展开细节; UI rendered without crash before cleanup"
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "biome/check, pinned deps, ts imports, shrinkwrap, install lock, tsgo, and browser smoke completed"
+    },
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "6 tests passed after formatting"
+    }
+  ],
+  "evidence": [
+    "80-column TTY walkthrough completed with the BYZ interactive UI rendering.",
+    "Root npm run check completed successfully after Biome formatted the changed test import.",
+    "Conversation tests still pass after formatting."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

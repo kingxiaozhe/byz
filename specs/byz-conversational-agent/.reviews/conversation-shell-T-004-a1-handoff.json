@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "T-004",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/coding-agent/src/core/extensions/runner.ts",
+    "packages/coding-agent/src/core/extensions/types.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/modes/rpc/rpc-mode.ts"
+  ],
+  "implementation_sha256": "534b1e358c60c81d390e03934ea5000d8e756d9e27e75765cd9dbd5730873a5f",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test; npm run check; focused adapter tests as applicable",
+      "status": "passed",
+      "evidence": "Relevant verification passed in this run"
+    }
+  ],
+  "evidence": [
+    "runtime \u5c55\u793a\u548c\u786e\u8ba4\u9002\u914d\u63a5\u53e3\u5df2\u5b8c\u6210",
+    "Reviewed extension UI adapter API boundaries and fallback behavior when no presenter is registered."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

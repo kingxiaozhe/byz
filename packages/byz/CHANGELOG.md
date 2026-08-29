@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added same-session routing and collaboration preferences that classify common requests, inject minimal per-turn guidance, and show route details only on demand.
 - Added the default BYZ conversation shell with a goal-first welcome, low-noise progress, on-demand details, and natural-language confirmation input.
 
 ### Changed

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "T-010",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/test/conversation.test.mjs",
+    "packages/coding-agent/test/suite/regressions/5943-session-start-notify.test.ts"
+  ],
+  "implementation_sha256": "65f3d673d4d38839c9356f6649ed97473c21ad8622cee09cad5158c769be70b6",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test; npm run check; focused adapter tests as applicable",
+      "status": "passed",
+      "evidence": "Relevant verification passed in this run"
+    }
+  ],
+  "evidence": [
+    "conversation shell \u81ea\u52a8\u5316\u8986\u76d6\u5df2\u5b8c\u6210",
+    "Reviewed automated coverage for runtime adapter compatibility, welcome, low-noise progress, internal-term hiding, details, and confirmation prompts."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

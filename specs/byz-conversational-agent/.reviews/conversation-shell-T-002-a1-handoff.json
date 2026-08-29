@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "T-002",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/interaction-policy.js",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "221a67fec6446eb0e999f3e5329da8a61c137c1355befcaaa26412c0c0030ee7",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test; npm run check; focused adapter tests as applicable",
+      "status": "passed",
+      "evidence": "Relevant verification passed in this run"
+    }
+  ],
+  "evidence": [
+    "\u7ed3\u6784\u57fa\u51c6\u4ea4\u4e92\u6620\u5c04\u6d4b\u8bd5\u5df2\u5b8c\u6210",
+    "Reviewed tests for welcome, result, progress, failure, details, and confirmation mapping."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -1,9 +1,11 @@
 import { createInteractionPolicy, formatDecision, parseConversationControl } from "./interaction-policy.js";
+import { createRoutingPolicy } from "./routing-policy.js";
 
 const WELCOME = "BYZ\n\n你想让我帮你做什么？";
 
 export function createConversationExtension() {
 	const policy = createInteractionPolicy();
+	const routingPolicy = createRoutingPolicy();
 
 	return function conversationExtension(pi) {
 		let progressTimer;
@@ -14,6 +16,7 @@ export function createConversationExtension() {
 		}
 
 		pi.on("session_start", (_event, ctx) => {
+			routingPolicy.reset();
 			ctx.ui.setTitle?.("BYZ");
 			ctx.ui.setMessagePresenter?.((message) => policy.presentAssistantMessage(message));
 			ctx.ui.setToolExecutionVisible?.(false);
@@ -50,6 +53,7 @@ export function createConversationExtension() {
 			clearProgressTimer();
 		});
 		pi.on("session_shutdown", () => {
+			routingPolicy.reset();
 			clearProgressTimer();
 		});
 		function showDetails(ctx) {
@@ -63,7 +67,17 @@ export function createConversationExtension() {
 			handler: async (_args, ctx) => showDetails(ctx),
 		});
 		pi.on("before_agent_start", async (event, ctx) => {
-			if (parseConversationControl(event.prompt) === "detail") showDetails(ctx);
+			const route = routingPolicy.route(event.prompt);
+			if (route.details || parseConversationControl(event.prompt) === "detail") showDetails(ctx);
+			if (policy.isDetailEnabled()) {
+				ctx.ui.notify(
+					`当前类别：${route.kind}。当前偏好：主动程度 ${route.preferences.autonomy}，交付 ${route.preferences.delivery}。`,
+					"info",
+				);
+			}
+			return {
+				systemPrompt: `${event.systemPrompt ?? ""}\n\nBYZ collaboration guidance for this turn:\n${route.instructions}`,
+			};
 		});
 	};
 }

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "T-009",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "specs/byz-conversational-agent/1.conversation-shell/design-baseline/byz-terminal-scenarios.html",
+    "specs/byz-conversational-agent/1.conversation-shell/design-baseline/spec-sheet.json"
+  ],
+  "implementation_sha256": "70b19862be1740870397addbea353805eeebca57ccc6923f17046fbbdea7d963",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test; npm run check; focused adapter tests as applicable",
+      "status": "passed",
+      "evidence": "Relevant verification passed in this run"
+    }
+  ],
+  "evidence": [
+    "80 \u5217\u7ec8\u7aef\u7ed3\u6784\u8d70\u67e5\u5df2\u5b8c\u6210",
+    "Reviewed 80-column TTY walkthrough evidence for state hierarchy, wrapping, and readable pending-action text."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "task_id": "T-006",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/cli.js",
+    "packages/byz/test/smoke.test.mjs"
+  ],
+  "implementation_sha256": "84558dfa1468cbfc766a38deb578eb0df62e3d688ee43162e76afcb12ef3b2f2",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test; npm run check; focused adapter tests as applicable",
+      "status": "passed",
+      "evidence": "Relevant verification passed in this run"
+    }
+  ],
+  "evidence": [
+    "BYZ CLI \u6269\u5c55\u7ec4\u5408\u5df2\u5b8c\u6210",
+    "Reviewed CLI composition of conversation, workflow, Fast, and Prewalk extensions and non-interactive command preservation."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

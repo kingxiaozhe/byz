@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "T-007",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/src/conversation/interaction-policy.js",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "227abbd0b42bc7fe1ba829ad16072bff4ad2871259a6c6a7eb6bdb0171e364e7",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test; npm run check; focused adapter tests as applicable",
+      "status": "passed",
+      "evidence": "Relevant verification passed in this run"
+    }
+  ],
+  "evidence": [
+    "\u8fd0\u884c\u65f6\u5c55\u793a\u7b56\u7565\u63a5\u5165\u5df2\u5b8c\u6210",
+    "Reviewed presentation policy coverage for results, waiting state, failures, details, and color-independent text semantics."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

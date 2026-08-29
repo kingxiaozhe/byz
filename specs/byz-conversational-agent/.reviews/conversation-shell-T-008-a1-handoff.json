@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task_id": "T-008",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/src/conversation/interaction-policy.js",
+    "packages/byz/test/conversation.test.mjs",
+    "packages/coding-agent/src/core/extensions/runner.ts",
+    "packages/coding-agent/src/core/extensions/types.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/src/modes/rpc/rpc-mode.ts"
+  ],
+  "implementation_sha256": "b9cc3cfa7f31680d9970235e339bdbde42e39ba8df77c0a240a06aa23b82afa0",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test; npm run check; focused adapter tests as applicable",
+      "status": "passed",
+      "evidence": "Relevant verification passed in this run"
+    }
+  ],
+  "evidence": [
+    "\u81ea\u7136\u8bed\u8a00\u786e\u8ba4\u9002\u914d\u5df2\u5b8c\u6210",
+    "Reviewed natural-language accept/reject mapping and preservation of underlying confirmation permission semantics."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

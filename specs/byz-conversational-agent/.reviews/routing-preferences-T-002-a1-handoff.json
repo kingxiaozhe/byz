@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "T-002",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/routing-policy.js",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "0478b106437e3f42a443479a465baecb58c37140bf8be62d923836900851ce78",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "6 tests passed"
+    }
+  ],
+  "evidence": [
+    "Added pure-function classifyRequest with deterministic local routing kinds.",
+    "Added missingInput and fallback text for request shapes that often lack required input.",
+    "Added in-memory routing policy that applies session preferences without model, workflow, skill, file, or network side effects."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

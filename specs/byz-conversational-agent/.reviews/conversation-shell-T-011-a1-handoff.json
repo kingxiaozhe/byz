@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task_id": "T-011",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/test/fast-switch.test.mjs",
+    "packages/byz/test/prewalk.test.mjs",
+    "packages/byz/test/smoke.test.mjs",
+    "packages/byz/test/update.test.mjs",
+    "packages/byz/test/workflow-switch.test.mjs"
+  ],
+  "implementation_sha256": "92b8d9c248cacdb6fc5f28ce5fbc6690deb4df3d6e2c15df85a834a574b41d1f",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test; npm run check; focused adapter tests as applicable",
+      "status": "passed",
+      "evidence": "Relevant verification passed in this run"
+    }
+  ],
+  "evidence": [
+    "BYZ \u65e2\u6709\u80fd\u529b\u56de\u5f52\u5df2\u5b8c\u6210",
+    "Reviewed package regression output covering Fast, Prewalk, workflow, update, and smoke tests."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

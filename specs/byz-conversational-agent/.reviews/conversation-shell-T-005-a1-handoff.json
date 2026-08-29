@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "task_id": "T-005",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/src/conversation/interaction-policy.js",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "227abbd0b42bc7fe1ba829ad16072bff4ad2871259a6c6a7eb6bdb0171e364e7",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test; npm run check; focused adapter tests as applicable",
+      "status": "passed",
+      "evidence": "Relevant verification passed in this run"
+    }
+  ],
+  "evidence": [
+    "conversation extension \u5df2\u5b8c\u6210",
+    "Reviewed welcome, natural-language controls, on-demand details, message presenter, tool-row visibility, and confirmation presenter integration."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

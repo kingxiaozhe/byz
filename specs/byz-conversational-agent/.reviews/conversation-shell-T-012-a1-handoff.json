@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "task_id": "T-012",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/cli.js",
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/src/conversation/interaction-policy.js",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "cea69ab8623e3bfbc7ce93d05691142d88f0be835cf6553add3c6a0471748d9f",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test; npm run check; focused adapter tests as applicable",
+      "status": "passed",
+      "evidence": "Relevant verification passed in this run"
+    }
+  ],
+  "evidence": [
+    "\u6839\u68c0\u67e5\u5df2\u5b8c\u6210",
+    "Reviewed root npm run check evidence; no remaining errors, warnings, or infos from project checks."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}
