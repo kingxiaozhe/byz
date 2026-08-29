@@ -1,5 +1,21 @@
 # Development Rules
 
+## Project Context
+
+- Project: `pi-monorepo`, a BYZ product layer on a Pi-derived TypeScript coding-agent monorepo.
+- Stack: Node.js `>=22.19.0`, npm workspaces, TypeScript/JavaScript ESM, Biome, tsgo, Vitest, Node test.
+- Version control: `remote` git repository with `origin` and `upstream`; protect other sessions' unstaged/untracked work.
+- Delivery shape: CLI/TUI desktop tooling plus BYZ workflow packaging.
+- Install: `npm ci --ignore-scripts`; local dependency refresh: `npm install --ignore-scripts`.
+- Development entry points: `./pi-test.sh` for interactive Pi smoke testing; BYZ build/test commands live under `packages/byz`.
+- Build: `npm run build`; BYZ release build: `npm run build:byz`; offline BYZ build: `npm run build:byz:offline`.
+- Check/lint/typecheck: `npm run check`.
+- Tests: use `./test.sh` for non-e2e regression unless a narrower package command is specified below.
+- Key directories: `packages/ai`, `packages/agent`, `packages/coding-agent`, `packages/tui`, `packages/protocol`, `packages/client`, `packages/server`, `packages/session-backends/sqlite-node`, `packages/byz`, `scripts`, `docs`.
+- Safety boundary: no hardcoded secrets; run npm installs with `--ignore-scripts`; treat lockfiles and shrinkwraps as reviewed code.
+- Compatibility rules: when relevant, read `.claude/rules/coding-style.md`, `.claude/rules/testing.md`, `.claude/rules/security.md`, `.claude/rules/git-workflow.md`, `.claude/rules/backend-api.md`, and `.claude/rules/database.md`.
+
+
 ## Conversational Style
 
 - Keep answers short and concise
