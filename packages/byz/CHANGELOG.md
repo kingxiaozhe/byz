@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.7 - 2026-08-29
+
 ### Added
 
 - Added same-session routing and collaboration preferences that classify common requests, inject minimal per-turn guidance, and show route details only on demand.

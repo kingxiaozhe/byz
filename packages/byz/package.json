@@ -1,6 +1,6 @@
 {
 	"name": "@aibyzero/byz",
-	"version": "0.1.6",
+	"version": "0.1.7",
 	"description": "Business-first coding agent built on Pi",
 	"type": "module",
 	"piConfig": {
