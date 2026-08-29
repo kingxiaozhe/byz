@@ -68,6 +68,12 @@ await cp(join(packageDir, "src", "cli.js"), join(distDir, "cli.js"), {
 await cp(join(packageDir, "src", "fast.js"), join(distDir, "fast.js"), {
 	force: true,
 });
+await cp(join(packageDir, "src", "fast-session.js"), join(distDir, "fast-session.js"), {
+	force: true,
+});
+await cp(join(packageDir, "src", "prewalk.js"), join(distDir, "prewalk.js"), {
+	force: true,
+});
 await cp(join(packageDir, "src", "workflow-switch.js"), join(distDir, "workflow-switch.js"), {
 	force: true,
 });

@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { getModels } from "@earendil-works/pi-ai/compat";
-import { createFastSwitchExtension } from "../dist/fast.js";
 import {
 	createAgentSessionFromServices,
 	createAgentSessionServices,
 	SessionManager,
 	SettingsManager,
 } from "../dist/runtime/bundle/index.js";
+import { createFastSwitchExtension } from "../src/fast-session.js";
 
 const ORIGINAL_MODEL = { provider: "provider-a", id: "original", reasoning: true };
 const FAST_MODEL = { provider: "provider-b", id: "fast", reasoning: true };
@@ -23,6 +23,7 @@ const SESSION_NO_AUTH_MODEL = getModels("openai")[0];
 function createHarness({
 	configuredModel,
 	authenticatedProviders = ["provider-a", "provider-b", "provider-c"],
+	initialModel = ORIGINAL_MODEL,
 	initiallyEnabled = false,
 } = {}) {
 	const commands = new Map();
@@ -31,7 +32,7 @@ function createHarness({
 	const models = [ORIGINAL_MODEL, FAST_MODEL, USER_MODEL];
 	const state = {
 		idle: true,
-		model: ORIGINAL_MODEL,
+		model: initialModel === null ? undefined : initialModel,
 		thinking: "high",
 		authenticatedProviders: new Set(authenticatedProviders),
 		modelChanges: 0,
@@ -167,6 +168,29 @@ test("Fast without BYZ_FAST_MODEL only lowers thinking and restores it", async (
 	assert.equal(harness.state.model, ORIGINAL_MODEL);
 	assert.equal(harness.state.thinking, "high");
 	assert.match(harness.notifications.at(-1).message, /^Fast: off;/);
+});
+
+test("Fast without a selected model still lowers and restores thinking", async () => {
+	const harness = createHarness({ initialModel: null });
+	await harness.run("on");
+	assert.equal(harness.state.model, undefined);
+	assert.equal(harness.state.thinking, "low");
+	assert.match(harness.notifications.at(-1).message, /^Fast: on; model=none;/);
+
+	await harness.run("off");
+	assert.equal(harness.state.model, undefined);
+	assert.equal(harness.state.thinking, "high");
+	assert.match(harness.notifications.at(-1).message, /^Fast: off; model=none;/);
+});
+
+test("Fast rejects a configured target when no original model can be restored", async () => {
+	const harness = createHarness({ configuredModel: "provider-b/fast", initialModel: null });
+	await harness.run("on");
+	assert.equal(harness.state.model, undefined);
+	assert.equal(harness.state.thinking, "high");
+	assert.equal(harness.notifications.at(-1).type, "error");
+	await harness.run("status");
+	assert.match(harness.notifications.at(-1).message, /^Fast: off; model=none;/);
 });
 
 test("Fast switches to a configured target and restores the original session state", async () => {
