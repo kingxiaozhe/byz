@@ -161,6 +161,14 @@ describe("findNodePackageDir", () => {
 
 describe("detectInstallMethod", () => {
 	test("detects pnpm from Windows .pnpm install paths", () => {
+		const temp = mkdtempSync(join(tmpdir(), "pi-pnpm-windows-"));
+		const binDir = join(temp, "bin");
+		const root = join(temp, "pnpm", "global", "5", "node_modules");
+		mkdirSync(binDir, { recursive: true });
+		writeFileSync(join(binDir, process.platform === "win32" ? "pnpm.cmd" : "pnpm"), createFakePnpmScript(root));
+		chmodSync(join(binDir, process.platform === "win32" ? "pnpm.cmd" : "pnpm"), 0o755);
+		tempDir = temp;
+		process.env.PATH = `${binDir}${delimiter}${originalPath ?? ""}`;
 		setExecPath(
 			"C:\\Users\\Admin\\Documents\\pnpm-repository\\global\\5\\.pnpm\\@earendil-works+pi-coding-agent@0.67.68\\node_modules\\@earendil-works\\pi-coding-agent\\dist\\cli.js",
 		);
