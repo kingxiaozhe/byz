@@ -14,6 +14,8 @@
 import * as crypto from "node:crypto";
 import type { AgentSessionRuntime } from "../../core/agent-session-runtime.ts";
 import type {
+	ExtensionConfirmationPresenter,
+	ExtensionMessagePresenter,
 	ExtensionUIContext,
 	ExtensionUIDialogOptions,
 	ExtensionWidgetOptions,
@@ -190,6 +192,18 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 
 		setHiddenThinkingLabel(_label?: string): void {
 			// Hidden thinking label not supported in RPC mode - requires TUI message rendering access
+		},
+
+		setMessagePresenter(_presenter: ExtensionMessagePresenter | undefined): void {
+			// RPC messages are protocol data, not interactive display output.
+		},
+
+		setToolExecutionVisible(_visible: boolean): void {
+			// RPC tool events are protocol data, not interactive display output.
+		},
+
+		setConfirmationPresenter(_presenter: ExtensionConfirmationPresenter | undefined): void {
+			// RPC confirmations are protocol requests, not interactive display output.
 		},
 
 		setWidget(key: string, content: unknown, options?: ExtensionWidgetOptions): void {

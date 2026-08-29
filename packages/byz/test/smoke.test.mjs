@@ -68,11 +68,7 @@ test("uses the BYZ command identity in help", async () => {
 	assert.equal(result.status, 0, result.stderr);
 	assert.match(result.stdout, /^byz - AI coding assistant/m);
 	assert.match(result.stdout, /Usage:\n {2}byz /);
-	assert.match(result.stderr, /BYZ updates: byz update/);
-	assert.match(result.stderr, /BYZ Fast: --fast/);
-	assert.match(result.stderr, /--workflow <cm\|cm-plugin\|none>/);
-	assert.match(result.stderr, /workflow list \| byz workflow status \[cm\|cm-plugin\|none\]/);
-	assert.match(result.stderr, /workflow check <cm\|cm-plugin>/);
+	assert.doesNotMatch(result.stderr, /Fast|Prewalk|workflow|model|skill/i);
 });
 
 test("applies Fast defaults without removing workflow resources", async () => {

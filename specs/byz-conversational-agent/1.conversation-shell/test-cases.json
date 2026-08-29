@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "1.0",
+  "feature": "conversation-shell",
+  "cases": [
+    {
+      "id": "TC-001",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-001", "AC-002", "AC-009"],
+      "taskIds": ["T-003", "T-004", "T-005", "T-006", "T-010"],
+      "title": "默认交互欢迎语不暴露内部能力",
+      "preconditions": ["TTY 交互会话", "未请求详情或高级控制"],
+      "steps": ["启动无参数 byz 会话", "读取首次主提示"],
+      "expected": ["提示用户说明想完成的事", "输出不含模型、skill、workflow 或 Fast 名称"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-002",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-003", "AC-004"],
+      "taskIds": ["T-003", "T-004", "T-007", "T-010"],
+      "title": "重复内部进展只产生一次等待提示",
+      "preconditions": ["一个尚无可见结果的任务正在运行"],
+      "steps": ["发送多个内部进展事件", "读取用户可见输出"],
+      "expected": ["最多显示一次等待提示", "等待提示不包含工具名或步骤编号"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-003",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-005"],
+      "taskIds": ["T-004", "T-007", "T-008", "T-010"],
+      "title": "待决提示提供影响与自然语言选择",
+      "preconditions": ["存在需要用户确认的高影响动作"],
+      "steps": ["渲染待决提示", "输入自然语言接受推荐"],
+      "expected": ["提示包含影响、推荐、替代项和拒绝结果", "自然语言输入映射到与快捷选择一致的决定"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-004",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-006", "AC-007"],
+      "taskIds": ["T-004", "T-005", "T-006", "T-011"],
+      "title": "高级能力仅按需展示且既有命令保持可用",
+      "preconditions": ["默认交互会话", "已有 Fast、Prewalk 与 workflow 功能"],
+      "steps": ["读取默认帮助与普通输出", "请求展开细节", "调用既有高级命令"],
+      "expected": ["默认输出不主动宣传高级能力", "请求详情后可看到高级入口", "既有命令保留原有可用行为"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-005",
+      "origin": "generated",
+      "kind": "browser",
+      "blocking": true,
+      "acIds": ["AC-003", "AC-008"],
+      "taskIds": ["T-002", "T-009"],
+      "title": "结构基准场景在窄终端保持可读",
+      "preconditions": ["80 列终端环境", "终端主题已加载"],
+      "steps": ["依次呈现普通完成、等待、待决、失败和详情场景", "检查待决动作换行"],
+      "expected": ["每个状态有明确文字语义", "至少一个自然语言待决选项完整可读", "颜色不是唯一状态表达"],
+      "cleanup": []
+    }
+  ]
+}

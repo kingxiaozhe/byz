@@ -4,10 +4,12 @@
 
 ### Added
 
+- Added extension UI presentation hooks for display-only assistant-message, tool-row, and confirmation customization.
 - Added RPC `clear_queue` to retrieve and remove queued steering and follow-up messages ([#8432](https://github.com/earendil-works/pi/issues/8432)).
 
 ### Fixed
 
+- Fixed runtime asset lookup for wrapper packages that contain source files but ship runtime assets only in `dist/`.
 - Fixed extension messages sent with `triggerTurn: false` while the agent is running being inserted between a tool call and its result, which made providers that validate message order reject the replayed history. They are now appended once the turn's tool results are in ([#8537](https://github.com/earendil-works/pi/issues/8537)).
 
 ## [0.84.3] - 2026-08-24

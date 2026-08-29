@@ -65,6 +65,10 @@ await Promise.all(
 await cp(join(packageDir, "src", "cli.js"), join(distDir, "cli.js"), {
 	force: true,
 });
+await cp(join(packageDir, "src", "conversation"), join(distDir, "conversation"), {
+	force: true,
+	recursive: true,
+});
 await cp(join(packageDir, "src", "fast.js"), join(distDir, "fast.js"), {
 	force: true,
 });

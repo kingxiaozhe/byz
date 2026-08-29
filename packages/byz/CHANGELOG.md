@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added
+
+- Added the default BYZ conversation shell with a goal-first welcome, low-noise progress, on-demand details, and natural-language confirmation input.
+
+### Changed
+
+- Changed the default interactive shell to hide internal resources, tool rows, model metadata, and advanced controls until requested.
+
 ## 0.1.6 - 2026-08-28
 
 ### Added

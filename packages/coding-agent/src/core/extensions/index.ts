@@ -63,6 +63,7 @@ export type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 	ExtensionCommandContextActions,
+	ExtensionConfirmationPresenter,
 	ExtensionContext,
 	ExtensionContextActions,
 	// Errors
@@ -71,6 +72,7 @@ export type {
 	ExtensionFactory,
 	ExtensionFlag,
 	ExtensionHandler,
+	ExtensionMessagePresenter,
 	ExtensionMode,
 	// Runtime
 	ExtensionRuntime,

@@ -418,7 +418,7 @@ export function getThemesDir(): string {
 	}
 	// Theme is in modes/interactive/theme/ relative to src/ or dist/
 	const packageDir = getPackageDir();
-	const srcOrDist = existsSync(join(packageDir, "src")) ? "src" : "dist";
+	const srcOrDist = existsSync(join(packageDir, "src", "modes", "interactive", "theme")) ? "src" : "dist";
 	return join(packageDir, srcOrDist, "modes", "interactive", "theme");
 }
 
@@ -433,7 +433,7 @@ export function getExportTemplateDir(): string {
 		return join(getPackageDir(), "export-html");
 	}
 	const packageDir = getPackageDir();
-	const srcOrDist = existsSync(join(packageDir, "src")) ? "src" : "dist";
+	const srcOrDist = existsSync(join(packageDir, "src", "core", "export-html")) ? "src" : "dist";
 	return join(packageDir, srcOrDist, "core", "export-html");
 }
 
@@ -473,7 +473,7 @@ export function getInteractiveAssetsDir(): string {
 		return join(getPackageDir(), "assets");
 	}
 	const packageDir = getPackageDir();
-	const srcOrDist = existsSync(join(packageDir, "src")) ? "src" : "dist";
+	const srcOrDist = existsSync(join(packageDir, "src", "modes", "interactive", "assets")) ? "src" : "dist";
 	return join(packageDir, srcOrDist, "modes", "interactive", "assets");
 }
 

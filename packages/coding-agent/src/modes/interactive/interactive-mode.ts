@@ -70,7 +70,9 @@ import type {
 	AutocompleteProviderFactory,
 	EditorFactory,
 	ExtensionCommandContext,
+	ExtensionConfirmationPresenter,
 	ExtensionContext,
+	ExtensionMessagePresenter,
 	ExtensionRunner,
 	ExtensionUIContext,
 	ExtensionUIDialogOptions,
@@ -470,6 +472,9 @@ export class InteractiveMode {
 	// Streaming message tracking
 	private streamingComponent: AssistantMessageComponent | undefined = undefined;
 	private streamingMessage: AssistantMessage | undefined = undefined;
+	private messagePresenter: ExtensionMessagePresenter | undefined;
+	private confirmationPresenter: ExtensionConfirmationPresenter | undefined;
+	private toolExecutionVisible = true;
 
 	// Tool execution tracking: toolCallId -> component
 	private pendingTools = new Map<string, ToolExecutionComponent>();
@@ -954,7 +959,10 @@ export class InteractiveMode {
 		await this.themeController.applyFromSettings();
 
 		// Add header with keybindings from config (unless silenced)
-		if (this.options.verbose || !this.settingsManager.getQuietStartup()) {
+		if (
+			process.env.BYZ_CODING_AGENT !== "true" &&
+			(this.options.verbose || !this.settingsManager.getQuietStartup())
+		) {
 			const logo = theme.bold(theme.fg("accent", APP_NAME)) + theme.fg("dim", ` v${this.version}`);
 
 			// Build startup instructions using keybinding hint helpers
@@ -1973,7 +1981,9 @@ export class InteractiveMode {
 
 		const extensionRunner = this.session.extensionRunner;
 		this.setupExtensionShortcuts(extensionRunner);
-		this.showLoadedResources({ force: false, showDiagnosticsWhenQuiet: true });
+		if (process.env.BYZ_CODING_AGENT !== "true") {
+			this.showLoadedResources({ force: false, showDiagnosticsWhenQuiet: true });
+		}
 		this.showStartupNoticesIfNeeded();
 	}
 
@@ -2277,6 +2287,9 @@ export class InteractiveMode {
 			);
 		}
 		this.setHiddenThinkingLabel();
+		this.messagePresenter = undefined;
+		this.confirmationPresenter = undefined;
+		this.toolExecutionVisible = true;
 	}
 
 	// Maximum total widget lines to prevent viewport overflow
@@ -2427,10 +2440,24 @@ export class InteractiveMode {
 		};
 	}
 
+	private async showPresentedExtensionConfirm(
+		title: string,
+		message: string,
+		opts?: ExtensionUIDialogOptions,
+	): Promise<boolean> {
+		if (!this.confirmationPresenter) return this.showExtensionConfirm(title, message, opts);
+		return this.confirmationPresenter({
+			title,
+			message,
+			options: opts,
+			confirm: () => this.showExtensionConfirm(title, message, opts),
+		});
+	}
+
 	private createExtensionUIContext(): ExtensionUIContext {
 		return {
 			select: (title, options, opts) => this.showExtensionSelector(title, options, opts),
-			confirm: (title, message, opts) => this.showExtensionConfirm(title, message, opts),
+			confirm: (title, message, opts) => this.showPresentedExtensionConfirm(title, message, opts),
 			input: (title, placeholder, opts) => this.showExtensionInput(title, placeholder, opts),
 			notify: (message, type) => this.showExtensionNotify(message, type),
 			onTerminalInput: (handler) => this.addExtensionTerminalInputListener(handler),
@@ -2444,6 +2471,15 @@ export class InteractiveMode {
 			setWorkingVisible: (visible) => this.setWorkingVisible(visible),
 			setWorkingIndicator: (options) => this.setWorkingIndicator(options),
 			setHiddenThinkingLabel: (label) => this.setHiddenThinkingLabel(label),
+			setMessagePresenter: (presenter) => {
+				this.messagePresenter = presenter;
+			},
+			setToolExecutionVisible: (visible) => {
+				this.toolExecutionVisible = visible;
+			},
+			setConfirmationPresenter: (presenter) => {
+				this.confirmationPresenter = presenter;
+			},
 			setWidget: (key, content, options) => this.setExtensionWidget(key, content, options),
 			setFooter: (factory) => this.setExtensionFooter(factory),
 			setHeader: (factory) => this.setExtensionHeader(factory),
@@ -3159,6 +3195,12 @@ export class InteractiveMode {
 		});
 	}
 
+	private presentAssistantMessage(message: AssistantMessage): AssistantMessage | undefined {
+		if (!this.messagePresenter) return message;
+		const presented = this.messagePresenter(structuredClone(message));
+		return presented?.role === "assistant" ? (presented as AssistantMessage) : undefined;
+	}
+
 	private async handleEvent(event: AgentSessionEvent): Promise<void> {
 		if (!this.isInitialized) {
 			await this.init();
@@ -3230,6 +3272,8 @@ export class InteractiveMode {
 					this.updatePendingMessagesDisplay();
 					this.ui.requestRender();
 				} else if (event.message.role === "assistant") {
+					const message = this.presentAssistantMessage(event.message);
+					if (!message) break;
 					this.streamingComponent = new AssistantMessageComponent(
 						undefined,
 						this.hideThinkingBlock,
@@ -3238,7 +3282,7 @@ export class InteractiveMode {
 						this.outputPad,
 						this.getMarkdownTransformers(),
 					);
-					this.streamingMessage = event.message;
+					this.streamingMessage = message;
 					this.chatContainer.addChild(this.streamingComponent);
 					this.streamingComponent.updateContent(this.streamingMessage, true);
 					this.ui.requestRender();
@@ -3247,7 +3291,14 @@ export class InteractiveMode {
 
 			case "message_update":
 				if (this.streamingComponent && event.message.role === "assistant") {
-					this.streamingMessage = event.message;
+					const message = this.presentAssistantMessage(event.message);
+					if (!message) {
+						this.chatContainer.removeChild(this.streamingComponent);
+						this.streamingComponent = undefined;
+						this.streamingMessage = undefined;
+						break;
+					}
+					this.streamingMessage = message;
 					this.streamingComponent.updateContent(this.streamingMessage, true);
 
 					for (const content of this.streamingMessage.content) {
@@ -3283,7 +3334,14 @@ export class InteractiveMode {
 			case "message_end":
 				if (event.message.role === "user") break;
 				if (this.streamingComponent && event.message.role === "assistant") {
-					this.streamingMessage = event.message;
+					const message = this.presentAssistantMessage(event.message);
+					if (!message) {
+						this.chatContainer.removeChild(this.streamingComponent);
+						this.streamingComponent = undefined;
+						this.streamingMessage = undefined;
+						break;
+					}
+					this.streamingMessage = message;
 					let errorMessage: string | undefined;
 					if (this.streamingMessage.stopReason === "aborted") {
 						const retryAttempt = this.session.retryAttempt;
@@ -3325,6 +3383,7 @@ export class InteractiveMode {
 				break;
 
 			case "tool_execution_start": {
+				if (!this.toolExecutionVisible) break;
 				let component = this.pendingTools.get(event.toolCallId);
 				if (!component) {
 					component = new ToolExecutionComponent(

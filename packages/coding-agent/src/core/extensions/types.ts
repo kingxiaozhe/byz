@@ -130,6 +130,15 @@ export type EditorFactory = (tui: TUI, theme: EditorTheme, keybindings: Keybindi
  * UI context for extensions to request interactive UI.
  * Each mode (interactive, RPC, print) provides its own implementation.
  */
+export type ExtensionMessagePresenter = (message: AgentMessage) => AgentMessage | undefined;
+
+export type ExtensionConfirmationPresenter = (request: {
+	title: string;
+	message: string;
+	options?: ExtensionUIDialogOptions;
+	confirm: () => Promise<boolean>;
+}) => Promise<boolean>;
+
 export interface ExtensionUIContext {
 	/** Show a selector and return the user's choice. */
 	select(title: string, options: string[], opts?: ExtensionUIDialogOptions): Promise<string | undefined>;
@@ -167,6 +176,19 @@ export interface ExtensionUIContext {
 
 	/** Set the label shown for hidden thinking blocks. Call with no argument to restore default. */
 	setHiddenThinkingLabel(label?: string): void;
+
+	/**
+	 * Set a display-only presenter for assistant messages. The presenter receives a copy;
+	 * returning undefined hides that message from the interactive transcript without
+	 * changing the underlying session, tool execution, or persisted message.
+	 */
+	setMessagePresenter(presenter: ExtensionMessagePresenter | undefined): void;
+
+	/** Show or hide tool execution rows without changing tool execution. */
+	setToolExecutionVisible(visible: boolean): void;
+
+	/** Set a display-only confirmation presenter. */
+	setConfirmationPresenter(presenter: ExtensionConfirmationPresenter | undefined): void;
 
 	/** Set a widget to display above or below the editor. Accepts string array or component factory. */
 	setWidget(key: string, content: string[] | undefined, options?: ExtensionWidgetOptions): void;

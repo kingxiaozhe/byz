@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createConversationExtension } from "./conversation/conversation-extension.js";
 import { createFastSessionController, prepareFastRuntimeArgs, selectFastRuntimeArgs } from "./fast.js";
 import { createPrewalkExtension } from "./prewalk.js";
 import { main } from "./runtime/bundle/index.js";
@@ -25,16 +26,6 @@ try {
 	const fastRuntime = prepareFastRuntimeArgs(args);
 	const parsedWorkflow = parseWorkflowOption(fastRuntime.commandArgs);
 	const commandArgs = parsedWorkflow.forwardedArgs;
-	const isRootHelp = commandArgs.length === 1 && (commandArgs[0] === "--help" || commandArgs[0] === "-h");
-	if (isRootHelp) {
-		console.error("BYZ updates: byz update (npm-managed global installations only)");
-		console.error("BYZ Fast: --fast (thinking=low; optional model: BYZ_FAST_MODEL)");
-		console.error("BYZ Prewalk: /prewalk (one-time handoff after the first successful workspace edit/write)");
-		console.error("BYZ workflows: --workflow <cm|cm-plugin|none> (default: BYZ_WORKFLOW or cm)");
-		console.error(
-			"Commands: byz workflow list | byz workflow status [cm|cm-plugin|none] | byz workflow check <cm|cm-plugin>",
-		);
-	}
 
 	if (await handleWorkflowCommand(commandArgs, { workflowId: parsedWorkflow.workflowId })) {
 		// BYZ-owned command handled without starting the Pi runtime.
@@ -47,12 +38,6 @@ try {
 			stdoutIsTTY: process.stdout.isTTY,
 		});
 		const runtimeArgs = selectFastRuntimeArgs(fastRuntime, { isInteractive, loadWorkflow });
-		if (fastRuntime.enabled && loadWorkflow && isInteractive) {
-			console.error(
-				`BYZ Fast: model=${fastRuntime.model}, thinking=${fastRuntime.thinking}, workflow=${parsedWorkflow.workflowId}`,
-			);
-		}
-
 		if (loadWorkflow && isInteractive) {
 			const parsedRuntimeWorkflow = parseWorkflowOption(runtimeArgs);
 			const resolveResources = (workflowId) =>
@@ -68,7 +53,9 @@ try {
 				initialUseLowThinking: fastRuntime.useLowThinking,
 			});
 			const prewalkExtension = createPrewalkExtension({ fastController });
+			const conversationExtension = createConversationExtension();
 			const byzExtension = (pi) => {
+				conversationExtension(pi);
 				workflowExtension(pi);
 				fastController.extension(pi);
 				prewalkExtension(pi);
