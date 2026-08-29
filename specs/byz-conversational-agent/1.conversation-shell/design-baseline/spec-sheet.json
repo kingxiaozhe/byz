@@ -1,0 +1,18 @@
+{
+  "baseline": "structural",
+  "source": "docs/design-demos/byz-terminal-scenarios.html",
+  "pages": [
+    "开始一个目标", "批准范围", "正常交付", "业务取舍", "验证失败", "等待验收", "发布后归档"
+  ],
+  "interactionContract": {
+    "default": "natural-language input",
+    "fastChoices": "A/B/C are optional aliases, never required",
+    "detail": "technical evidence is hidden until the user asks for detail"
+  },
+  "semanticColors": {
+    "green": "completed or verified",
+    "orange": "user decision required",
+    "red": "cannot automatically recover",
+    "gray": "optional context or history"
+  }
+}

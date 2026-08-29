@@ -1,0 +1,57 @@
+<!doctype html>
+<!--
+BYZ MVP prototype: one business owner, one project, one linear delivery loop.
+Excluded deliberately: project list, dashboard, account system, generic task board,
+team collaboration, model settings, raw logs, and navigation unrelated to the next decision.
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BYZ — one delivery loop</title>
+<style>
+	:root { --ink:#1b2620; --muted:#6b756d; --paper:#f5f2e9; --white:#fffdf8; --line:#d8d2c5; --moss:#285044; --pale:#e7efe8; --signal:#cf512b; --signal-pale:#fff0e8; --sun:#e9c45d; }
+	* { box-sizing:border-box; } body { margin:0; min-width:960px; background:radial-gradient(circle at 77% 4%,#f7ddb3 0,transparent 26%),var(--paper); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+	button,textarea { font:inherit; } button { cursor:pointer; border:0; } .frame { width:900px; margin:0 auto; padding:42px 0 70px; }
+	header { display:flex; justify-content:space-between; align-items:center; margin-bottom:62px; }.brand { font:700 27px Georgia,"Songti SC",serif; letter-spacing:.16em; }.mode { color:var(--muted); font-size:12px; letter-spacing:.08em; }.local { color:var(--moss); font-size:12px; font-weight:700; }
+	.progress { display:grid; grid-template-columns:repeat(5,1fr); margin-bottom:60px; }.step { position:relative; text-align:center; color:#9aa29a; font-size:12px; }.step:before { content:""; position:absolute; width:100%; height:1px; background:#d4dad3; top:7px; left:50%; z-index:-1; }.step:last-child:before { display:none; }.step i { display:block; width:15px; height:15px; margin:0 auto 10px; border-radius:50%; background:#d4dad3; border:3px solid var(--paper); }.step.done { color:var(--moss); }.step.done i { background:var(--moss); }.step.done:before { background:var(--moss); }.step.current { color:var(--ink); font-weight:750; }.step.current i { background:var(--signal); box-shadow:0 0 0 6px var(--signal-pale); }
+	.screen { display:none; animation:in .35s ease-out; }.screen.active { display:block; } @keyframes in { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:none } }
+	.eyebrow { color:var(--signal); font-size:12px; font-weight:750; letter-spacing:.11em; }.statement { max-width:720px; font:700 48px/1.12 Georgia,"Songti SC",serif; letter-spacing:-.045em; margin:13px 0 17px; }.support { color:var(--muted); font-size:16px; line-height:1.7; max-width:640px; }.panel { margin-top:32px; background:rgba(255,253,248,.88); border:1px solid var(--line); border-radius:17px; padding:30px; box-shadow:0 22px 55px rgba(47,54,44,.08); }.idea { width:100%; min-height:155px; padding:18px; resize:none; border:1px solid #ccc4b6; border-radius:10px; color:var(--ink); background:#fffefa; font-size:17px; line-height:1.65; }.idea:focus { outline:2px solid #9bb7a3; border-color:transparent; }.actions { display:flex; align-items:center; gap:12px; margin-top:22px; }.primary { padding:13px 18px; border-radius:9px; color:white; background:var(--moss); font-weight:700; }.primary:hover { background:#183d32; }.secondary { padding:12px 16px; color:var(--moss); background:transparent; border:1px solid #b9cabe; border-radius:9px; font-weight:700; }.note { margin-left:auto; color:var(--muted); font-size:12px; }
+	.spec { display:grid; grid-template-columns:1.1fr .9fr; gap:17px; }.box { padding:22px; border:1px solid var(--line); border-radius:12px; background:var(--white); }.box h3 { margin:0 0 12px; font:700 18px Georgia,"Songti SC",serif; }.box p,.box li { color:#455148; line-height:1.65; }.box ul { padding:0; list-style:none; margin:0; }.box li { padding:8px 0; border-top:1px solid #ebe6dc; }.yes:before { content:"✓"; color:var(--moss); font-weight:800; padding-right:8px; }.no:before { content:"—"; color:#8a938b; padding-right:8px; }.approval { margin-top:18px; padding:22px 24px; background:var(--moss); color:white; display:flex; align-items:center; justify-content:space-between; border-radius:13px; }.approval small { display:block; margin-top:5px; color:#d6e4d9; }.approval .primary { background:var(--sun); color:var(--ink); }
+	.run { border-left:2px solid var(--moss); padding:3px 0 3px 24px; margin:34px 0; }.run strong { font:700 26px Georgia,"Songti SC",serif; display:block; margin-bottom:9px; }.run p { color:var(--muted); margin:0; line-height:1.7; }.quiet { padding:17px 19px; border-radius:11px; background:var(--pale); color:var(--moss); font-size:14px; }.decision { background:var(--signal-pale); border-color:#efc2b0; }.decision .eyebrow { color:#a43e20; }.decision h2 { margin:10px 0; font:700 31px/1.25 Georgia,"Songti SC",serif; }.decision p { color:#714938; line-height:1.7; }.recommend { padding:14px; background:#fff9f4; border:1px solid #efc2b0; border-radius:9px; margin:18px 0; }.decision .primary { background:var(--signal); }.evidence { margin-top:28px; }.evidence-row { display:grid; grid-template-columns:1fr 70px 95px; gap:12px; align-items:center; padding:16px 0; border-top:1px solid var(--line); }.pass { color:var(--moss); font-weight:750; }.proof { color:var(--moss); text-decoration:underline; text-underline-offset:3px; cursor:pointer; }.finish { text-align:center; padding:48px 35px; }.seal { display:grid; place-items:center; width:52px; height:52px; margin:0 auto 19px; border-radius:50%; background:var(--sun); font:700 25px Georgia,serif; }.toast { display:none; position:fixed; right:30px; bottom:28px; padding:14px 18px; border-radius:9px; background:var(--ink); color:white; box-shadow:0 14px 35px rgba(0,0,0,.2); }.toast.show { display:block; }
+</style>
+</head>
+<body>
+<div class="frame">
+	<header><div class="brand">BYZ</div><div class="mode">一次业务目标 · 一次可验证交付</div><div class="local">● 仅本机</div></header>
+	<div class="progress" id="progress">
+		<div class="step current"><i></i>业务目标</div><div class="step"><i></i>批准规格</div><div class="step"><i></i>正在执行</div><div class="step"><i></i>你的决定</div><div class="step"><i></i>验收发布</div>
+	</div>
+	<section class="screen active" data-step="0">
+		<div class="eyebrow">先写下要解决的事</div><h1 class="statement">不要管理 AI。<br>只确认你要交付什么。</h1><p class="support">BYZ 会把一句业务目标收缩为可批准的第一期交付范围。未批准前，不会开始实现。</p>
+		<div class="panel"><textarea class="idea">我想做一个美容店预约系统：客户自己预约时间，店员看到每天安排，并在预约后收到提醒。</textarea><div class="actions"><button class="primary" id="make-spec">生成第一期规格</button><span class="note">约 3 分钟 · 可随时退回修改</span></div></div>
+	</section>
+	<section class="screen" data-step="1">
+		<div class="eyebrow">唯一需要的第一项确认</div><h1 class="statement">这是第一期。<br>只做必要的事。</h1><p class="support">批准的不是“让 AI 去试试”，而是一个清楚的范围与验收承诺。</p>
+		<div class="spec"><article class="box"><h3>要达成的目标</h3><p>客户无需打电话即可完成预约；店员能掌握每天的服务安排。</p><h3>本期包含</h3><ul><li class="yes">选择服务与可预约时间</li><li class="yes">提交并保存预约</li><li class="yes">店员查看当日预约</li><li class="yes">创建预约后发邮件提醒</li></ul></article><article class="box"><h3>本期明确不做</h3><ul><li class="no">在线支付</li><li class="no">会员积分</li><li class="no">多门店管理</li></ul><h3 style="margin-top:28px">验收方式</h3><ul><li class="yes">客户可在 3 分钟内完成预约</li><li class="yes">店员可查看当天全部预约</li><li class="yes">每次预约都有提醒记录</li></ul></article></div>
+		<div class="approval"><div><strong>批准后才开始交付</strong><small>目标、验收或成本变化时，BYZ 会暂停并请你决定。</small></div><button class="primary" id="approve">批准规格</button></div>
+	</section>
+	<section class="screen" data-step="2">
+		<div class="eyebrow">你不需要管理过程</div><h1 class="statement">正在交付。<br>现在无需你的操作。</h1><div class="run"><strong>验证预约提醒</strong><p>已完成：预约页面、店员日历、预约数据保存。<br>正在验证：创建预约后，提醒是否可靠触发。</p></div><div class="quiet">BYZ 只会在范围、验收或外部成本发生变化时打扰你。</div><div class="actions"><button class="primary" id="simulate-change">模拟一个需要决定的变化</button><span class="note">原型演示：不会执行代码</span></div></section>
+	<section class="screen" data-step="3">
+		<div class="eyebrow">只在业务取舍时介入</div><h1 class="statement">短信提醒会增加<br>每月成本。</h1><div class="panel decision"><div class="eyebrow">影响：成本与交付范围</div><h2>不需要技术判断。<br>只需选择业务取舍。</h2><p>短信需要接入第三方服务。当前邮件提醒已经满足第一期的“预约后提醒”验收标准。</p><div class="recommend"><strong>BYZ 推荐：首期先用邮件提醒。</strong><br><span>这样不改变已批准范围，当前交付可以继续。</span></div><div class="actions"><button class="primary" id="accept">接受推荐，继续交付</button><button class="secondary" id="pause">暂停并讨论</button></div></div>
+	</section>
+	<section class="screen" data-step="4">
+		<div class="eyebrow">第二项，也是最后一项确认</div><h1 class="statement">交付完成。<br>是否符合你批准的规格？</h1><p class="support">不需要读日志。每一项都对应你之前批准的验收标准。</p><div class="panel evidence"><div class="evidence-row"><strong>客户可在线预约</strong><span class="pass">通过</span><span class="proof">看预览</span></div><div class="evidence-row"><strong>店员可查看当日安排</strong><span class="pass">通过</span><span class="proof">看证据</span></div><div class="evidence-row"><strong>预约后发送邮件提醒</strong><span class="pass">通过</span><span class="proof">看记录</span></div></div><div class="actions"><button class="secondary" id="return">退回修复</button><button class="primary" id="release">批准发布</button></div>
+	</section>
+	<section class="screen" data-step="5"><div class="panel finish"><div class="seal">✓</div><div class="eyebrow">已归档</div><h1 class="statement" style="font-size:38px">版本 v1.0 已发布。</h1><p class="support" style="margin:0 auto">目标、规格、你的两次批准和三项验收证据都已留在本机。下一次范围变化，将从这里继续。</p><div class="actions" style="justify-content:center"><button class="primary" id="restart">查看这个闭环的开头</button></div></div></section>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+	const screens=[...document.querySelectorAll('.screen')],steps=[...document.querySelectorAll('.step')];
+	function show(n){screens.forEach(s=>s.classList.toggle('active',+s.dataset.step===n));steps.forEach((s,i)=>s.classList.toggle('done',i<n) || s.classList.toggle('current',i===n));if(n===5) steps.forEach(s=>s.classList.add('done'));window.scrollTo({top:0,behavior:'smooth'});}
+	function toast(text){const t=document.getElementById('toast');t.textContent=text;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
+	document.getElementById('make-spec').onclick=()=>show(1);document.getElementById('approve').onclick=()=>{toast('规格已批准。现在才开始交付。');setTimeout(()=>show(2),500)};document.getElementById('simulate-change').onclick=()=>show(3);document.getElementById('accept').onclick=()=>{toast('已采用推荐。没有扩大第一期范围。');setTimeout(()=>show(4),550)};document.getElementById('pause').onclick=()=>toast('项目已暂停，等待你补充业务决定。');document.getElementById('release').onclick=()=>show(5);document.getElementById('return').onclick=()=>toast('已退回修复。发布尚未发生。');document.getElementById('restart').onclick=()=>show(0);document.querySelectorAll('.proof').forEach(x=>x.onclick=()=>toast('原型中只展示证据入口；正式版将连接真实测试与预览。'));
+</script>
+</body>
+</html>
