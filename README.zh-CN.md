@@ -18,6 +18,7 @@
 
 <p align="center">
   <a href="#快速开始">快速开始</a> ·
+  <a href="#fast-mode">Fast Mode</a> ·
   <a href="#工作流隔离">工作流</a> ·
   <a href="#统一更新入口">更新</a> ·
   <a href="#基于-pi-构建">基于 Pi 构建</a> ·
@@ -47,6 +48,19 @@ BYZ 将用户配置保存在 `.byz`，而不是 `.pi`。CM 和 CM Plugin 都已�
 | 自己项目的配置 | 与 `.pi` 隔离的 `.byz` 运行边界 |
 
 BYZ 有意保持为一层轻量的产品封装。它并不试图替代所有工具，而是提供一个稳定入口，并负责这个入口背后的兼容性选择。
+
+## Fast Mode
+
+可以用 `byz --fast` 启动 Fast Mode，也可以在当前交互会话内直接切换，不需重启 BYZ，不会丢失对话：
+
+```text
+/fast
+/fast on
+/fast off
+/fast status
+```
+
+Fast 会保留当前工作流，并默认将 thinking 调整为 `low`。如果配置了已授权的 `BYZ_FAST_MODEL=provider/model`，Fast 也会切换到该模型。关闭 Fast 时，BYZ 会恢复开启前记录的模型和 thinking。用户显式选择模型或 thinking 时，用户选择优先并退出 Fast；智能体正在运行时会拒绝切换。启动参数和失败边界详见 [Fast 完整参考](./packages/byz/README.md#fast-mode)。
 
 ## 工作流隔离
 

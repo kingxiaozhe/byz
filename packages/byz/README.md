@@ -56,6 +56,23 @@ An explicit `--model` or `--thinking` option always wins. Continuing or resuming
 an existing session keeps that session's model and applies the Fast thinking
 default. Normal `byz` runs ignore `BYZ_FAST_MODEL` and remain unchanged.
 
+Inside an interactive session, Fast can be changed without restarting BYZ or
+starting a new conversation:
+
+```text
+/fast
+/fast on
+/fast off
+/fast status
+```
+
+`/fast on` snapshots the current model and thinking, then applies the same Fast
+defaults. `/fast off` restores that snapshot. The active workflow, conversation,
+session, skills, prompts, and tools do not change. Explicitly selecting a model
+or thinking level exits Fast and keeps that explicit choice. BYZ rejects Fast
+state changes while the agent is running, and an unavailable or unauthenticated
+configured model leaves the current state unchanged.
+
 ## Workflows
 
 ```bash

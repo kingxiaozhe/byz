@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { prepareFastRuntimeArgs } from "./fast.js";
+import { createFastSwitchExtension, prepareFastRuntimeArgs, selectFastRuntimeArgs } from "./fast.js";
 import { main } from "./runtime/bundle/index.js";
 import { handleByzUpdate } from "./update.js";
 import { createWorkflowSwitchExtension, shouldEnableWorkflowSwitch, shouldLoadWorkflow } from "./workflow-switch.js";
@@ -40,11 +40,11 @@ try {
 		// BYZ release metadata and package target stay independent from Pi.
 	} else {
 		const loadWorkflow = shouldLoadWorkflow(commandArgs);
-		const runtimeArgs = loadWorkflow ? fastRuntime.args : fastRuntime.commandArgs;
 		const isInteractive = shouldEnableWorkflowSwitch(commandArgs, {
 			stdinIsTTY: process.stdin.isTTY,
 			stdoutIsTTY: process.stdout.isTTY,
 		});
+		const runtimeArgs = selectFastRuntimeArgs(fastRuntime, { isInteractive, loadWorkflow });
 		if (fastRuntime.enabled && loadWorkflow && isInteractive) {
 			console.error(
 				`BYZ Fast: model=${fastRuntime.model}, thinking=${fastRuntime.thinking}, workflow=${parsedWorkflow.workflowId}`,
@@ -60,7 +60,16 @@ try {
 				initialWorkflowId: parsedRuntimeWorkflow.workflowId,
 				resolveResources,
 			});
-			await main(parsedRuntimeWorkflow.forwardedArgs, { byzWorkflowExtensionFactory: workflowExtension });
+			const fastExtension = createFastSwitchExtension({
+				initiallyEnabled: fastRuntime.enabled,
+				initialUseConfiguredModel: fastRuntime.useConfiguredModel,
+				initialUseLowThinking: fastRuntime.useLowThinking,
+			});
+			const byzExtension = (pi) => {
+				workflowExtension(pi);
+				fastExtension(pi);
+			};
+			await main(parsedRuntimeWorkflow.forwardedArgs, { byzWorkflowExtensionFactory: byzExtension });
 		} else {
 			const prepared = await prepareWorkflowRuntimeArgs(runtimeArgs, { load: loadWorkflow });
 			await main(prepared.args);

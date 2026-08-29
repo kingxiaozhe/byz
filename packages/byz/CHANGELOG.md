@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Added same-session `/fast` hot switching with reversible model and thinking state, explicit user choices taking priority, and no changes to the active workflow or conversation ([#22](https://github.com/kingxiaozhe/byz/pull/22)).
+
 ## 0.1.5 - 2026-08-28
 
 ### Fixed
