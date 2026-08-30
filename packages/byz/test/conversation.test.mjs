@@ -252,10 +252,10 @@ test("conversation extension welcomes without exposing advanced controls until r
 		},
 	});
 	const ctx = {
-		cwd: process.cwd(),
+		cwd: join(tmpdir(), "pi"),
 		model: { id: "claude-sonnet-4-5-20250929" },
 		sessionManager: {
-			getCwd: () => process.cwd(),
+			getCwd: () => join(tmpdir(), "pi"),
 			getEntries: () => [
 				{
 					type: "message",
