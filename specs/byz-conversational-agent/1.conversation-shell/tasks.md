@@ -6,6 +6,8 @@
 | --- | --- | --- |
 | 2026-08-29 | v1 | 初始任务 |
 | 2026-08-29 | v2 | 增加 runtime 展示与确认适配任务 |
+| 2026-08-30 | v3 | 新增阶段执行耗时、确认等待分离和实时展示任务 |
+| 2026-08-30 | v4 | 新增 Footer Thinking 等级与热更新验证任务 |
 
 ## 项目信息
 
@@ -33,6 +35,16 @@
 - [x] T-008: [CHANGED v2] 实现自然语言确认/拒绝输入与可选快捷选择的 runtime 展示适配，不修改底层确认权限语义 ~1h
 - [x] T-009: 在 80 列终端验证结构基准的状态层级、换行与待决动作可读性 ~30min
 
+### 阶段耗时展示 `[NEW v3]`
+
+- [x] T-013: [NEW] 在 conversation extension 实现单调的 turn-scoped 阶段计时：固定阶段映射、1 秒 working message 刷新、同名阶段累计、confirmation 等待分离、结束汇总和幂等 timer 清理 ~1h
+- [x] T-014: [NEW] 使用可注入时钟与 scheduler 补充自动化测试，覆盖实时刷新、阶段切换/重复累计、确认等待、异常与 shutdown 清理、中英文格式和非交互隔离 ~45min
+- [x] T-015: [NEW] 构建 BYZ 后在 80 列 tmux 验证实时耗时与最终汇总，复跑 BYZ 全量测试和根 `npm run check` ~30min
+
+### Footer Thinking `[NEW v4]`
+
+- [x] T-016: [NEW] 在 BYZ Footer 展示当前 effective Thinking 等级，监听 `thinking_level_select` 热更新，覆盖等级切换、模型能力调整和 80 列优先级回归 ~45min
+
 ### 回归与交付验证
 
 - [x] T-010: [CHANGED v2] 覆盖 runtime 适配器兼容性、无参数交互欢迎、低噪声 progress、内部术语隐藏、详情展开与确认提示的自动化测试 ~1h
@@ -50,9 +62,15 @@
 - T-009、T-010 依赖 T-007、T-008。
 - T-011 依赖 T-006。
 - T-012 依赖 T-009、T-010、T-011。
+- T-013 依赖 T-012。
+- T-014 依赖 T-013。
+- T-015 依赖 T-014。
+- T-016 依赖 T-015。
 
 ## 风险点
 
 - bundled runtime 的 extension API 可能没有足够的事件/渲染挂点；实现前必须检查类型和现有 extension 示例。
 - 过滤既有通知时不得掩盖认证、信任、写入失败或安全错误。
 - 终端宽度和主题差异可能改变结构基准的可读性；80 列是最低验证宽度。
+- confirmation presenter 同时包含自然语言输入和 fallback confirm；等待计时必须覆盖两者并用 `finally` 收口，避免异常后永久停表。
+- 高频 TUI 重绘会增加噪声和 CPU 占用；实现必须保持唯一的 1 秒 interval，并在 agent/session 结束时清理。

@@ -10,6 +10,7 @@ import {
 	parseConversationControl,
 } from "../src/conversation/interaction-policy.js";
 import { classifyRequest, createRoutingPolicy, parseSessionPreference } from "../src/conversation/routing-policy.js";
+import { createTurnTiming, formatElapsed } from "../src/conversation/turn-timing.js";
 
 test("maps structural conversation states to readable, low-noise output", () => {
 	const policy = createInteractionPolicy();
@@ -79,6 +80,196 @@ test("routing policy keeps preferences in memory and resets to defaults", () => 
 	assert.equal(second.preferences.autonomy, "fewer-questions");
 	policy.reset();
 	assert.equal(policy.route("普通任务").preferences.autonomy, "balanced");
+});
+
+test("turn timing uses a monotonic clock and separates active stages from confirmation wait", () => {
+	let now = 0;
+	const timing = createTurnTiming({ now: () => now });
+	timing.start("goal");
+	now = 2_000;
+	timing.transition("inspect");
+	now = 5_000;
+	timing.pauseForConfirmation();
+	now = 10_000;
+	timing.resumeAfterConfirmation();
+	now = 12_000;
+	timing.transition("command");
+	now = 13_000;
+	timing.transition("inspect");
+	now = 15_000;
+	const result = timing.finish();
+	assert.deepEqual(result.stages, [
+		{ stage: "goal", milliseconds: 2_000 },
+		{ stage: "inspect", milliseconds: 7_000 },
+		{ stage: "command", milliseconds: 1_000 },
+	]);
+	assert.equal(result.activeMs, 10_000);
+	assert.equal(result.waitingMs, 5_000);
+	assert.equal(result.totalMs, 15_000);
+	assert.equal(timing.finish(), result);
+	assert.equal(formatElapsed(187_999), "3分07秒");
+	assert.equal(formatElapsed(187_999, "en"), "3m 07s");
+});
+
+test("conversation extension refreshes current stage timing and freezes one final summary", async () => {
+	const handlers = new Map();
+	const workingMessages = [];
+	const notifications = [];
+	let now = 0;
+	let tick;
+	let intervalClears = 0;
+	createConversationExtension({
+		now: () => now,
+		progressCardDelayMs: 60_000,
+		setInterval: (handler) => {
+			tick = handler;
+			return 1;
+		},
+		clearInterval: () => {
+			intervalClears++;
+		},
+	})({
+		on(name, handler) {
+			handlers.set(name, handler);
+		},
+		registerCommand() {},
+	});
+	const ctx = {
+		ui: {
+			notify: (message) => notifications.push(message),
+			setTitle() {},
+			setMessagePresenter() {},
+			setToolExecutionVisible() {},
+			setFooter() {},
+			setConfirmationPresenter() {},
+			setWorkingMessage: (message) => workingMessages.push(message),
+		},
+	};
+	await handlers.get("session_start")({}, ctx);
+	await handlers.get("before_agent_start")({ prompt: "核对阶段耗时", systemPrompt: "base" }, ctx);
+	await handlers.get("agent_start")({}, ctx);
+	assert.match(workingMessages.at(-1), /确认目标 · 0分00秒/);
+	now = 1_100;
+	tick();
+	assert.match(workingMessages.at(-1), /确认目标 · 0分01秒/);
+	now = 2_000;
+	await handlers.get("tool_execution_start")({ toolName: "read" }, ctx);
+	assert.match(workingMessages.at(-1), /核对材料 · 0分00秒/);
+	now = 5_000;
+	await handlers.get("tool_execution_end")({ toolName: "read", isError: false }, ctx);
+	now = 6_000;
+	await handlers.get("message_update")({ message: { role: "assistant" } }, ctx);
+	const rendersAfterReplyTransition = workingMessages.length;
+	for (let index = 0; index < 20; index++) {
+		await handlers.get("message_update")({ message: { role: "assistant" } }, ctx);
+	}
+	assert.equal(workingMessages.length, rendersAfterReplyTransition);
+	now = 8_000;
+	await handlers.get("agent_end")({}, ctx);
+	assert.equal(intervalClears, 1);
+	assert.equal(workingMessages.at(-1), undefined);
+	assert.match(notifications.at(-1), /确认目标与边界 0分02秒/);
+	assert.match(notifications.at(-1), /定位和核对相关材料 0分03秒/);
+	assert.match(notifications.at(-1), /执行 0分08秒；等待确认 0分00秒；总历时 0分08秒/);
+	const countAfterFinish = workingMessages.length;
+	tick();
+	assert.equal(workingMessages.length, countAfterFinish);
+});
+
+test("confirmation input and fallback time count only as waiting", async () => {
+	const handlers = new Map();
+	const notifications = [];
+	let confirmationPresenter;
+	let now = 0;
+	createConversationExtension({
+		now: () => now,
+		setInterval: () => 1,
+		clearInterval() {},
+	})({
+		on(name, handler) {
+			handlers.set(name, handler);
+		},
+		registerCommand() {},
+	});
+	const ctx = {
+		ui: {
+			notify: (message) => notifications.push(message),
+			input: async () => {
+				now = 7_000;
+				return undefined;
+			},
+			setTitle() {},
+			setMessagePresenter() {},
+			setToolExecutionVisible() {},
+			setFooter() {},
+			setWorkingMessage() {},
+			setConfirmationPresenter: (presenter) => {
+				confirmationPresenter = presenter;
+			},
+		},
+	};
+	await handlers.get("session_start")({}, ctx);
+	await handlers.get("before_agent_start")({ prompt: "等待确认计时", systemPrompt: "base" }, ctx);
+	await handlers.get("agent_start")({}, ctx);
+	now = 2_000;
+	assert.equal(
+		await confirmationPresenter({
+			title: "确认",
+			message: "测试等待",
+			confirm: async () => {
+				now = 10_000;
+				return true;
+			},
+		}),
+		true,
+	);
+	now = 13_000;
+	await handlers.get("agent_end")({}, ctx);
+	assert.match(notifications.at(-1), /执行 0分05秒；等待确认 0分08秒；总历时 0分13秒/);
+});
+
+test("session shutdown clears timing without rendering a completion summary", async () => {
+	const handlers = new Map();
+	const workingMessages = [];
+	const notifications = [];
+	let tick;
+	let clears = 0;
+	createConversationExtension({
+		now: () => 1_000,
+		setInterval: (handler) => {
+			tick = handler;
+			return 1;
+		},
+		clearInterval: () => {
+			clears++;
+		},
+	})({
+		on: (name, handler) => handlers.set(name, handler),
+		registerCommand() {},
+	});
+	const ctx = {
+		ui: {
+			notify: (message) => notifications.push(message),
+			setTitle() {},
+			setMessagePresenter() {},
+			setToolExecutionVisible() {},
+			setFooter() {},
+			setConfirmationPresenter() {},
+			setWorkingMessage: (message) => workingMessages.push(message),
+		},
+	};
+	await handlers.get("session_start")({}, ctx);
+	await handlers.get("before_agent_start")({ prompt: "关闭计时", systemPrompt: "base" }, ctx);
+	await handlers.get("agent_start")({}, ctx);
+	await handlers.get("session_shutdown")({}, ctx);
+	assert.equal(clears, 1);
+	assert.equal(
+		notifications.some((message) => message.startsWith("耗时：")),
+		false,
+	);
+	const rendersAfterShutdown = workingMessages.length;
+	tick();
+	assert.equal(workingMessages.length, rendersAfterShutdown);
 });
 
 test("conversation extension shows a scoped progress card after a short wait", async () => {
@@ -323,6 +514,7 @@ test("conversation extension welcomes without exposing advanced controls until r
 	const ctx = {
 		cwd: join(tmpdir(), "pi"),
 		model: { id: "claude-sonnet-4-5-20250929" },
+		thinkingLevel: "high",
 		sessionManager: {
 			getCwd: () => join(tmpdir(), "pi"),
 			getEntries: () => [
@@ -370,8 +562,13 @@ test("conversation extension welcomes without exposing advanced controls until r
 	assert.equal(presentation.toolExecutionVisible, false);
 	assert.equal(typeof presentation.footerFactory, "function");
 	assert.equal(typeof presentation.confirmationPresenter, "function");
+	let footerRenderRequests = 0;
 	const footer = presentation.footerFactory(
-		{ requestRender() {} },
+		{
+			requestRender() {
+				footerRenderRequests++;
+			},
+		},
 		{ fg: (_color, text) => text },
 		{
 			getGitBranch: () => "main",
@@ -380,6 +577,10 @@ test("conversation extension welcomes without exposing advanced controls until r
 		},
 	);
 	assert.match(footer.render(80)[0], /pi\s+main\s+left 88%\s+↑1\.5k\s+↓200/);
+	assert.match(footer.render(80)[0], /sonnet-4-5\s+thinking high$/);
+	await handlers.get("thinking_level_select")({ level: "low", previousLevel: "high" }, ctx);
+	assert.equal(footerRenderRequests, 1);
+	assert.match(footer.render(40)[0], /sonnet-4-5\s+thinking low$/);
 	assert.deepEqual(presentation.presenter({ content: [{ type: "toolCall" }], role: "assistant" }), {
 		content: [],
 		role: "assistant",

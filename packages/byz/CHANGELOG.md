@@ -6,6 +6,11 @@
 
 - Added privacy-first local diagnostics with bounded non-blocking recording, local summaries, health checks, explicit clearing, aggregate-only exports, and correlation-only update comparisons.
 
+### Changed
+
+- Changed interactive progress to show live per-stage elapsed time and a completion breakdown that separates agent execution from confirmation wait.
+- Changed the interactive footer to show the current effective Thinking level and update it immediately when the level changes.
+
 ## 0.1.10 - 2026-08-30
 
 ### Changed

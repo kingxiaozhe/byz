@@ -66,6 +66,58 @@
       "steps": ["依次呈现普通完成、等待、待决、失败和详情场景", "检查待决动作换行"],
       "expected": ["每个状态有明确文字语义", "至少一个自然语言待决选项完整可读", "颜色不是唯一状态表达"],
       "cleanup": []
+    },
+    {
+      "id": "TC-006",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-010", "AC-011", "AC-012", "AC-014"],
+      "taskIds": ["T-013", "T-014"],
+      "title": "单调阶段计时实时刷新并在结束时冻结",
+      "preconditions": ["注入可控单调时钟和 scheduler", "Agent turn 已开始"],
+      "steps": ["推进时钟并触发每秒刷新", "依次进入读取、修改、验证、回复阶段", "重复进入读取阶段", "结束 Agent turn 后继续推进 scheduler"],
+      "expected": ["working message 从 0分00秒开始并至少每秒更新时间", "阶段切换时旧阶段冻结且新阶段从零开始", "重复阶段耗时累计到同一项", "结束汇总含阶段明细、执行耗时和总历时", "结束后不再刷新"],
+      "cleanup": ["释放 fake scheduler 中的 timer"]
+    },
+    {
+      "id": "TC-007",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-012", "AC-013", "AC-014"],
+      "taskIds": ["T-013", "T-014"],
+      "title": "用户确认等待与阶段执行耗时分离",
+      "preconditions": ["Agent 正在一个固定阶段执行", "confirmation presenter 已注册"],
+      "steps": ["推进 active 执行时间", "进入自然语言确认并推进等待时间", "走 fallback confirm 后恢复执行", "完成 turn"],
+      "expected": ["自然语言输入和 fallback confirm 的全部等待只进入等待确认", "原阶段恢复后继续累计而非重置", "阶段执行耗时不含等待时间", "总历时等于执行耗时加等待确认，允许整秒显示误差"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-008",
+      "origin": "generated",
+      "kind": "browser",
+      "blocking": true,
+      "acIds": ["AC-010", "AC-012", "AC-014"],
+      "taskIds": ["T-015"],
+      "title": "80 列真实 TUI 展示实时耗时且不影响非交互命令",
+      "preconditions": ["已构建 BYZ", "80x24 tmux", "隔离 HOME", "可执行一个无需敏感数据的 faux provider turn"],
+      "steps": ["启动交互会话并执行跨多个阶段的 turn", "在两个不同秒点抓取 working message", "等待完成并读取耗时汇总", "运行 --version 和现有管理命令"],
+      "expected": ["顶部阶段耗时递增且在 80 列下可读", "最终只出现一条阶段耗时汇总", "汇总不含 Prompt、路径、命令或工具参数", "非交互 stdout、stderr 和退出码保持原行为"],
+      "cleanup": ["关闭 tmux 并删除隔离 HOME"]
+    },
+    {
+      "id": "TC-009",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-015"],
+      "taskIds": ["T-016"],
+      "title": "Footer 展示并热更新实际 Thinking 等级",
+      "preconditions": ["交互 session 已启动", "当前模型支持多个 Thinking 等级", "Footer 已注册"],
+      "steps": ["以 high 等级渲染 80 列 Footer", "发送 thinking_level_select 事件切换为 low", "再次渲染 Footer", "以窄宽度渲染"],
+      "expected": ["初始 Footer 显示 thinking high", "事件后无需 reload 显示 thinking low", "模型与 Thinking 位于高优先级右侧区域", "非交互行为不变"],
+      "cleanup": []
     }
   ]
 }

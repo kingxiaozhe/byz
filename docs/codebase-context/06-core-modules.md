@@ -13,6 +13,7 @@ This is not a browser component application. Terminal UI primitives live in `pac
 | Tools | read/write/edit/bash/grep/find wrappers and mutation handling | `packages/coding-agent/src/core/tools/**` | Tool execution |
 | Modes | interactive, print, json-event, rpc | `packages/coding-agent/src/modes/**` | User/runtime interface |
 | BYZ workflow layer | workflow selection, updates, release contract | `packages/byz/src/**`, `packages/byz/scripts/**` | BYZ product |
+| BYZ conversation shell | goal-first presentation, progress cards, per-turn stage timing, confirmation wait accounting | `packages/byz/src/conversation/**` | Interactive UX |
 | BYZ local diagnostics | closed event schema, bounded recorder/Worker shards, summaries, safe export, update-health comparison | `packages/byz/src/diagnostics/**` | Local diagnostics |
 
 ## Hooks

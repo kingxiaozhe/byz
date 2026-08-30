@@ -20,6 +20,17 @@
 - BYZ does not provide an independent permission sandbox; keep security language aligned with README.
 - Workflow versions are selected by BYZ release artifacts; end users do not update CM independently.
 
+## BYZ conversation timing
+
+**线路**：Agent lifecycle events → fixed conversation stage IDs → monotonic turn timer → once-per-second working-message update → one completion summary.
+
+**关键规则**：
+
+- Stage timing is turn-local and aggregates repeated entries into fixed, localized stage categories; prompts, paths, commands, tool arguments, and free-form errors never become stage names.
+- Confirmation input and fallback confirmation pause active execution timing and accumulate separately as human wait.
+- Streaming assistant deltas do not trigger timing redraws after the first reply-stage transition. The single interval is cleared on agent end and session shutdown.
+- The Footer reads the effective Thinking level at session start and consumes `thinking_level_select` only as a notification, preserving model/Fast ownership of the real setting.
+
 ## BYZ local diagnostics
 
 **线路**：BYZ CLI/runtime hooks → strict event projection (`diagnostics/schema.js`) → bounded recorder → unrefed Worker → private per-process JSONL shards → local summary/export/update-health commands.

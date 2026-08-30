@@ -62,6 +62,14 @@ The export contains a manifest, aggregate summary, and privacy report. It does n
 
 When sufficient comparable samples exist, `diagnostics summary` can show a trend across a BYZ update. The result is correlation-only, requires at least 20 samples on each side, and never triggers rollback or remote reporting.
 
+## Interactive timing
+
+During an interactive turn, BYZ updates the working indicator once per second with the current stage and elapsed time. When the turn completes, one summary shows time spent in each stage, total active execution time, time waiting for confirmation, and total elapsed time.
+
+Confirmation wait is reported separately and is not counted as agent execution. Timing is turn-local, uses a monotonic clock, and is not written to the session, diagnostics, or model context.
+
+The interactive footer shows the current effective Thinking level next to the model. Shift+Tab, `/thinking`, Fast, and model capability changes update it immediately without `/reload`.
+
 ## Fast mode
 
 Use Fast mode for lower-latency, lower-token everyday work without removing the

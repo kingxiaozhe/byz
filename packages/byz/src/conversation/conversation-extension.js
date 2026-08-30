@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { createInteractionPolicy, formatDecision, parseConversationControl } from "./interaction-policy.js";
 import { createRoutingPolicy } from "./routing-policy.js";
+import { createTurnTiming, formatElapsed } from "./turn-timing.js";
 
 const WELCOME = "BYZ\n\n你想让我帮你做什么？";
 const DETAIL_MODE_COMPACT = "compact";
@@ -10,6 +11,7 @@ const DETAIL_MODE_DETAILS = "details";
 const LANGUAGE_AUTO = "auto";
 const LANGUAGE_ZH = "zh";
 const LANGUAGE_EN = "en";
+const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
 function getByzAgentDir() {
 	return process.env.BYZ_CODING_AGENT_DIR || join(homedir(), ".byz", "agent");
@@ -61,6 +63,32 @@ function detectLanguage(input, savedLanguage = LANGUAGE_AUTO) {
 const TEXT = {
 	zh: {
 		initialWorking: "正在确认目标与边界…",
+		stageLabels: {
+			goal: "确认目标与边界",
+			inspect: "定位和核对相关材料",
+			modify: "执行最小必要修改",
+			command: "运行命令并核对结果",
+			recover: "处理异常结果",
+			reply: "组织回复",
+			other: "继续核对并收敛结果",
+		},
+		stageShortLabels: {
+			goal: "确认目标",
+			inspect: "核对材料",
+			modify: "执行修改",
+			command: "命令验证",
+			recover: "处理异常",
+			reply: "组织回复",
+			other: "继续核对",
+		},
+		timingWorking: ({ shortStage, stageElapsed, active, waiting }) =>
+			`正在处理 · ${shortStage} · ${stageElapsed}\n执行 ${active} · 等待确认 ${waiting}`,
+		timingLines: ({ shortStage, stageElapsed, active, waiting }) => [
+			`当前耗时：${shortStage} ${stageElapsed}`,
+			`累计：执行 ${active} · 等待确认 ${waiting}`,
+		],
+		timingSummary: ({ stages, active, waiting, total }) =>
+			`耗时：${stages}。执行 ${active}；等待确认 ${waiting}；总历时 ${total}。`,
 		defaultGoal: "当前任务",
 		stageConfirm: "确认目标与边界",
 		defaultNext: ["完成必要检查", "整理结果给你"],
@@ -139,6 +167,32 @@ const TEXT = {
 	},
 	en: {
 		initialWorking: "Confirming the goal and boundaries…",
+		stageLabels: {
+			goal: "confirming the goal and boundaries",
+			inspect: "checking the relevant material",
+			modify: "making the smallest necessary change",
+			command: "running a command and checking the result",
+			recover: "handling an unexpected result",
+			reply: "preparing the reply",
+			other: "checking and narrowing the result",
+		},
+		stageShortLabels: {
+			goal: "confirming goal",
+			inspect: "checking material",
+			modify: "making changes",
+			command: "running checks",
+			recover: "handling issue",
+			reply: "preparing reply",
+			other: "checking result",
+		},
+		timingWorking: ({ shortStage, stageElapsed, active, waiting }) =>
+			`Working · ${shortStage} · ${stageElapsed}\nActive ${active} · waiting ${waiting}`,
+		timingLines: ({ shortStage, stageElapsed, active, waiting }) => [
+			`Current time: ${shortStage} ${stageElapsed}`,
+			`Total: active ${active} · waiting ${waiting}`,
+		],
+		timingSummary: ({ stages, active, waiting, total }) =>
+			`Time: ${stages}. Active ${active}; waiting ${waiting}; total ${total}.`,
 		defaultGoal: "current task",
 		stageConfirm: "confirming the goal and boundaries",
 		defaultNext: ["run the needed checks", "summarize the result for you"],
@@ -286,10 +340,16 @@ function shortModelName(modelId) {
 		.replace(/-latest$/, "");
 }
 
-function createByzFooter(ctx, tui, theme, footerData) {
+function normalizeThinkingLevel(level) {
+	return THINKING_LEVELS.has(level) ? level : "off";
+}
+
+function createByzFooter(ctx, tui, theme, footerData, getThinkingLevel) {
 	const unsubscribe = footerData.onBranchChange?.(() => tui.requestRender?.());
 	return {
-		invalidate() {},
+		invalidate() {
+			tui.requestRender?.();
+		},
 		dispose() {
 			unsubscribe?.();
 		},
@@ -324,15 +384,17 @@ function createByzFooter(ctx, tui, theme, footerData) {
 
 			const leftText = parts.join("  ");
 			const modelText = shortModelName(ctx.model?.id);
+			const thinkingText = `thinking ${normalizeThinkingLevel(getThinkingLevel())}`;
+			const rightText = `${modelText}  ${thinkingText}`;
 			const minGap = 2;
 			let line;
-			if (leftText.length + minGap + modelText.length <= safeWidth) {
-				line = `${leftText}${" ".repeat(safeWidth - leftText.length - modelText.length)}${modelText}`;
+			if (leftText.length + minGap + rightText.length <= safeWidth) {
+				line = `${leftText}${" ".repeat(safeWidth - leftText.length - rightText.length)}${rightText}`;
+			} else if (rightText.length + minGap < safeWidth) {
+				const leftBudget = Math.max(1, safeWidth - minGap - rightText.length);
+				line = `${truncateText(leftText, leftBudget)}${" ".repeat(minGap)}${rightText}`;
 			} else {
-				const modelBudget = Math.min(modelText.length, Math.max(0, safeWidth - minGap - 12));
-				const model = truncateText(modelText, modelBudget);
-				const leftBudget = Math.max(1, safeWidth - minGap - model.length);
-				line = `${truncateText(leftText, leftBudget)}${" ".repeat(Math.max(minGap, safeWidth - leftBudget - model.length))}${model}`;
+				line = truncateText(rightText, safeWidth);
 			}
 			return [theme.fg?.("dim", line) ?? line];
 		},
@@ -345,6 +407,7 @@ function createProgressState(language = LANGUAGE_ZH) {
 		goal: text.defaultGoal,
 		language,
 		stage: text.stageConfirm,
+		stageId: "goal",
 		confirmed: [],
 		judgements: [],
 		nextSteps: [...text.defaultNext],
@@ -398,25 +461,68 @@ function describeToolActivity(toolName, args, isError, language = LANGUAGE_ZH) {
 	return copy.toolActivity(toolName);
 }
 
-function renderProgressCard(state, options = {}) {
+function timingValues(state, snapshot) {
+	const copy = textFor(state.language);
+	const language = state.language;
+	return {
+		active: formatElapsed(snapshot.activeMs, language),
+		stage: copy.stageLabels[snapshot.currentStage] ?? copy.stageLabels.other,
+		shortStage: copy.stageShortLabels[snapshot.currentStage] ?? copy.stageShortLabels.other,
+		stageElapsed: formatElapsed(snapshot.currentStageMs, language),
+		waiting: formatElapsed(snapshot.waitingMs, language),
+	};
+}
+
+function renderInitialWorking(state, snapshot) {
+	const copy = textFor(state.language);
+	const values = timingValues(state, snapshot);
+	return copy.timingWorking(values);
+}
+
+function renderProgressCard(state, snapshot, options = {}) {
 	const activity = getActivitySummary(state);
 	const copy = textFor(state.language);
+	const timing = copy.timingLines(timingValues(state, snapshot));
 	if (options.compact) {
 		const next = state.nextSteps.at(-1) ?? copy.defaultNext.at(-1);
 		const boundary = state.safeguards.at(-1) ?? copy.defaultSafeguards.at(-1);
-		return copy.compactLines({ state, activity, next, boundary }).join("\n");
+		return [...copy.compactLines({ state, activity, next, boundary }), ...timing].join("\n");
 	}
-	return copy.detailLines({ state, activity }).join("\n");
+	return [...copy.detailLines({ state, activity }), ...timing].join("\n");
 }
 
-function stageForTool(toolName, language = LANGUAGE_ZH) {
-	const copy = textFor(language);
-	return copy.stageForTool[toolName] ?? (language === LANGUAGE_EN ? "handling the needed step" : "处理必要步骤");
+function renderTimingSummary(state, snapshot) {
+	const copy = textFor(state.language);
+	const language = state.language;
+	const stages = snapshot.stages
+		.map(
+			({ stage, milliseconds }) =>
+				`${copy.stageLabels[stage] ?? copy.stageLabels.other} ${formatElapsed(milliseconds, language)}`,
+		)
+		.join("；");
+	return copy.timingSummary({
+		stages,
+		active: formatElapsed(snapshot.activeMs, language),
+		waiting: formatElapsed(snapshot.waitingMs, language),
+		total: formatElapsed(snapshot.totalMs, language),
+	});
+}
+
+function stageForTool(toolName) {
+	if (["read", "grep", "find", "ls"].includes(toolName)) return "inspect";
+	if (["edit", "write"].includes(toolName)) return "modify";
+	if (["bash", "powershell"].includes(toolName)) return "command";
+	return "other";
+}
+
+function setProgressStage(state, stageId) {
+	state.stageId = stageId;
+	state.stage = textFor(state.language).stageLabels[stageId] ?? textFor(state.language).stageLabels.other;
 }
 
 function updateProgressFromToolStart(state, toolName) {
 	const copy = textFor(state.language);
-	state.stage = stageForTool(toolName, state.language);
+	setProgressStage(state, stageForTool(toolName));
 	if (["read", "grep", "find", "ls"].includes(toolName)) {
 		pushUnique(state.nextSteps, copy.nextEvidence);
 	} else if (["edit", "write"].includes(toolName)) {
@@ -441,23 +547,30 @@ function updateProgressFromToolEnd(state, toolName, args, isError) {
 		pushUnique(state.confirmed, isError ? copy.confirmedCommandError : copy.confirmedCommand);
 	}
 	if (isError) {
-		state.stage = copy.stageError;
+		setProgressStage(state, "recover");
 		pushUnique(state.judgements, copy.judgementRecover);
 		return;
 	}
-	state.stage = copy.stageContinue;
+	setProgressStage(state, "other");
 }
 
 export function createConversationExtension(options = {}) {
 	const policy = createInteractionPolicy();
 	const routingPolicy = createRoutingPolicy();
 	const progressCardDelayMs = options.progressCardDelayMs ?? 8_000;
+	const now = options.now ?? (() => performance.now());
+	const scheduleInterval = options.setInterval ?? setInterval;
+	const cancelInterval = options.clearInterval ?? clearInterval;
 	let savedDetailMode = getSavedDetailMode();
 	let savedLanguage = getSavedLanguage();
 	let currentLanguage = detectLanguage("", savedLanguage);
 
 	return function conversationExtension(pi) {
 		let progressTimer;
+		let elapsedTimer;
+		let turnTiming;
+		let footerComponent;
+		let currentThinkingLevel = "off";
 		let progressState = createProgressState(currentLanguage);
 		let activeCtx;
 
@@ -466,71 +579,116 @@ export function createConversationExtension(options = {}) {
 			progressTimer = undefined;
 		}
 
-		function publishProgress() {
-			if (!activeCtx) return;
-			progressState.visible = true;
-			activeCtx.ui.setWorkingMessage?.(renderProgressCard(progressState, { compact: !policy.isDetailEnabled() }));
+		function clearElapsedTimer() {
+			if (elapsedTimer !== undefined) cancelInterval(elapsedTimer);
+			elapsedTimer = undefined;
 		}
 
-		function updateVisibleProgress() {
-			if (progressState.visible) publishProgress();
+		function publishWorking() {
+			if (!activeCtx || !turnTiming) return;
+			const snapshot = turnTiming.snapshot();
+			const message = progressState.visible
+				? renderProgressCard(progressState, snapshot, { compact: !policy.isDetailEnabled() })
+				: renderInitialWorking(progressState, snapshot);
+			activeCtx.ui.setWorkingMessage?.(message);
+		}
+
+		function publishProgress() {
+			if (!activeCtx || !turnTiming) return;
+			progressState.visible = true;
+			publishWorking();
+		}
+
+		function finishTurn(options = {}) {
+			clearProgressTimer();
+			clearElapsedTimer();
+			if (!turnTiming) return;
+			const snapshot = turnTiming.finish();
+			if (options.notify && activeCtx) activeCtx.ui.notify(renderTimingSummary(progressState, snapshot), "info");
+			turnTiming = undefined;
 		}
 
 		pi.on("session_start", (_event, ctx) => {
 			routingPolicy.reset();
 			policy.setDetailEnabled(savedDetailMode === DETAIL_MODE_DETAILS);
+			currentThinkingLevel = normalizeThinkingLevel(ctx.thinkingLevel);
 			ctx.ui.setTitle?.("BYZ");
 			ctx.ui.setMessagePresenter?.((message) => policy.presentAssistantMessage(message));
 			ctx.ui.setToolExecutionVisible?.(policy.isDetailEnabled());
-			ctx.ui.setFooter?.((tui, theme, footerData) => createByzFooter(ctx, tui, theme, footerData));
+			ctx.ui.setFooter?.((tui, theme, footerData) => {
+				footerComponent = createByzFooter(ctx, tui, theme, footerData, () => currentThinkingLevel);
+				return footerComponent;
+			});
 			ctx.ui.setConfirmationPresenter?.(async ({ title, message, confirm }) => {
-				const prompt = formatDecision({
-					impact: message,
-					recommendation: "确认",
-					alternative: "取消",
-					onReject: "不会执行此操作",
-				});
-				const answer = await ctx.ui.input(prompt, `${title}：输入“确认”或“取消”`);
-				const choice = answer ? parseConversationControl(answer) : undefined;
-				if (choice === "accept" || choice === "proceed") return true;
-				if (choice === "reject") return false;
-				return confirm();
+				turnTiming?.pauseForConfirmation();
+				publishWorking();
+				try {
+					const prompt = formatDecision({
+						impact: message,
+						recommendation: "确认",
+						alternative: "取消",
+						onReject: "不会执行此操作",
+					});
+					const answer = await ctx.ui.input(prompt, `${title}：输入“确认”或“取消”`);
+					const choice = answer ? parseConversationControl(answer) : undefined;
+					if (choice === "accept" || choice === "proceed") return true;
+					if (choice === "reject") return false;
+					return await confirm();
+				} finally {
+					turnTiming?.resumeAfterConfirmation();
+					publishWorking();
+				}
 			});
 			ctx.ui.notify(WELCOME, "info");
+		});
+		pi.on("thinking_level_select", (event) => {
+			currentThinkingLevel = normalizeThinkingLevel(event.level);
+			footerComponent?.invalidate();
 		});
 		pi.on("agent_start", (_event, ctx) => {
 			activeCtx = ctx;
 			policy.resetProgress();
 			progressState.visible = false;
 			clearProgressTimer();
-			ctx.ui.setWorkingMessage?.(textFor(progressState.language).initialWorking);
+			clearElapsedTimer();
+			turnTiming = createTurnTiming({ now });
+			turnTiming.start(progressState.stageId);
+			publishWorking();
+			elapsedTimer = scheduleInterval(publishWorking, 1_000);
 			progressTimer = setTimeout(() => {
 				publishProgress();
 			}, progressCardDelayMs);
 		});
 		pi.on("tool_execution_start", (event) => {
 			updateProgressFromToolStart(progressState, event.toolName);
-			updateVisibleProgress();
+			turnTiming?.transition(progressState.stageId);
+			publishWorking();
 		});
 		pi.on("tool_execution_end", (event) => {
 			updateProgressFromToolEnd(progressState, event.toolName, event.args, event.isError);
-			updateVisibleProgress();
+			turnTiming?.transition(progressState.stageId);
+			publishWorking();
 		});
 		pi.on("message_update", (event) => {
 			if (event.message?.role !== "assistant") return;
 			const copy = textFor(progressState.language);
-			progressState.stage = copy.stageReply;
+			const stageChanged = progressState.stageId !== "reply";
+			if (stageChanged) {
+				setProgressStage(progressState, "reply");
+				turnTiming?.transition("reply");
+			}
 			pushUnique(progressState.nextSteps, copy.nextResult);
-			updateVisibleProgress();
+			if (stageChanged) publishWorking();
 		});
 		pi.on("agent_end", () => {
-			clearProgressTimer();
+			finishTurn({ notify: true });
 			activeCtx?.ui.setWorkingMessage?.();
 			activeCtx = undefined;
 		});
 		pi.on("session_shutdown", () => {
 			routingPolicy.reset();
-			clearProgressTimer();
+			footerComponent = undefined;
+			finishTurn();
 			activeCtx?.ui.setWorkingMessage?.();
 			activeCtx = undefined;
 		});
