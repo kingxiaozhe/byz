@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+
+- Changed the default BYZ terminal footer to show the project name, git branch, remaining context percentage, token usage, cost, extension statuses, and current model.
+- Changed long-running BYZ waits to show a compact non-technical progress card by default, with the fuller work-site card available in details mode.
+- Added persistent BYZ detail-mode preferences through `/details remember` and `/details remember compact`.
+
 ## 0.1.7 - 2026-08-29
 
 ### Added

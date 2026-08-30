@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { createConversationExtension, WELCOME } from "../src/conversation/conversation-extension.js";
 import {
@@ -78,11 +81,167 @@ test("routing policy keeps preferences in memory and resets to defaults", () => 
 	assert.equal(policy.route("普通任务").preferences.autonomy, "balanced");
 });
 
+test("conversation extension shows a scoped progress card after a short wait", async () => {
+	const handlers = new Map();
+	const workingMessages = [];
+	createConversationExtension({ progressCardDelayMs: 0 })({
+		on(name, handler) {
+			handlers.set(name, handler);
+		},
+		registerCommand() {},
+	});
+	const ctx = {
+		ui: {
+			notify() {},
+			setTitle() {},
+			setMessagePresenter() {},
+			setToolExecutionVisible() {},
+			setFooter() {},
+			setConfirmationPresenter() {},
+			setWorkingMessage(message) {
+				workingMessages.push(message);
+			},
+		},
+	};
+
+	await handlers.get("session_start")({}, ctx);
+	await handlers.get("before_agent_start")({ prompt: "修复 footer 等待状态", systemPrompt: "base" }, ctx);
+	await handlers.get("agent_start")({}, ctx);
+	await new Promise((resolve) => setTimeout(resolve, 5));
+	await handlers.get("tool_execution_start")({ toolName: "read" }, ctx);
+	await handlers.get("tool_execution_end")({ toolName: "read", isError: false }, ctx);
+	await handlers.get("tool_execution_start")({ toolName: "edit" }, ctx);
+	await handlers.get("tool_execution_end")({ toolName: "edit", isError: false }, ctx);
+
+	const latest = workingMessages.at(-1);
+	assert.match(latest, /处理中：修复 footer 等待状态/);
+	assert.match(latest, /进展：查看 1 项，修改 1 项/);
+	assert.match(latest, /下一步：补充验证/);
+	assert.match(latest, /边界：不会执行高影响动作/);
+	assert.doesNotMatch(latest, /正在处理，稍后给你结果/);
+	assert.doesNotMatch(latest, /当前判断：/);
+	await handlers.get("agent_end")({}, ctx);
+	assert.equal(workingMessages.at(-1), undefined);
+});
+
+test("conversation extension expands progress card in details mode", async () => {
+	const handlers = new Map();
+	const workingMessages = [];
+	createConversationExtension({ progressCardDelayMs: 0 })({
+		on(name, handler) {
+			handlers.set(name, handler);
+		},
+		registerCommand() {},
+	});
+	const ctx = {
+		ui: {
+			notify() {},
+			setTitle() {},
+			setMessagePresenter() {},
+			setToolExecutionVisible() {},
+			setFooter() {},
+			setConfirmationPresenter() {},
+			setWorkingMessage(message) {
+				workingMessages.push(message);
+			},
+		},
+	};
+
+	await handlers.get("session_start")({}, ctx);
+	await handlers.get("before_agent_start")({ prompt: "展开细节，修复 footer 等待状态", systemPrompt: "base" }, ctx);
+	await handlers.get("agent_start")({}, ctx);
+	await new Promise((resolve) => setTimeout(resolve, 5));
+	await handlers.get("tool_execution_start")({ toolName: "read" }, ctx);
+	await handlers.get("tool_execution_end")({ toolName: "read", isError: false }, ctx);
+
+	const latest = workingMessages.at(-1);
+	assert.match(latest, /正在处理：修复 footer 等待状态/);
+	assert.match(latest, /当前阶段：继续核对并收敛结果/);
+	assert.match(latest, /已确认：.*已查看相关项目资料/);
+	assert.match(latest, /当前判断：.*任务类型：bug-fix/);
+	await handlers.get("agent_end")({}, ctx);
+});
+
+test("details mode can be saved as the default for future sessions", async () => {
+	const originalAgentDir = process.env.BYZ_CODING_AGENT_DIR;
+	const agentDir = await mkdtemp(join(tmpdir(), "byz-conversation-"));
+	process.env.BYZ_CODING_AGENT_DIR = agentDir;
+	try {
+		const firstHandlers = new Map();
+		const firstCommands = new Map();
+		const notifications = [];
+		createConversationExtension()({
+			on(name, handler) {
+				firstHandlers.set(name, handler);
+			},
+			registerCommand(name, command) {
+				firstCommands.set(name, command);
+			},
+		});
+		const firstVisibility = [];
+		const firstCtx = {
+			ui: {
+				notify: (message, type) => notifications.push({ message, type }),
+				setTitle() {},
+				setMessagePresenter() {},
+				setFooter() {},
+				setConfirmationPresenter() {},
+				setToolExecutionVisible: (visible) => firstVisibility.push(visible),
+			},
+		};
+		await firstHandlers.get("session_start")({}, firstCtx);
+		assert.equal(firstVisibility.at(-1), false);
+		await firstCommands.get("details").handler("remember", firstCtx);
+		assert.equal(firstVisibility.at(-1), true);
+		assert.match(notifications.at(-1).message, /所有会话默认/);
+
+		const secondHandlers = new Map();
+		createConversationExtension()({
+			on(name, handler) {
+				secondHandlers.set(name, handler);
+			},
+			registerCommand() {},
+		});
+		const secondVisibility = [];
+		const secondCtx = {
+			ui: {
+				notify() {},
+				setTitle() {},
+				setMessagePresenter() {},
+				setFooter() {},
+				setConfirmationPresenter() {},
+				setToolExecutionVisible: (visible) => secondVisibility.push(visible),
+				setWorkingMessage() {},
+			},
+		};
+		await secondHandlers.get("session_start")({}, secondCtx);
+		assert.equal(secondVisibility.at(-1), true);
+		await secondHandlers.get("before_agent_start")(
+			{ prompt: "修复 footer 等待状态", systemPrompt: "base" },
+			secondCtx,
+		);
+		await secondHandlers.get("agent_start")({}, secondCtx);
+		await secondHandlers.get("agent_end")({}, secondCtx);
+	} finally {
+		if (originalAgentDir === undefined) {
+			delete process.env.BYZ_CODING_AGENT_DIR;
+		} else {
+			process.env.BYZ_CODING_AGENT_DIR = originalAgentDir;
+		}
+		await rm(agentDir, { force: true, recursive: true });
+	}
+});
+
 test("conversation extension welcomes without exposing advanced controls until requested", async () => {
 	const handlers = new Map();
 	const commands = new Map();
 	const notifications = [];
-	const presentation = { confirmationPresenter: undefined, presenter: undefined, toolExecutionVisible: undefined };
+	const presentation = {
+		confirmationPresenter: undefined,
+		footerFactory: undefined,
+		presenter: undefined,
+		toolExecutionVisible: undefined,
+	};
 	const confirmationPrompts = [];
 	createConversationExtension()({
 		on(name, handler) {
@@ -93,6 +252,27 @@ test("conversation extension welcomes without exposing advanced controls until r
 		},
 	});
 	const ctx = {
+		cwd: process.cwd(),
+		model: { id: "claude-sonnet-4-5-20250929" },
+		sessionManager: {
+			getCwd: () => process.cwd(),
+			getEntries: () => [
+				{
+					type: "message",
+					message: {
+						role: "assistant",
+						usage: {
+							input: 1500,
+							output: 200,
+							cacheRead: 0,
+							cacheWrite: 0,
+							cost: { total: 0 },
+						},
+					},
+				},
+			],
+		},
+		getContextUsage: () => ({ percent: 12, contextWindow: 200000, tokens: 24000 }),
 		ui: {
 			notify: (message, type) => notifications.push({ message, type }),
 			input: async (title, placeholder) => {
@@ -107,6 +287,9 @@ test("conversation extension welcomes without exposing advanced controls until r
 			setToolExecutionVisible: (visible) => {
 				presentation.toolExecutionVisible = visible;
 			},
+			setFooter: (factory) => {
+				presentation.footerFactory = factory;
+			},
 			setConfirmationPresenter: (presenter) => {
 				presentation.confirmationPresenter = presenter;
 			},
@@ -116,7 +299,18 @@ test("conversation extension welcomes without exposing advanced controls until r
 	assert.deepEqual(notifications, [{ message: WELCOME, type: "info" }]);
 	assert.doesNotMatch(notifications[0].message, /Fast|workflow|Prewalk/);
 	assert.equal(presentation.toolExecutionVisible, false);
+	assert.equal(typeof presentation.footerFactory, "function");
 	assert.equal(typeof presentation.confirmationPresenter, "function");
+	const footer = presentation.footerFactory(
+		{ requestRender() {} },
+		{ fg: (_color, text) => text },
+		{
+			getGitBranch: () => "main",
+			getExtensionStatuses: () => new Map(),
+			onBranchChange: () => () => {},
+		},
+	);
+	assert.match(footer.render(80)[0], /pi\s+main\s+left 88%\s+↑1\.5k\s+↓200/);
 	assert.deepEqual(presentation.presenter({ content: [{ type: "toolCall" }], role: "assistant" }), {
 		content: [],
 		role: "assistant",
