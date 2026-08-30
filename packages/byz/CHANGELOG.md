@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.8 - 2026-08-30
+
 ### Changed
 
 - Changed the default BYZ terminal footer to show the project name, git branch, remaining context percentage, token usage, cost, extension statuses, and current model.
