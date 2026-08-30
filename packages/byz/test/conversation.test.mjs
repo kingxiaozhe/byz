@@ -115,9 +115,9 @@ test("conversation extension shows a scoped progress card after a short wait", a
 
 	const latest = workingMessages.at(-1);
 	assert.match(latest, /处理中：修复 footer 等待状态/);
-	assert.match(latest, /进展：查看 1 项，修改 1 项/);
+	assert.match(latest, /进展：修改 相关文件，是为了用最小改动解决当前问题。/);
 	assert.match(latest, /下一步：补充验证/);
-	assert.match(latest, /边界：不会执行高影响动作/);
+	assert.match(latest, /边界：需要人决策时会停下来说明/);
 	assert.doesNotMatch(latest, /正在处理，稍后给你结果/);
 	assert.doesNotMatch(latest, /当前判断：/);
 	await handlers.get("agent_end")({}, ctx);
@@ -221,6 +221,75 @@ test("details mode can be saved as the default for future sessions", async () =>
 			secondCtx,
 		);
 		await secondHandlers.get("agent_start")({}, secondCtx);
+		await secondHandlers.get("agent_end")({}, secondCtx);
+	} finally {
+		if (originalAgentDir === undefined) {
+			delete process.env.BYZ_CODING_AGENT_DIR;
+		} else {
+			process.env.BYZ_CODING_AGENT_DIR = originalAgentDir;
+		}
+		await rm(agentDir, { force: true, recursive: true });
+	}
+});
+
+test("language preference can be saved and reused across sessions", async () => {
+	const originalAgentDir = process.env.BYZ_CODING_AGENT_DIR;
+	const agentDir = await mkdtemp(join(tmpdir(), "byz-language-"));
+	process.env.BYZ_CODING_AGENT_DIR = agentDir;
+	try {
+		const firstHandlers = new Map();
+		const firstCommands = new Map();
+		const notifications = [];
+		createConversationExtension({ progressCardDelayMs: 0 })({
+			on(name, handler) {
+				firstHandlers.set(name, handler);
+			},
+			registerCommand(name, command) {
+				firstCommands.set(name, command);
+			},
+		});
+		const firstCtx = {
+			ui: {
+				notify: (message, type) => notifications.push({ message, type }),
+				setTitle() {},
+				setMessagePresenter() {},
+				setToolExecutionVisible() {},
+				setFooter() {},
+				setConfirmationPresenter() {},
+				setWorkingMessage() {},
+			},
+		};
+		await firstHandlers.get("session_start")({}, firstCtx);
+		await firstCommands.get("language").handler("en", firstCtx);
+		assert.match(notifications.at(-1).message, /Language set to: en/);
+
+		const secondHandlers = new Map();
+		const workingMessages = [];
+		createConversationExtension({ progressCardDelayMs: 0 })({
+			on(name, handler) {
+				secondHandlers.set(name, handler);
+			},
+			registerCommand() {},
+		});
+		const secondCtx = {
+			ui: {
+				notify() {},
+				setTitle() {},
+				setMessagePresenter() {},
+				setToolExecutionVisible() {},
+				setFooter() {},
+				setConfirmationPresenter() {},
+				setWorkingMessage(message) {
+					workingMessages.push(message);
+				},
+			},
+		};
+		await secondHandlers.get("session_start")({}, secondCtx);
+		await secondHandlers.get("before_agent_start")({ prompt: "fix the release", systemPrompt: "base" }, secondCtx);
+		await secondHandlers.get("agent_start")({}, secondCtx);
+		await new Promise((resolve) => setTimeout(resolve, 5));
+		assert.match(workingMessages.at(-1), /Working on: fix the release/);
+		assert.match(workingMessages.at(-1), /Boundary: I will stop only when a human decision is needed/);
 		await secondHandlers.get("agent_end")({}, secondCtx);
 	} finally {
 		if (originalAgentDir === undefined) {

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+
+- Changed BYZ interactive progress to explain file changes and commands in human-readable language instead of exposing raw tool logs by default.
+- Changed BYZ collaboration guidance to continue through safely recoverable problems and stop only for high-risk or human-decision cases.
+- Added persistent BYZ language preferences with `/language auto`, `/language zh`, and `/language en`.
+
 ## 0.1.9 - 2026-08-30
 
 ### Changed

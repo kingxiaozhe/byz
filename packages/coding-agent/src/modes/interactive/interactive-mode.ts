@@ -3301,28 +3301,30 @@ export class InteractiveMode {
 					this.streamingMessage = message;
 					this.streamingComponent.updateContent(this.streamingMessage, true);
 
-					for (const content of this.streamingMessage.content) {
-						if (content.type === "toolCall") {
-							if (!this.pendingTools.has(content.id)) {
-								const component = new ToolExecutionComponent(
-									content.name,
-									content.id,
-									content.arguments,
-									{
-										showImages: this.settingsManager.getShowImages(),
-										imageWidthCells: this.settingsManager.getImageWidthCells(),
-									},
-									this.getRegisteredToolDefinition(content.name),
-									this.ui,
-									this.sessionManager.getCwd(),
-								);
-								component.setExpanded(this.toolOutputExpanded);
-								this.chatContainer.addChild(component);
-								this.pendingTools.set(content.id, component);
-							} else {
-								const component = this.pendingTools.get(content.id);
-								if (component) {
-									component.updateArgs(content.arguments);
+					if (this.toolExecutionVisible) {
+						for (const content of this.streamingMessage.content) {
+							if (content.type === "toolCall") {
+								if (!this.pendingTools.has(content.id)) {
+									const component = new ToolExecutionComponent(
+										content.name,
+										content.id,
+										content.arguments,
+										{
+											showImages: this.settingsManager.getShowImages(),
+											imageWidthCells: this.settingsManager.getImageWidthCells(),
+										},
+										this.getRegisteredToolDefinition(content.name),
+										this.ui,
+										this.sessionManager.getCwd(),
+									);
+									component.setExpanded(this.toolOutputExpanded);
+									this.chatContainer.addChild(component);
+									this.pendingTools.set(content.id, component);
+								} else {
+									const component = this.pendingTools.get(content.id);
+									if (component) {
+										component.updateArgs(content.arguments);
+									}
 								}
 							}
 						}
@@ -3777,6 +3779,7 @@ export class InteractiveMode {
 			if (message.role === "assistant") {
 				this.addMessageToChat(message);
 				// Render tool call components
+				if (!this.toolExecutionVisible) continue;
 				for (const content of message.content) {
 					if (content.type === "toolCall") {
 						const component = new ToolExecutionComponent(

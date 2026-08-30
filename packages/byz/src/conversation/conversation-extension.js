@@ -7,6 +7,9 @@ import { createRoutingPolicy } from "./routing-policy.js";
 const WELCOME = "BYZ\n\n你想让我帮你做什么？";
 const DETAIL_MODE_COMPACT = "compact";
 const DETAIL_MODE_DETAILS = "details";
+const LANGUAGE_AUTO = "auto";
+const LANGUAGE_ZH = "zh";
+const LANGUAGE_EN = "en";
 
 function getByzAgentDir() {
 	return process.env.BYZ_CODING_AGENT_DIR || join(homedir(), ".byz", "agent");
@@ -29,10 +32,196 @@ function getSavedDetailMode() {
 	return mode === DETAIL_MODE_DETAILS ? DETAIL_MODE_DETAILS : DETAIL_MODE_COMPACT;
 }
 
-function saveDetailMode(mode) {
+function saveConversationConfig(changes) {
 	const configPath = getConversationConfigPath();
 	mkdirSync(dirname(configPath), { recursive: true });
-	writeFileSync(configPath, `${JSON.stringify({ ...readConversationConfig(), detailMode: mode }, null, "\t")}\n`);
+	writeFileSync(configPath, `${JSON.stringify({ ...readConversationConfig(), ...changes }, null, "\t")}\n`);
+}
+
+function saveDetailMode(mode) {
+	saveConversationConfig({ detailMode: mode });
+}
+
+function getSavedLanguage() {
+	const language = readConversationConfig().language;
+	return [LANGUAGE_AUTO, LANGUAGE_ZH, LANGUAGE_EN].includes(language) ? language : LANGUAGE_AUTO;
+}
+
+function saveLanguage(language) {
+	saveConversationConfig({ language });
+}
+
+function detectLanguage(input, savedLanguage = LANGUAGE_AUTO) {
+	if (savedLanguage !== LANGUAGE_AUTO) return savedLanguage;
+	const text = String(input ?? "");
+	if (!text.trim()) return LANGUAGE_ZH;
+	return /[\u4e00-\u9fff]/.test(text) ? LANGUAGE_ZH : LANGUAGE_EN;
+}
+
+const TEXT = {
+	zh: {
+		initialWorking: "正在确认目标与边界…",
+		defaultGoal: "当前任务",
+		stageConfirm: "确认目标与边界",
+		defaultNext: ["完成必要检查", "整理结果给你"],
+		defaultSafeguards: ["不会擅自做高风险动作", "需要人决策时会停下来说明"],
+		fallbackActivity: "正在把技术步骤整理成可读结果",
+		compactLines: ({ state, activity, next, boundary }) => [
+			`处理中：${state.goal}`,
+			`进展：${activity}`,
+			`下一步：${next}`,
+			`边界：${boundary}`,
+		],
+		detailLines: ({ state, activity }) => {
+			const lines = [`正在处理：${state.goal}`, `当前阶段：${state.stage}`, `现场进展：${activity}`];
+			if (state.confirmed.length > 0) lines.push(`已确认：${state.confirmed.join("；")}`);
+			if (state.judgements.length > 0) lines.push(`当前判断：${state.judgements.join("；")}`);
+			if (state.nextSteps.length > 0) lines.push(`下一步：${state.nextSteps.join("；")}`);
+			if (state.safeguards.length > 0) lines.push(`边界：${state.safeguards.join("；")}`);
+			return lines;
+		},
+		readActivity: (target) => `查看 ${target ?? "相关文件"}，是为了基于真实内容判断下一步。`,
+		editActivity: (target, isError) =>
+			`${isError ? "尝试修改" : "修改"} ${target ?? "相关文件"}，是为了用最小改动解决当前问题。`,
+		writeActivity: (target, isError) =>
+			`${isError ? "尝试写入" : "写入"} ${target ?? "文件"}，是为了补齐当前目标需要的内容。`,
+		commandActivity: (command) => `执行 ${command.label}，是为了${command.purpose}。`,
+		toolActivity: (toolName) => `处理 ${toolName}，是为了推进当前目标。`,
+		commandPurposes: [
+			[/^npm run check\b/, "确认代码格式、类型和仓库规则都通过"],
+			[/^npm run build:byz(?::offline)?\b/, "构建 BYZ 发布产物，确认打包流程可用"],
+			[/^npm --prefix packages\/byz test\b/, "运行 BYZ 自身测试，确认改动没有破坏已有功能"],
+			[/^node --test\b/, "运行指定回归测试，确认这次修复覆盖到问题"],
+			[/^npm run release:byz\b/, "生成 BYZ 发布包并执行发布前校验"],
+			[/^git status\b/, "确认只处理本次相关文件，避免影响其他工作"],
+			[/^git add\b/, "只暂存本次改动，准备生成可追溯提交"],
+			[/^git commit\b/, "记录本次改动，方便发布和回滚"],
+			[/^git push\b/, "把已确认的改动同步到远端，触发后续发布流程"],
+			[/^gh run watch\b/, "等待线上发布流程完成，确认结果不是只在本地通过"],
+			[/^npm view\b/, "从 npm 核对最终发布版本"],
+		],
+		unknownCommandPurpose: "完成当前目标所需的验证或处理",
+		stageForTool: {
+			read: "定位和核对相关材料",
+			edit: "执行最小必要修改",
+			write: "执行最小必要修改",
+			bash: "运行命令并核对结果",
+			powershell: "运行命令并核对结果",
+		},
+		nextEvidence: "基于证据判断方案",
+		nextVerify: "补充验证",
+		nextCommand: "根据命令结果决定是否继续",
+		confirmedGoal: "已收到目标",
+		confirmedRead: "已查看相关项目资料",
+		confirmedEdit: "已完成代码层面的变更",
+		confirmedEditError: "修改步骤需要复核",
+		confirmedCommand: "已执行验证命令",
+		confirmedCommandError: "命令结果需要处理",
+		judgementSmallChange: "优先做小改动，避免扩大范围",
+		judgementRecover: "可安全恢复的问题会先处理并继续推进",
+		stageError: "处理异常结果",
+		stageContinue: "继续核对并收敛结果",
+		stageReply: "组织回复",
+		nextResult: "给出结论和已做验证",
+		detailsOn: (scope) => `已展开细节（${scope}）。高级控制：/fast、/prewalk、/workflow。`,
+		detailsOff: (scope) => `已切回紧凑模式（${scope}）。`,
+		detailScopeRemember: "已设为所有会话默认",
+		detailScopeSession: "仅当前会话",
+		detailsStatus: (current, saved) => `当前：${current}。默认：${saved}。`,
+		detailsUsage: "用法：/details [on|off|remember|remember compact|status]",
+		languageSet: (language) => `已设置语言：${language}。`,
+		languageStatus: (current, saved) => `当前语言：${current}。默认语言：${saved}。`,
+		languageUsage: "用法：/language [auto|zh|en|status]",
+		routeNotice: (route) =>
+			`当前类别：${route.kind}。当前偏好：主动程度 ${route.preferences.autonomy}，交付 ${route.preferences.delivery}。`,
+		taskKind: (kind) => `任务类型：${kind}`,
+		confirmKeyActions: "关键动作会先确认",
+	},
+	en: {
+		initialWorking: "Confirming the goal and boundaries…",
+		defaultGoal: "current task",
+		stageConfirm: "confirming the goal and boundaries",
+		defaultNext: ["run the needed checks", "summarize the result for you"],
+		defaultSafeguards: [
+			"I will not take high-risk actions without approval",
+			"I will stop only when a human decision is needed",
+		],
+		fallbackActivity: "Turning the technical steps into a readable update",
+		compactLines: ({ state, activity, next, boundary }) => [
+			`Working on: ${state.goal}`,
+			`Progress: ${activity}`,
+			`Next: ${next}`,
+			`Boundary: ${boundary}`,
+		],
+		detailLines: ({ state, activity }) => {
+			const lines = [`Working on: ${state.goal}`, `Current stage: ${state.stage}`, `Progress: ${activity}`];
+			if (state.confirmed.length > 0) lines.push(`Confirmed: ${state.confirmed.join("; ")}`);
+			if (state.judgements.length > 0) lines.push(`Judgement: ${state.judgements.join("; ")}`);
+			if (state.nextSteps.length > 0) lines.push(`Next: ${state.nextSteps.join("; ")}`);
+			if (state.safeguards.length > 0) lines.push(`Boundary: ${state.safeguards.join("; ")}`);
+			return lines;
+		},
+		readActivity: (target) => `Read ${target ?? "the relevant file"} to decide the next step from real context.`,
+		editActivity: (target, isError) =>
+			`${isError ? "Tried to edit" : "Edited"} ${target ?? "the relevant file"} to fix the issue with the smallest safe change.`,
+		writeActivity: (target, isError) =>
+			`${isError ? "Tried to write" : "Wrote"} ${target ?? "the file"} to add what this goal needs.`,
+		commandActivity: (command) => `Ran ${command.label} to ${command.purpose}.`,
+		toolActivity: (toolName) => `Handled ${toolName} to move the task forward.`,
+		commandPurposes: [
+			[/^npm run check\b/, "confirm formatting, types, and repository rules pass"],
+			[/^npm run build:byz(?::offline)?\b/, "build the BYZ release artifact and verify packaging works"],
+			[/^npm --prefix packages\/byz test\b/, "run BYZ tests and confirm existing behavior still works"],
+			[/^node --test\b/, "run the targeted regression tests for this fix"],
+			[/^npm run release:byz\b/, "create the BYZ release artifact and run pre-publish checks"],
+			[/^git status\b/, "make sure only this task's files are being handled"],
+			[/^git add\b/, "stage only the files changed for this task"],
+			[/^git commit\b/, "record the change so it can be published and rolled back"],
+			[/^git push\b/, "send the verified change to the remote and trigger publishing"],
+			[/^gh run watch\b/, "wait for the online release workflow to finish"],
+			[/^npm view\b/, "verify the final version on npm"],
+		],
+		unknownCommandPurpose: "complete the verification or processing needed for this goal",
+		stageForTool: {
+			read: "checking the relevant material",
+			edit: "making the smallest necessary change",
+			write: "making the smallest necessary change",
+			bash: "running a command and checking the result",
+			powershell: "running a command and checking the result",
+		},
+		nextEvidence: "decide from evidence",
+		nextVerify: "verify the change",
+		nextCommand: "use the command result to decide the next step",
+		confirmedGoal: "goal received",
+		confirmedRead: "checked the relevant project material",
+		confirmedEdit: "completed the code-level change",
+		confirmedEditError: "the edit needs review",
+		confirmedCommand: "ran the verification command",
+		confirmedCommandError: "the command result needs handling",
+		judgementSmallChange: "prefer a small change and avoid expanding scope",
+		judgementRecover: "I will fix safely recoverable issues and keep moving",
+		stageError: "handling an unexpected result",
+		stageContinue: "checking and narrowing the result",
+		stageReply: "preparing the reply",
+		nextResult: "share the conclusion and verification",
+		detailsOn: (scope) => `Details are on (${scope}). Advanced controls: /fast, /prewalk, /workflow.`,
+		detailsOff: (scope) => `Compact mode is on (${scope}).`,
+		detailScopeRemember: "saved as the default for all sessions",
+		detailScopeSession: "this session only",
+		detailsStatus: (current, saved) => `Current: ${current}. Default: ${saved}.`,
+		detailsUsage: "Usage: /details [on|off|remember|remember compact|status]",
+		languageSet: (language) => `Language set to: ${language}.`,
+		languageStatus: (current, saved) => `Current language: ${current}. Default language: ${saved}.`,
+		languageUsage: "Usage: /language [auto|zh|en|status]",
+		routeNotice: (route) =>
+			`Category: ${route.kind}. Preferences: autonomy ${route.preferences.autonomy}, delivery ${route.preferences.delivery}.`,
+		taskKind: (kind) => `task type: ${kind}`,
+		confirmKeyActions: "key actions will be confirmed first",
+	},
+};
+
+function textFor(language) {
+	return TEXT[language === LANGUAGE_EN ? LANGUAGE_EN : LANGUAGE_ZH];
 }
 
 function formatTokens(count) {
@@ -150,14 +339,17 @@ function createByzFooter(ctx, tui, theme, footerData) {
 	};
 }
 
-function createProgressState() {
+function createProgressState(language = LANGUAGE_ZH) {
+	const text = textFor(language);
 	return {
-		goal: "当前任务",
-		stage: "确认目标与边界",
+		goal: text.defaultGoal,
+		language,
+		stage: text.stageConfirm,
 		confirmed: [],
 		judgements: [],
-		nextSteps: ["完成必要检查", "整理结果给你"],
-		safeguards: ["不会提交代码", "不会执行高影响动作"],
+		nextSteps: [...text.defaultNext],
+		safeguards: [...text.defaultSafeguards],
+		activities: [],
 		tools: { inspected: 0, edited: 0, commands: 0 },
 		visible: false,
 	};
@@ -169,78 +361,91 @@ function pushUnique(list, value, limit = 3) {
 	if (list.length > limit) list.shift();
 }
 
-function summarizeGoal(prompt) {
+function summarizeGoal(prompt, language = LANGUAGE_ZH) {
 	const clean = String(prompt ?? "")
 		.replace(/[\r\n\t]/g, " ")
-		.replace(/展开细节[，,；;\s]*/g, "")
+		.replace(/(展开细节|查看细节|显示细节|show details|details)[，,；;\s]*/gi, "")
 		.replace(/ +/g, " ")
 		.trim();
-	if (!clean) return "当前任务";
+	if (!clean) return textFor(language).defaultGoal;
 	return clean.length > 28 ? `${clean.slice(0, 27)}…` : clean;
 }
 
 function getActivitySummary(state) {
-	const activity = [];
-	if (state.tools.inspected > 0) activity.push(`查看 ${state.tools.inspected} 项`);
-	if (state.tools.edited > 0) activity.push(`修改 ${state.tools.edited} 项`);
-	if (state.tools.commands > 0) activity.push(`命令 ${state.tools.commands} 次`);
-	return activity.join("，");
+	return state.activities.at(-1) ?? textFor(state.language).fallbackActivity;
+}
+
+function getToolTarget(args) {
+	if (!args || typeof args !== "object") return undefined;
+	return args.path ?? args.file_path ?? args.command;
+}
+
+function describeCommand(command, language = LANGUAGE_ZH) {
+	const text = String(command ?? "").trim();
+	const copy = textFor(language);
+	const purpose = copy.commandPurposes.find(([pattern]) => pattern.test(text))?.[1] ?? copy.unknownCommandPurpose;
+	return { label: text.split(/\s+/).slice(0, 4).join(" "), purpose };
+}
+
+function describeToolActivity(toolName, args, isError, language = LANGUAGE_ZH) {
+	const target = getToolTarget(args);
+	const copy = textFor(language);
+	if (toolName === "read") return copy.readActivity(target);
+	if (toolName === "edit") return copy.editActivity(target, isError);
+	if (toolName === "write") return copy.writeActivity(target, isError);
+	if (toolName === "bash" || toolName === "powershell")
+		return copy.commandActivity(describeCommand(args?.command, language));
+	return copy.toolActivity(toolName);
 }
 
 function renderProgressCard(state, options = {}) {
 	const activity = getActivitySummary(state);
+	const copy = textFor(state.language);
 	if (options.compact) {
-		const progress = activity || state.confirmed.at(-1) || state.stage;
-		const next = state.nextSteps.at(-1) ?? "整理结果给你";
-		const boundary = state.safeguards.at(-1) ?? "不会提交代码";
-		return [`处理中：${state.goal}`, `进展：${progress}`, `下一步：${next}`, `边界：${boundary}`].join("\n");
+		const next = state.nextSteps.at(-1) ?? copy.defaultNext.at(-1);
+		const boundary = state.safeguards.at(-1) ?? copy.defaultSafeguards.at(-1);
+		return copy.compactLines({ state, activity, next, boundary }).join("\n");
 	}
-
-	const lines = [`正在处理：${state.goal}`, `当前阶段：${state.stage}`];
-	if (activity) lines.push(`现场进展：${activity}`);
-	if (state.confirmed.length > 0) lines.push(`已确认：${state.confirmed.join("；")}`);
-	if (state.judgements.length > 0) lines.push(`当前判断：${state.judgements.join("；")}`);
-	if (state.nextSteps.length > 0) lines.push(`下一步：${state.nextSteps.join("；")}`);
-	if (state.safeguards.length > 0) lines.push(`不会做：${state.safeguards.join("；")}`);
-	return lines.join("\n");
+	return copy.detailLines({ state, activity }).join("\n");
 }
 
-function stageForTool(toolName) {
-	if (["read", "grep", "find", "ls"].includes(toolName)) return "定位和核对相关材料";
-	if (["edit", "write"].includes(toolName)) return "执行最小必要修改";
-	if (["bash", "powershell"].includes(toolName)) return "运行命令并核对结果";
-	return "处理必要步骤";
+function stageForTool(toolName, language = LANGUAGE_ZH) {
+	const copy = textFor(language);
+	return copy.stageForTool[toolName] ?? (language === LANGUAGE_EN ? "handling the needed step" : "处理必要步骤");
 }
 
 function updateProgressFromToolStart(state, toolName) {
-	state.stage = stageForTool(toolName);
+	const copy = textFor(state.language);
+	state.stage = stageForTool(toolName, state.language);
 	if (["read", "grep", "find", "ls"].includes(toolName)) {
-		pushUnique(state.nextSteps, "基于证据判断方案");
+		pushUnique(state.nextSteps, copy.nextEvidence);
 	} else if (["edit", "write"].includes(toolName)) {
-		pushUnique(state.judgements, "优先做小改动，避免扩大范围");
-		pushUnique(state.nextSteps, "补充验证");
+		pushUnique(state.judgements, copy.judgementSmallChange);
+		pushUnique(state.nextSteps, copy.nextVerify);
 	} else if (["bash", "powershell"].includes(toolName)) {
-		pushUnique(state.nextSteps, "根据命令结果决定是否继续");
+		pushUnique(state.nextSteps, copy.nextCommand);
 	}
 }
 
-function updateProgressFromToolEnd(state, toolName, isError) {
+function updateProgressFromToolEnd(state, toolName, args, isError) {
+	const copy = textFor(state.language);
+	pushUnique(state.activities, describeToolActivity(toolName, args, isError, state.language), 4);
 	if (["read", "grep", "find", "ls"].includes(toolName)) {
 		state.tools.inspected += 1;
-		pushUnique(state.confirmed, "已查看相关项目资料");
+		pushUnique(state.confirmed, copy.confirmedRead);
 	} else if (["edit", "write"].includes(toolName)) {
 		state.tools.edited += 1;
-		pushUnique(state.confirmed, isError ? "修改步骤需要复核" : "已完成代码层面的变更");
+		pushUnique(state.confirmed, isError ? copy.confirmedEditError : copy.confirmedEdit);
 	} else if (["bash", "powershell"].includes(toolName)) {
 		state.tools.commands += 1;
-		pushUnique(state.confirmed, isError ? "命令结果需要处理" : "已执行验证命令");
+		pushUnique(state.confirmed, isError ? copy.confirmedCommandError : copy.confirmedCommand);
 	}
 	if (isError) {
-		state.stage = "处理异常结果";
-		pushUnique(state.judgements, "先解释失败原因，再决定是否调整");
+		state.stage = copy.stageError;
+		pushUnique(state.judgements, copy.judgementRecover);
 		return;
 	}
-	state.stage = "继续核对并收敛结果";
+	state.stage = copy.stageContinue;
 }
 
 export function createConversationExtension(options = {}) {
@@ -248,10 +453,12 @@ export function createConversationExtension(options = {}) {
 	const routingPolicy = createRoutingPolicy();
 	const progressCardDelayMs = options.progressCardDelayMs ?? 8_000;
 	let savedDetailMode = getSavedDetailMode();
+	let savedLanguage = getSavedLanguage();
+	let currentLanguage = detectLanguage("", savedLanguage);
 
 	return function conversationExtension(pi) {
 		let progressTimer;
-		let progressState = createProgressState();
+		let progressState = createProgressState(currentLanguage);
 		let activeCtx;
 
 		function clearProgressTimer() {
@@ -296,7 +503,7 @@ export function createConversationExtension(options = {}) {
 			policy.resetProgress();
 			progressState.visible = false;
 			clearProgressTimer();
-			ctx.ui.setWorkingMessage?.("正在确认目标与边界…");
+			ctx.ui.setWorkingMessage?.(textFor(progressState.language).initialWorking);
 			progressTimer = setTimeout(() => {
 				publishProgress();
 			}, progressCardDelayMs);
@@ -306,13 +513,14 @@ export function createConversationExtension(options = {}) {
 			updateVisibleProgress();
 		});
 		pi.on("tool_execution_end", (event) => {
-			updateProgressFromToolEnd(progressState, event.toolName, event.isError);
+			updateProgressFromToolEnd(progressState, event.toolName, event.args, event.isError);
 			updateVisibleProgress();
 		});
 		pi.on("message_update", (event) => {
 			if (event.message?.role !== "assistant") return;
-			progressState.stage = "组织回复";
-			pushUnique(progressState.nextSteps, "给出结论和已做验证");
+			const copy = textFor(progressState.language);
+			progressState.stage = copy.stageReply;
+			pushUnique(progressState.nextSteps, copy.nextResult);
 			updateVisibleProgress();
 		});
 		pi.on("agent_end", () => {
@@ -327,19 +535,15 @@ export function createConversationExtension(options = {}) {
 			activeCtx = undefined;
 		});
 		function applyDetailMode(ctx, mode, options = {}) {
+			const copy = textFor(currentLanguage);
 			policy.setDetailEnabled(mode === DETAIL_MODE_DETAILS);
 			ctx.ui.setToolExecutionVisible?.(policy.isDetailEnabled());
 			if (options.remember) {
 				saveDetailMode(mode);
 				savedDetailMode = mode;
 			}
-			if (mode === DETAIL_MODE_DETAILS) {
-				const scope = options.remember ? "已设为所有会话默认" : "仅当前会话";
-				ctx.ui.notify(`已展开细节（${scope}）。高级控制：/fast、/prewalk、/workflow。`, "info");
-				return;
-			}
-			const scope = options.remember ? "已设为所有会话默认" : "仅当前会话";
-			ctx.ui.notify(`已切回紧凑模式（${scope}）。`, "info");
+			const scope = options.remember ? copy.detailScopeRemember : copy.detailScopeSession;
+			ctx.ui.notify(mode === DETAIL_MODE_DETAILS ? copy.detailsOn(scope) : copy.detailsOff(scope), "info");
 		}
 
 		function handleDetailsCommand(args, ctx) {
@@ -364,33 +568,60 @@ export function createConversationExtension(options = {}) {
 			}
 			if (action === "status") {
 				const current = policy.isDetailEnabled() ? DETAIL_MODE_DETAILS : DETAIL_MODE_COMPACT;
-				ctx.ui.notify(`当前：${current}。默认：${savedDetailMode}。`, "info");
+				ctx.ui.notify(textFor(currentLanguage).detailsStatus(current, savedDetailMode), "info");
 				return;
 			}
-			ctx.ui.notify("用法：/details [on|off|remember|remember compact|status]", "warning");
+			ctx.ui.notify(textFor(currentLanguage).detailsUsage, "warning");
+		}
+
+		function applyLanguage(language, ctx) {
+			currentLanguage = detectLanguage("", language);
+			savedLanguage = language;
+			saveLanguage(language);
+			progressState.language = currentLanguage;
+			ctx.ui.notify(textFor(currentLanguage).languageSet(language), "info");
+		}
+
+		function handleLanguageCommand(args, ctx) {
+			const action = String(args ?? "")
+				.trim()
+				.toLowerCase();
+			if ([LANGUAGE_AUTO, LANGUAGE_ZH, LANGUAGE_EN].includes(action)) {
+				applyLanguage(action, ctx);
+				return;
+			}
+			if (action === "status") {
+				ctx.ui.notify(textFor(currentLanguage).languageStatus(currentLanguage, savedLanguage), "info");
+				return;
+			}
+			ctx.ui.notify(textFor(currentLanguage).languageUsage, "warning");
 		}
 
 		pi.registerCommand("details", {
 			description: "Configure BYZ detail mode",
 			handler: async (args, ctx) => handleDetailsCommand(args, ctx),
 		});
+		pi.registerCommand("language", {
+			description: "Configure BYZ language",
+			handler: async (args, ctx) => handleLanguageCommand(args, ctx),
+		});
 		pi.on("before_agent_start", async (event, ctx) => {
+			currentLanguage = detectLanguage(event.prompt, savedLanguage);
+			const copy = textFor(currentLanguage);
 			const route = routingPolicy.route(event.prompt);
-			progressState = createProgressState();
-			progressState.goal = summarizeGoal(event.prompt);
-			pushUnique(progressState.confirmed, "已收到目标");
-			if (route.kind !== "general") pushUnique(progressState.judgements, `任务类型：${route.kind}`);
+			progressState = createProgressState(currentLanguage);
+			progressState.goal = summarizeGoal(event.prompt, currentLanguage);
+			pushUnique(progressState.confirmed, copy.confirmedGoal);
+			pushUnique(progressState.judgements, copy.judgementRecover);
+			if (route.kind !== "general") pushUnique(progressState.judgements, copy.taskKind(route.kind));
 			if (route.preferences.autonomy === "confirm-key-actions") {
-				pushUnique(progressState.safeguards, "关键动作会先确认");
+				pushUnique(progressState.safeguards, copy.confirmKeyActions);
 			}
 			if (route.details || parseConversationControl(event.prompt) === "detail") {
 				applyDetailMode(ctx, DETAIL_MODE_DETAILS);
 			}
 			if (policy.isDetailEnabled()) {
-				ctx.ui.notify(
-					`当前类别：${route.kind}。当前偏好：主动程度 ${route.preferences.autonomy}，交付 ${route.preferences.delivery}。`,
-					"info",
-				);
+				ctx.ui.notify(copy.routeNotice(route), "info");
 			}
 			return {
 				systemPrompt: `${event.systemPrompt ?? ""}\n\nBYZ collaboration guidance for this turn:\n${route.instructions}`,

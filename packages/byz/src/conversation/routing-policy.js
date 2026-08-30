@@ -4,11 +4,11 @@ const DEFAULT_PREFERENCES = Object.freeze({
 });
 
 const CONTROL_PATTERNS = [
-	[/关键动作先问我|先问我/, { autonomy: "confirm-key-actions" }],
-	[/少问一点/, { autonomy: "fewer-questions" }],
-	[/直接做/, { autonomy: "direct" }],
-	[/先给三个方向/, { delivery: "three-directions" }],
-	[/展开细节|查看细节|显示细节/, {}],
+	[/关键动作先问我|先问我|ask me first|confirm key actions/i, { autonomy: "confirm-key-actions" }],
+	[/少问一点|fewer questions/i, { autonomy: "fewer-questions" }],
+	[/直接做|do it directly|just do it/i, { autonomy: "direct" }],
+	[/先给三个方向|three directions/i, { delivery: "three-directions" }],
+	[/展开细节|查看细节|显示细节|show details|details/i, {}],
 ];
 
 const FALLBACKS = Object.freeze({
@@ -31,11 +31,11 @@ const FALLBACKS = Object.freeze({
 });
 
 function classify(goal) {
-	if (/https?:\/\/|链接|帖子|查一下|调研|研究/.test(goal)) return "research";
-	if (/三个方向|创意|设计|文案|写作|起个名字/.test(goal)) return "creative";
-	if (/报错|bug|缺陷|无法复现|修复/.test(goal)) return "bug-fix";
-	if (/新功能|实现|开发|增加.*功能|添加.*功能/.test(goal)) return "feature";
-	if (/继续.*项目|恢复.*项目|上次.*停/.test(goal)) return "project-recovery";
+	if (/https?:\/\/|链接|帖子|查一下|调研|研究|research|look up|search/i.test(goal)) return "research";
+	if (/三个方向|创意|设计|文案|写作|起个名字|copywriting|creative|write|name/i.test(goal)) return "creative";
+	if (/报错|bug|缺陷|无法复现|修复|error|fix|broken/i.test(goal)) return "bug-fix";
+	if (/新功能|实现|开发|增加.*功能|添加.*功能|feature|implement|add/i.test(goal)) return "feature";
+	if (/继续.*项目|恢复.*项目|上次.*停|resume|recover|continue.*project/i.test(goal)) return "project-recovery";
 	return "general";
 }
 
@@ -69,7 +69,7 @@ export function classifyRequest(prompt, preferences = DEFAULT_PREFERENCES) {
 
 export function parseSessionPreference(input) {
 	const preferences = {};
-	const details = /展开细节|查看细节|显示细节/.test(input);
+	const details = /展开细节|查看细节|显示细节|show details|details/i.test(input);
 	let goal = input;
 	for (const [pattern, changes] of CONTROL_PATTERNS) {
 		if (pattern.test(goal)) Object.assign(preferences, changes);
