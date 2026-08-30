@@ -2,9 +2,18 @@
 
 ## [Unreleased]
 
+### New Features
+
+- **RPC queue clearing** — Clear and recover queued steering and follow-up messages from RPC clients. See [RPC Mode](docs/rpc.md#clear_queue).
+- **Extension presentation hooks** — Customize assistant messages, tool rows, and confirmation prompts without changing conversation data.
+- **Scoped resource replacement** — Switch wrapper-managed skills and prompts without restarting the session.
+
 ### Added
 
 - Added extension UI presentation hooks for display-only assistant-message, tool-row, and confirmation customization.
+- Added scoped extension resource replacement so wrappers can switch managed skills and prompts without restarting the session.
+- Exported the image MIME detector from the public package API ([#8600](https://github.com/earendil-works/pi/pull/8600)).
+- Added inherited experimental DeepSeek V4 Flash vision model metadata.
 - Added RPC `clear_queue` to retrieve and remove queued steering and follow-up messages ([#8432](https://github.com/earendil-works/pi/issues/8432)).
 
 ### Fixed
@@ -13,6 +22,12 @@
 - Fixed compaction summary text to describe the user-facing recovery behavior instead of exposing raw token-count jargon by default.
 - Fixed runtime asset lookup for wrapper packages that contain source files but ship runtime assets only in `dist/`.
 - Fixed extension messages sent with `triggerTurn: false` while the agent is running being inserted between a tool call and its result, which made providers that validate message order reject the replayed history. They are now appended once the turn's tool results are in ([#8537](https://github.com/earendil-works/pi/issues/8537)).
+- Fixed saving a default model while a non-empty model scope is active so the saved model remains available in that scope.
+- Fixed inherited OpenAI-compatible Chat Completions requests sending `tool_choice` without tools during compaction ([#8607](https://github.com/earendil-works/pi/issues/8607)).
+- Fixed inherited OpenAI-compatible reasoning streams replacing earlier reasoning deltas instead of concatenating them ([#8605](https://github.com/earendil-works/pi/pull/8605)).
+- Fixed inherited OpenRouter reasoning controls for reasoning-mandatory models ([#8454](https://github.com/earendil-works/pi/issues/8454)).
+- Fixed inherited Cloudflare AI Gateway provider metadata to include Workers AI models with the correct gateway type.
+- Fixed `/model` omitting autoloadable unloaded llama.cpp presets from the selectable catalog ([#8167](https://github.com/earendil-works/pi/issues/8167)).
 
 ## [0.84.3] - 2026-08-24
 

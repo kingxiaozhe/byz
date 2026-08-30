@@ -2,9 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added the experimental DeepSeek V4 Flash vision model to generated provider catalogs.
+
 ### Fixed
 
 - Fixed OpenAI-compatible Chat Completions requests sending `tool_choice` without tools, which gateways can reject during compaction ([#8607](https://github.com/earendil-works/pi/issues/8607)).
+- Fixed OpenAI-compatible Chat Completions streams replacing earlier reasoning deltas instead of concatenating the complete reasoning content ([#8605](https://github.com/earendil-works/pi/pull/8605)).
+- Fixed OpenRouter reasoning controls by deriving supported effort levels and avoiding `off` for reasoning-mandatory models ([#8454](https://github.com/earendil-works/pi/issues/8454)).
+- Fixed Cloudflare AI Gateway generated provider metadata to use the correct gateway type and include Workers AI models.
 
 ## [0.84.3] - 2026-08-24
 
