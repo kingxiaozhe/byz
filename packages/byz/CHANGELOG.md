@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.10 - 2026-08-30
+
 ### Changed
 
 - Changed BYZ interactive progress to explain file changes and commands in human-readable language instead of exposing raw tool logs by default.
