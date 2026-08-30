@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "1.0",
+  "feature": "update-health-comparison",
+  "cases": [
+    {
+      "id": "TC-001",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-001", "AC-011"],
+      "taskIds": ["T-002", "T-006"],
+      "title": "诊断故障不改变 update 主流程",
+      "preconditions": ["保存无诊断时 update 的计划、命令、输出、退出码和 rejection identity"],
+      "steps": ["分别注入基线目录只读、磁盘满、recorder 抛错、队列满和 Worker 失败", "重复成功和失败 update"],
+      "expected": ["计划、npm 命令对象和调用次数不变", "既有关键输出和退出码不变", "失败 rethrow 原始 rejection value", "包身份、不降级和固定 registry 测试保持通过"],
+      "cleanup": ["恢复 update 和 diagnostics fixture"]
+    },
+    {
+      "id": "TC-002",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-002"],
+      "taskIds": ["T-002", "T-003"],
+      "title": "更新结果只保存固定安全字段",
+      "preconditions": ["准备一次成功更新和一次命令失败"],
+      "steps": ["分别执行两次 update", "读取更新诊断记录"],
+      "expected": ["成功记录只含旧版本、新版本和固定成功枚举", "失败记录只含固定失败类别", "不含 npm 命令、输出、路径、prefix、registry payload 或错误消息"],
+      "cleanup": ["删除更新诊断数据"]
+    },
+    {
+      "id": "TC-003",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-003"],
+      "taskIds": ["T-003", "T-004"],
+      "title": "缺失或不足样本只显示数据不足",
+      "preconditions": ["准备基线缺失、前侧19后侧20、前侧20后侧19三组数据"],
+      "steps": ["对每组生成 comparison 和 summary"],
+      "expected": ["每组 outcome 都是 insufficient_data", "显示两侧可用样本量", "不展示百分比变化", "不反推缺失基线"],
+      "cleanup": ["删除比较 fixture"]
+    },
+    {
+      "id": "TC-004",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-004", "AC-006"],
+      "taskIds": ["T-004"],
+      "title": "可比样本按固定阈值输出趋势和相关性声明",
+      "preconditions": ["准备环境一致且两侧各20个样本的改善、持平和退化数据"],
+      "steps": ["分别计算错误率与耗时桶 comparison"],
+      "expected": ["结果只使用 improved、stable 或 observed_regression", "显示两侧样本量", "每个结果 correlationOnly 为 true", "摘要声明相关性不证明版本因果"],
+      "cleanup": ["删除比较 fixture"]
+    },
+    {
+      "id": "TC-005",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-005"],
+      "taskIds": ["T-004"],
+      "title": "环境差异阻止确定性版本比较",
+      "preconditions": ["分别改变 Provider 类别、运行模式、runtime 主版本、OS 类别和诊断 Schema"],
+      "steps": ["对每种变化计算 comparison"],
+      "expected": ["结果为 not_comparable 或显示固定环境差异", "不输出确定性退化结论"],
+      "cleanup": ["删除比较 fixture"]
+    },
+    {
+      "id": "TC-006",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-007"],
+      "taskIds": ["T-003", "T-006"],
+      "title": "更新后比较不等待样本或保持进程存活",
+      "preconditions": ["存在 pending update 但样本不足", "Worker 已 unref"],
+      "steps": ["启动一次新版本普通运行", "观察 comparison 检查和进程退出"],
+      "expected": ["检查立即返回数据不足", "不启动 timer 或轮询", "进程不等待样本且正常退出"],
+      "cleanup": ["删除 pending update"]
+    },
+    {
+      "id": "TC-007",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-008", "AC-010"],
+      "taskIds": ["T-003", "T-005"],
+      "title": "禁用诊断时 update 不产生健康数据或外部动作",
+      "preconditions": ["诊断已禁用", "拦截网络、回滚、Issue 和浏览器入口"],
+      "steps": ["执行一次可更新的 update", "检查诊断目录和外部动作"],
+      "expected": ["不创建基线、更新事件或 comparison", "不新增网络请求", "不自动回滚、不创建 Issue、不打开浏览器"],
+      "cleanup": ["恢复诊断状态和 fixture"]
+    },
+    {
+      "id": "TC-008",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-009"],
+      "taskIds": ["T-005"],
+      "title": "summary 展示最近比较且 clear 后彻底移除",
+      "preconditions": ["存在一个有效 comparison 和一个旧 Schema comparison"],
+      "steps": ["执行 diagnostics summary", "执行 diagnostics clear --confirm", "再次执行 summary"],
+      "expected": ["首次只展示最近有效 comparison 并标记旧 Schema 不可用", "clear 删除基线、结果和 comparison", "第二次不展示旧结论"],
+      "cleanup": ["删除临时诊断目录"]
+    }
+  ]
+}

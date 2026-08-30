@@ -13,6 +13,7 @@ This is not a browser component application. Terminal UI primitives live in `pac
 | Tools | read/write/edit/bash/grep/find wrappers and mutation handling | `packages/coding-agent/src/core/tools/**` | Tool execution |
 | Modes | interactive, print, json-event, rpc | `packages/coding-agent/src/modes/**` | User/runtime interface |
 | BYZ workflow layer | workflow selection, updates, release contract | `packages/byz/src/**`, `packages/byz/scripts/**` | BYZ product |
+| BYZ local diagnostics | closed event schema, bounded recorder/Worker shards, summaries, safe export, update-health comparison | `packages/byz/src/diagnostics/**` | Local diagnostics |
 
 ## Hooks
 
@@ -26,6 +27,7 @@ This is not a browser component application. Terminal UI primitives live in `pac
 | Models store | model catalog and resolver inputs | load/cache/resolve | `packages/coding-agent/src/core/models-store.ts`, `model-resolver.ts` |
 | Sessions | transcripts, branches, snapshots | create/load/export/share | `packages/coding-agent/src/core/session-manager.ts`, `session-export.ts` |
 | SQLite backend | persistent sessions/search/facts | repo/storage/search | `packages/session-backends/sqlite-node/src/sqlite/**` |
+| BYZ diagnostics config | enable/detail/retention/generation state | atomic local read/write/clear | `packages/byz/src/diagnostics/config.js` |
 
 ## 复杂页面精读（3–5 个）
 

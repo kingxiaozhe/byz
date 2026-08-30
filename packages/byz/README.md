@@ -34,6 +34,34 @@ Workflows do not have an end-user update or rollback command. Every BYZ release
 selects one CM version and one compatible CM Plugin version; users run the
 versions selected by their installed BYZ release.
 
+## Local diagnostics
+
+BYZ records a small, structured diagnostic stream on the local machine to help identify failures, slow operations, and update regressions. Diagnostics never upload automatically and never record prompts, model responses, code, file paths, tool arguments or output, credentials, headers, or provider payloads.
+
+```bash
+byz diagnostics status
+byz diagnostics summary
+byz diagnostics doctor
+byz diagnostics disable
+byz diagnostics enable
+byz diagnostics record --for 30m
+byz diagnostics record --stop
+byz diagnostics clear --confirm
+```
+
+Runtime recording is best effort: it uses a bounded queue and per-process shards. Full queues, disk errors, invalid records, and writer failures drop diagnostics instead of delaying or changing the main BYZ flow. Events are retained for 30 days with a 100 MB default limit.
+
+Create a local aggregate-only support bundle after reviewing its preview:
+
+```bash
+byz diagnostics export
+byz diagnostics export --confirm
+```
+
+The export contains a manifest, aggregate summary, and privacy report. It does not contain raw events and is never uploaded or added to model context automatically.
+
+When sufficient comparable samples exist, `diagnostics summary` can show a trend across a BYZ update. The result is correlation-only, requires at least 20 samples on each side, and never triggers rollback or remote reporting.
+
 ## Fast mode
 
 Use Fast mode for lower-latency, lower-token everyday work without removing the

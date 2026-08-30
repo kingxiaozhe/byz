@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Added privacy-first local diagnostics with bounded non-blocking recording, local summaries, health checks, explicit clearing, aggregate-only exports, and correlation-only update comparisons.
+
 ## 0.1.10 - 2026-08-30
 
 ### Changed

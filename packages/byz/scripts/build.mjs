@@ -69,6 +69,10 @@ await cp(join(packageDir, "src", "conversation"), join(distDir, "conversation"),
 	force: true,
 	recursive: true,
 });
+await cp(join(packageDir, "src", "diagnostics"), join(distDir, "diagnostics"), {
+	force: true,
+	recursive: true,
+});
 await cp(join(packageDir, "src", "fast.js"), join(distDir, "fast.js"), {
 	force: true,
 });

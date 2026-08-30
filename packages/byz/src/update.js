@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { gt, valid } from "semver";
+import { runUpdateWithDiagnostics } from "./diagnostics/update-integration.js";
 import { getSelfUpdateCommand, getSelfUpdateManualCommand, VERSION } from "./runtime/bundle/index.js";
 
 export const BYZ_PACKAGE_NAME = "@aibyzero/byz";
@@ -127,8 +128,14 @@ export async function handleByzUpdate(args, dependencies = {}) {
 	}
 
 	stdout(`Updating BYZ with ${command.display}...`);
-	const runCommand = dependencies.runCommand ?? runSelfUpdateCommand;
-	await runCommand(command);
+	await runUpdateWithDiagnostics({
+		command,
+		diagnostics: dependencies.diagnostics,
+		fromVersion: currentVersion,
+		identity: `node-${process.versions.node.split(".")[0]}-${process.platform}`,
+		runCommand: dependencies.runCommand ?? runSelfUpdateCommand,
+		toVersion: plan.version,
+	});
 	stdout(`Updated BYZ from ${currentVersion} to ${plan.version}. Restart BYZ to use the new version.`);
 	return true;
 }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { BYZ_PACKAGE_NAME, getLatestByzRelease, handleByzUpdate, planByzUpdate } from "../dist/update.js";
+import { runUpdateWithDiagnostics } from "../src/diagnostics/update-integration.js";
 
 test("reads only the fixed BYZ npm registry endpoint", async () => {
 	const requests = [];
@@ -81,6 +82,44 @@ test("updates only a writable global BYZ installation", async () => {
 		"/tmp/byz-prefix",
 	]);
 	assert.match(stdout.at(-1), /Updated BYZ from 0\.1\.0 to 0\.2\.0/);
+});
+
+test("diagnostics remain best effort and preserve update rejection identity", async () => {
+	const rejection = new Error("update failed");
+	const calls = [];
+	await assert.rejects(
+		runUpdateWithDiagnostics({
+			command: { command: "npm", args: ["install"] },
+			fromVersion: "0.1.0",
+			toVersion: "0.2.0",
+			identity: "node-test",
+			runCommand: async () => Promise.reject(rejection),
+			diagnostics: {
+				captureUpdateBaseline: (value) => calls.push(["baseline", value]),
+				recordUpdateResult: (value) => calls.push(["result", value]),
+			},
+		}),
+		(error) => error === rejection,
+	);
+	assert.equal(calls[0][0], "baseline");
+	assert.equal(calls[1][0], "result");
+	assert.equal(calls[1][1].outcome, "command_failed");
+
+	await runUpdateWithDiagnostics({
+		command: { command: "npm", args: ["install"] },
+		fromVersion: "0.1.0",
+		toVersion: "0.2.0",
+		identity: "node-test",
+		runCommand: async () => {},
+		diagnostics: {
+			captureUpdateBaseline: () => {
+				throw new Error("diagnostics unavailable");
+			},
+			recordUpdateResult: () => {
+				throw new Error("diagnostics unavailable");
+			},
+		},
+	});
 });
 
 test("preserves a custom prefix in non-writable fallback guidance", async () => {

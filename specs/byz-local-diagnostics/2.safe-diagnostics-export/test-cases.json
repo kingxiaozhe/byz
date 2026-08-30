@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "1.0",
+  "feature": "safe-diagnostics-export",
+  "cases": [
+    {
+      "id": "TC-001",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-001", "AC-005"],
+      "taskIds": ["T-002", "T-004"],
+      "title": "导出预览完整且取消无副作用",
+      "preconditions": ["存在有效诊断摘要", "使用交互终端 fixture"],
+      "steps": ["执行 diagnostics export", "检查预览后选择取消", "在非交互环境不带 confirm 执行"],
+      "expected": ["预览显示时间范围、事件数、字段类别、排除类别和输出路径", "取消不生成文件", "非交互缺少确认时拒绝导出"],
+      "cleanup": ["删除临时诊断目录"]
+    },
+    {
+      "id": "TC-002",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-002", "AC-007"],
+      "taskIds": ["T-002", "T-003"],
+      "title": "默认包只包含固定脱敏文件",
+      "preconditions": ["存在包含多种合法事件的诊断分片"],
+      "steps": ["确认执行默认导出", "枚举目录包和读取 manifest"],
+      "expected": ["只包含 manifest.json、summary.json 和 privacy-report.txt", "不包含原始 JSONL", "文件仅当前用户可读", "manifest 不含用户名、项目名或路径"],
+      "cleanup": ["删除导出包和测试分片"]
+    },
+    {
+      "id": "TC-003",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-003", "AC-004"],
+      "taskIds": ["T-002"],
+      "title": "二次隐私校验对未知敏感和损坏数据失败关闭",
+      "preconditions": ["分别准备未知字段、路径、Prompt、工具内容、URL、Token 形态字段、自由错误文本、损坏 JSON 和未知 Schema"],
+      "steps": ["对每个 fixture 执行确认导出"],
+      "expected": ["每次导出均返回非零", "不生成最终包", "输出不回显敏感字段值"],
+      "cleanup": ["删除测试 fixture"]
+    },
+    {
+      "id": "TC-004",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-006"],
+      "taskIds": ["T-003"],
+      "title": "导出拒绝覆盖和父目录替换竞态",
+      "preconditions": ["准备已存在目标、符号链接目标和可在导出期间替换的父目录"],
+      "steps": ["分别向三种目标执行确认导出", "在临时目录写完后替换父目录 identity"],
+      "expected": ["已存在和符号链接目标被拒绝且原内容不变", "父目录 identity 漂移时最终 rename 被拒绝", "临时产物被清理"],
+      "cleanup": ["恢复并删除测试目录"]
+    },
+    {
+      "id": "TC-005",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-008"],
+      "taskIds": ["T-004"],
+      "title": "导出不联网也不触发外部动作",
+      "preconditions": ["拦截网络、浏览器和 Issue 创建入口"],
+      "steps": ["成功执行一次导出"],
+      "expected": ["没有网络请求", "没有打开浏览器", "没有创建 Issue", "仅打印本地输出路径"],
+      "cleanup": ["删除导出包并恢复 fixture"]
+    },
+    {
+      "id": "TC-006",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-009"],
+      "taskIds": ["T-003"],
+      "title": "写入和清理失败不会留下成功假象",
+      "preconditions": ["注入中途写入失败和临时目录清理失败"],
+      "steps": ["执行确认导出"],
+      "expected": ["不产生最终目录包", "命令返回退出码2", "报告固定临时产物类别而不泄露绝对路径"],
+      "cleanup": ["测试结束后强制删除 fixture"]
+    },
+    {
+      "id": "TC-007",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-010"],
+      "taskIds": ["T-005"],
+      "title": "导出与运行期记录并发时主流程不等待",
+      "preconditions": ["准备较大合法诊断数据集", "启动持续产生事件的 BYZ 进程"],
+      "steps": ["并发执行导出和运行期工具事件", "比较无导出时的运行行为"],
+      "expected": ["运行期 writer 不等待导出锁", "业务返回和退出行为不变", "导出得到一致快照或安全失败"],
+      "cleanup": ["终止进程并删除诊断目录"]
+    },
+    {
+      "id": "TC-008",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-011"],
+      "taskIds": ["T-004"],
+      "title": "生成诊断包不会自动进入 AI 上下文",
+      "preconditions": ["成功生成一个诊断包", "启动新的 BYZ 会话"],
+      "steps": ["进行不涉及诊断的一般对话", "检查发送给模型的上下文"],
+      "expected": ["上下文不包含诊断包内容或路径", "只有用户后续明确指定摘要时才允许读取"],
+      "cleanup": ["删除诊断包"]
+    }
+  ]
+}
