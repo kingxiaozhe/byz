@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "task_id": "T-003",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/cli.js",
+    "packages/byz/src/workflow-switch.js",
+    "packages/byz/test/diagnostics.test.mjs",
+    "packages/byz/test/workflow-switch.test.mjs",
+    "packages/coding-agent/src/core/agent-session.ts",
+    "packages/coding-agent/src/core/extensions/index.ts",
+    "packages/coding-agent/src/core/extensions/runner.ts",
+    "packages/coding-agent/src/core/extensions/types.ts",
+    "packages/coding-agent/src/core/resource-loader.ts",
+    "packages/coding-agent/src/index.ts",
+    "packages/coding-agent/src/main.ts"
+  ],
+  "implementation_sha256": "ad6848500818a8b0b9a2ed49f2be4152403dec3ed6b00a074454f6e713e8cb33",
+  "verification": [
+    {
+      "command": "npm --prefix packages/coding-agent run build && npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Coding-agent bundle and the production BYZ package image built successfully."
+    },
+    {
+      "command": "cd packages/coding-agent && node ../../node_modules/vitest/dist/cli.js --run test/resource-loader.test.ts test/extensions-runner.test.ts",
+      "status": "passed",
+      "evidence": "79 of 79 resource-loader and extension-runner tests passed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "139 of 139 BYZ package tests passed, including managed capability isolation and workflow switching."
+    },
+    {
+      "command": "repeat packages/byz/test/workflow-switch.test.mjs 10 times",
+      "status": "passed",
+      "evidence": "All 10 consecutive owner isolation and precedence runs passed."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency, import, shrinkwrap, type, and browser-smoke checks passed with no final fixes."
+    },
+    {
+      "command": "product-neutral core source scan",
+      "status": "passed",
+      "evidence": "No BYZ product identifier remains in the affected Pi core/main files."
+    }
+  ],
+  "evidence": [
+    "packages/byz/test/workflow-switch.test.mjs",
+    "specs/byz-open-source-project-partner-architecture/1.open-source-runtime-boundaries/test-cases.json"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

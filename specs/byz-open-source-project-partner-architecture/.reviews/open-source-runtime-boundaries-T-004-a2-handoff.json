@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "task_id": "T-004",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "package-lock.json",
+    "package.json",
+    "packages/byz/CHANGELOG.md",
+    "packages/byz/package.json",
+    "packages/byz/scripts/check-architecture.mjs",
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/cli.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/prewalk.test.mjs",
+    "packages/coding-agent/CHANGELOG.md",
+    "packages/coding-agent/src/index.ts",
+    "packages/coding-agent/src/main.ts",
+    "packages/coding-agent/src/modes/index.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/test/interactive-product-profile.test.ts"
+  ],
+  "implementation_sha256": "fc1ea1c71db0064b54bced8c799bf81b569c73f7f75734ceccda90f203e39766",
+  "verification": [
+    {
+      "command": "npm --prefix packages/coding-agent run build && npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Coding-agent bundle and BYZ production image compiled the generic profile, ports, and adapter."
+    },
+    {
+      "command": "cd packages/coding-agent && vitest --run test/interactive-product-profile.test.ts test/interactive-mode-status.test.ts",
+      "status": "passed",
+      "evidence": "35 of 35 profile and interactive status tests passed after final formatting."
+    },
+    {
+      "command": "node --test packages/byz/test/architecture.test.mjs packages/byz/test/smoke.test.mjs",
+      "status": "passed",
+      "evidence": "36 of 36 adapter, architecture-boundary, CLI, workflow, and package smoke tests passed; the architecture gate also passed its 4 focused cases."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "145 of 145 BYZ package tests passed after updating the Prewalk composition assertion for the adapter boundary."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Root check now executes the BYZ architecture gate; formatting, dependency/import, lock, type, and browser checks passed."
+    },
+    {
+      "command": "cm-spec-manifest.py specs/byz-open-source-project-partner-architecture --status-file .cm-specs-status",
+      "status": "passed",
+      "evidence": "Approved v9 semantic manifest matched after task and AC progress normalization."
+    }
+  ],
+  "evidence": [
+    "packages/coding-agent/test/interactive-product-profile.test.ts",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/smoke.test.mjs"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

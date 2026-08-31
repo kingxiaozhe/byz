@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "task_id": "T-002",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    ".github/workflows/byz-release.yml",
+    "packages/byz/.gitignore",
+    "packages/byz/build-manifest.json",
+    "packages/byz/package.json",
+    "packages/byz/scripts/build-support.mjs",
+    "packages/byz/scripts/build.mjs",
+    "packages/byz/scripts/pack.mjs",
+    "packages/byz/test/build.test.mjs",
+    "packages/byz/test/diagnostics.test.mjs",
+    "packages/byz/test/fast-switch.test.mjs",
+    "packages/byz/test/prewalk.test.mjs",
+    "packages/byz/test/smoke.test.mjs",
+    "packages/byz/test/update.test.mjs",
+    "packages/byz/test/workflow-switch.test.mjs",
+    "packages/byz/tsconfig.build.json",
+    "scripts/byz-packed-runtime.test.mjs",
+    "scripts/byz-release.test.mjs"
+  ],
+  "implementation_sha256": "7eca7830c913fdd75ed18264605d8bca62832c69d57071cf29c9be9c7ad4173c",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Build writes an immutable generation and atomically switches one current symlink under a recoverable process lock."
+    },
+    {
+      "command": "node --test packages/byz/test/build.test.mjs",
+      "status": "passed",
+      "evidence": "5 tests cover atomic generation switching, live-build exclusion, dynamic TypeScript source inclusion, unsafe paths, and image completeness."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "125 of 125 BYZ tests passed against the current immutable image."
+    },
+    {
+      "command": "node --test scripts/byz-release.test.mjs scripts/byz-packed-runtime.test.mjs scripts/check-byz-public-package.test.mjs",
+      "status": "passed",
+      "evidence": "13 of 13 release and packed-image checks passed; release packing consumes the validated current image."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Full repository check passed with no fixes remaining."
+    }
+  ],
+  "evidence": [
+    "packages/byz/test/build.test.mjs",
+    "scripts/byz-packed-runtime.test.mjs",
+    ".github/workflows/byz-release.yml"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

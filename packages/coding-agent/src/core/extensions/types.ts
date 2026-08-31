@@ -1240,8 +1240,8 @@ export interface ResolvedCommand extends RegisteredCommand {
 	invocationName: string;
 	/** Stable runtime identity of the extension that owns this command. */
 	ownerId: string;
-	/** Internal capability marker for the dedicated BYZ workflow extension. */
-	byzWorkflowOwner: boolean;
+	/** Internal token present only for host-registered managed extensions. */
+	managedResourceCapability?: ManagedResourceCapability;
 }
 
 // ============================================================================
@@ -1585,6 +1585,17 @@ export interface ProviderModelConfig {
 /** Extension factory function type. Supports both sync and async initialization. */
 export type ExtensionFactory = (pi: ExtensionAPI) => void | Promise<void>;
 
+export type ManagedResourceCapability = symbol;
+export type ManagedResourcePrecedence = "before" | "after";
+
+export interface ManagedExtensionFactory {
+	/** Product-neutral identity used only to form the hidden inline extension path. */
+	name: string;
+	factory: ExtensionFactory;
+	/** Whether managed skills/prompts win or follow ordinary resources. */
+	resourcePrecedence: ManagedResourcePrecedence;
+}
+
 export type InlineExtension =
 	| ExtensionFactory
 	| {
@@ -1725,7 +1736,8 @@ export interface ExtensionContextActions {
 	compact: (options?: CompactOptions) => void;
 	getSystemPrompt: () => string;
 	getSystemPromptOptions?: () => BuildSystemPromptOptions;
-	replaceByzWorkflowResources?: (
+	replaceManagedResources?: (
+		capability: ManagedResourceCapability,
 		extensionOwner: string,
 		extensionPath: string,
 		resources: ResourcesDiscoverResult,
@@ -1769,8 +1781,11 @@ export interface Extension {
 	path: string;
 	resolvedPath: string;
 	hidden?: boolean;
-	/** Set only by the dedicated BYZ workflow factory loading path. */
-	byzWorkflow?: boolean;
+	/** Host-created capability; extension code never receives the token directly. */
+	managedResource?: {
+		capability: ManagedResourceCapability;
+		precedence: ManagedResourcePrecedence;
+	};
 	sourceInfo: SourceInfo;
 	handlers: Map<string, HandlerFn[]>;
 	tools: Map<string, RegisteredTool>;

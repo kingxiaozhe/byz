@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "task_id": "T-003",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/cli.js",
+    "packages/byz/src/workflow-switch.js",
+    "packages/byz/test/diagnostics.test.mjs",
+    "packages/byz/test/workflow-switch.test.mjs",
+    "packages/coding-agent/src/core/agent-session.ts",
+    "packages/coding-agent/src/core/extensions/index.ts",
+    "packages/coding-agent/src/core/extensions/runner.ts",
+    "packages/coding-agent/src/core/extensions/types.ts",
+    "packages/coding-agent/src/core/resource-loader.ts",
+    "packages/coding-agent/src/index.ts",
+    "packages/coding-agent/src/main.ts"
+  ],
+  "implementation_sha256": "061d8a968c1dc33ac70f633164bfeee6952a1da1102e23f2313e1645998001ff",
+  "verification": [
+    {
+      "command": "npm --prefix packages/coding-agent run build && npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Coding-agent and production BYZ images built successfully after attempt 2."
+    },
+    {
+      "command": "cd packages/coding-agent && node ../../node_modules/vitest/dist/cli.js --run test/resource-loader.test.ts test/extensions-runner.test.ts",
+      "status": "passed",
+      "evidence": "79 of 79 resource-loader and runner tests passed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "139 of 139 BYZ tests passed."
+    },
+    {
+      "command": "repeat packages/byz/test/workflow-switch.test.mjs 10 times",
+      "status": "passed",
+      "evidence": "All 10 multi-owner, empty-owner, theme rejection, trust-preload, precedence, and switching runs passed."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Final formatting, dependency, shrinkwrap, type, and browser-smoke checks passed."
+    }
+  ],
+  "evidence": [
+    "packages/byz/test/workflow-switch.test.mjs",
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-003-r1.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

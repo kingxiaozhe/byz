@@ -98,6 +98,56 @@ Prompt content.`,
 			expect(prompts.some((p) => p.name === "test-prompt")).toBe(true);
 		});
 
+		it("should keep discovered resources ahead by default and allow explicit additional precedence", async () => {
+			const discoveredSkillDir = join(agentDir, "skills", "shared-skill");
+			const additionalSkillDir = join(tempDir, "additional", "skills", "shared-skill");
+			const discoveredPromptPath = join(agentDir, "prompts", "shared-prompt.md");
+			const additionalPromptPath = join(tempDir, "additional", "prompts", "shared-prompt.md");
+			mkdirSync(discoveredSkillDir, { recursive: true });
+			mkdirSync(additionalSkillDir, { recursive: true });
+			mkdirSync(join(agentDir, "prompts"), { recursive: true });
+			mkdirSync(join(tempDir, "additional", "prompts"), { recursive: true });
+			writeFileSync(
+				join(discoveredSkillDir, "SKILL.md"),
+				"---\nname: shared-skill\ndescription: discovered\n---\ndiscovered\n",
+			);
+			writeFileSync(
+				join(additionalSkillDir, "SKILL.md"),
+				"---\nname: shared-skill\ndescription: additional\n---\nadditional\n",
+			);
+			writeFileSync(discoveredPromptPath, "discovered prompt");
+			writeFileSync(additionalPromptPath, "additional prompt");
+
+			const defaultLoader = new DefaultResourceLoader({
+				cwd,
+				agentDir,
+				additionalSkillPaths: [additionalSkillDir],
+				additionalPromptTemplatePaths: [additionalPromptPath],
+			});
+			await defaultLoader.reload();
+			expect(defaultLoader.getSkills().skills.find((skill) => skill.name === "shared-skill")?.filePath).toBe(
+				join(discoveredSkillDir, "SKILL.md"),
+			);
+			expect(defaultLoader.getPrompts().prompts.find((prompt) => prompt.name === "shared-prompt")?.filePath).toBe(
+				discoveredPromptPath,
+			);
+
+			const beforeLoader = new DefaultResourceLoader({
+				cwd,
+				agentDir,
+				additionalSkillPaths: [additionalSkillDir],
+				additionalPromptTemplatePaths: [additionalPromptPath],
+				additionalResourcePrecedence: "before",
+			});
+			await beforeLoader.reload();
+			expect(beforeLoader.getSkills().skills.find((skill) => skill.name === "shared-skill")?.filePath).toBe(
+				join(additionalSkillDir, "SKILL.md"),
+			);
+			expect(beforeLoader.getPrompts().prompts.find((prompt) => prompt.name === "shared-prompt")?.filePath).toBe(
+				additionalPromptPath,
+			);
+		});
+
 		it("should prefer project resources over user on name collisions", async () => {
 			const userPromptsDir = join(agentDir, "prompts");
 			const projectPromptsDir = join(cwd, ".pi", "prompts");

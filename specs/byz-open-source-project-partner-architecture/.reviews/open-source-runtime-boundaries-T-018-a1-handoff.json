@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "task_id": "T-018",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/.gitignore",
+    "packages/byz/build-manifest.json",
+    "packages/byz/package.json",
+    "packages/byz/scripts/build-support.mjs",
+    "packages/byz/scripts/build.mjs",
+    "packages/byz/test/build-safety.test.mjs",
+    "packages/byz/test/build.test.mjs",
+    "packages/byz/test/diagnostics.test.mjs",
+    "packages/byz/test/fast-switch.test.mjs",
+    "packages/byz/test/prewalk.test.mjs",
+    "packages/byz/test/smoke.test.mjs",
+    "packages/byz/test/update.test.mjs",
+    "packages/byz/test/workflow-switch.test.mjs",
+    "packages/byz/tsconfig.build.json"
+  ],
+  "implementation_sha256": "793e526af469d1c8b1ae315e5896114bc0dede48e8d21afe79b9f4a153a11422",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/build.test.mjs packages/byz/test/build-safety.test.mjs",
+      "status": "passed",
+      "evidence": "19 of 19 targeted tests passed, including non-adjacent portable ancestor and pre-compiler source symlink regressions."
+    },
+    {
+      "command": "repeat targeted build tests 20 times",
+      "status": "passed",
+      "evidence": "All 20 consecutive runs passed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "139 of 139 BYZ package tests passed."
+    },
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "The real production package image built successfully."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Repository formatting, dependency, shrinkwrap, type, and browser-smoke checks passed with no fixes applied."
+    }
+  ],
+  "evidence": [
+    "packages/byz/test/build-safety.test.mjs",
+    "packages/byz/test/build.test.mjs",
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-017-r2.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

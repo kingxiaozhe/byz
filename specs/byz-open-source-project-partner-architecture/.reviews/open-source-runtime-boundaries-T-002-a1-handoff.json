@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "task_id": "T-002",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/.gitignore",
+    "packages/byz/build-manifest.json",
+    "packages/byz/package.json",
+    "packages/byz/scripts/build-support.mjs",
+    "packages/byz/scripts/build.mjs",
+    "packages/byz/test/build.test.mjs",
+    "packages/byz/test/diagnostics.test.mjs",
+    "packages/byz/test/prewalk.test.mjs",
+    "packages/byz/tsconfig.build.json"
+  ],
+  "implementation_sha256": "732834fd068ffa56abfeffaaa1b0c4e5ef12901ebe7db8ea58945b0f9ec062c8",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Complete staged package image compiled and promoted successfully; a failed first compile left the previous dist intact and cleaned staging."
+    },
+    {
+      "command": "temporary src/__build_probe__.ts followed by two BYZ builds",
+      "status": "passed",
+      "evidence": "A new TypeScript source entered dist without a copy-list change, then disappeared after fixture cleanup and rebuild."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "124 of 124 BYZ package tests passed."
+    },
+    {
+      "command": "node --test scripts/byz-packed-runtime.test.mjs scripts/check-byz-public-package.test.mjs",
+      "status": "passed",
+      "evidence": "8 of 8 packed-runtime and public-package tests passed."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency pins, import checks, shrinkwrap/install lock, tsgo, and browser smoke passed with no remaining fixes."
+    }
+  ],
+  "evidence": [
+    "packages/byz/build-manifest.json",
+    "packages/byz/test/build.test.mjs"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

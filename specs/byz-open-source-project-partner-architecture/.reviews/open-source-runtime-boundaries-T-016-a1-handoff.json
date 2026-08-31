@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "task_id": "T-016",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/scripts/build-support.mjs",
+    "packages/byz/test/build-safety.test.mjs"
+  ],
+  "implementation_sha256": "1d50792449076c50a987b5a4cd162590945366adffcbbd00d3ad79ad292b5dac",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/build-safety.test.mjs packages/byz/test/build.test.mjs",
+      "status": "passed",
+      "evidence": "17 of 17 build and lock tests passed, including deterministic post-activation unknown and publication-fence regressions."
+    },
+    {
+      "command": "20 repeated runs of node --test packages/byz/test/build-safety.test.mjs",
+      "status": "passed",
+      "evidence": "The concurrent lock safety suite passed 20 consecutive runs."
+    },
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "The production BYZ package image build completed with the process-owned lock."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "The full repository check passed after formatting with no remaining fixes or warnings."
+    }
+  ],
+  "evidence": [
+    "packages/byz/test/build-safety.test.mjs",
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-015-r2.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "task_id": "T-013",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/package.json",
+    "packages/byz/scripts/build.mjs",
+    "packages/byz/test/build.test.mjs"
+  ],
+  "implementation_sha256": "5ecb88e0113e8907ea8a6dca8b9790743a01eeb83d99e3866f286ce153b53272",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/build.test.mjs packages/byz/test/build-safety.test.mjs",
+      "status": "passed",
+      "evidence": "17 of 17 targeted build tests passed, including the isolated production orchestration fixture."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "137 of 137 BYZ package tests passed on the final implementation."
+    },
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "The real production build generated and promoted a complete immutable package image."
+    },
+    {
+      "command": "workspace CLI and ESM export smoke",
+      "status": "passed",
+      "evidence": "The source package CLI reported 0.1.11 and @aibyzero/byz exported DefaultResourceLoader through current generation metadata."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "The full repository check passed with no remaining fixes or warnings."
+    }
+  ],
+  "evidence": [
+    "packages/byz/test/build.test.mjs",
+    "packages/byz/.byz-output/current"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -5,11 +5,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { prepareFastRuntimeArgs, selectFastRuntimeArgs } from "../dist/fast.js";
-import { CONFIG_DIR_NAME } from "../dist/runtime/bundle/index.js";
-import { prepareWorkflowRuntimeArgs } from "../dist/workflows.js";
+import { prepareFastRuntimeArgs, selectFastRuntimeArgs } from "../.byz-output/current/dist/fast.js";
+import { CONFIG_DIR_NAME } from "../.byz-output/current/dist/runtime/bundle/index.js";
+import { prepareWorkflowRuntimeArgs } from "../.byz-output/current/dist/workflows.js";
 
-const packageDir = dirname(dirname(fileURLToPath(import.meta.url)));
+const sourcePackageDir = dirname(dirname(fileURLToPath(import.meta.url)));
+const packageDir = join(sourcePackageDir, ".byz-output", "current");
 const cliPath = join(packageDir, "dist", "cli.js");
 const CM_ENTRY_SKILLS = ["cm-ai", "cm-check", "cm-fix", "cm-idea", "cm-init", "cm-prd", "cm-refactor", "cm-test"];
 

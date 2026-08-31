@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "task_id": "T-015",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/scripts/build-support.mjs",
+    "packages/byz/test/build-safety.test.mjs",
+    "packages/byz/test/build.test.mjs"
+  ],
+  "implementation_sha256": "520d2b7ee541e4284486baddb3e6461feb3f230a1994a30767bc0ea77f17e5df",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/build-safety.test.mjs packages/byz/test/build.test.mjs",
+      "status": "passed",
+      "evidence": "15 of 15 tests passed. Publication now requires a lock; generation-root symlinks are rejected; Unicode names use a conservative ASCII portable subset; PID reuse exercises different; immutable owner election covers concurrent recovery."
+    },
+    {
+      "command": "20 repeated runs of node --test packages/byz/test/build-safety.test.mjs",
+      "status": "passed",
+      "evidence": "The concurrent recovery and safety suite passed 20 consecutive runs after owner election stabilization."
+    },
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Production build completed while holding an immutable owner lock through current generation promotion."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Full repository check passed with no fixes or warnings."
+    }
+  ],
+  "evidence": [
+    "packages/byz/test/build-safety.test.mjs",
+    "packages/byz/test/build.test.mjs"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

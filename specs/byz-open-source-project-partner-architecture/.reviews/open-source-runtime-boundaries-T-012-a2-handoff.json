@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "task_id": "T-012",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/scripts/build-support.mjs",
+    "packages/byz/test/build-safety.test.mjs"
+  ],
+  "implementation_sha256": "3a36e43801744697f2c83dd0882deef578d933b4ce2077db37dcd45bbd556423",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/build-safety.test.mjs packages/byz/test/build.test.mjs",
+      "status": "passed",
+      "evidence": "12 of 12 tests passed. Attempt 2 adds concurrent contender, atomic contender visibility, output identity replacement, portable alias, and stale-owner publication cases."
+    },
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Production build completed using the v2 contender lease and fenced package-image promotion."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Full repository check passed with no fixes or warnings."
+    }
+  ],
+  "evidence": [
+    "packages/byz/test/build-safety.test.mjs"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

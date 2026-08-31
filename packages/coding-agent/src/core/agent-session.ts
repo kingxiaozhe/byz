@@ -75,6 +75,7 @@ import {
 	ExtensionRunner,
 	type ExtensionUIContext,
 	type InputSource,
+	type ManagedResourceCapability,
 	type MessageEndEvent,
 	type MessageStartEvent,
 	type MessageUpdateEvent,
@@ -1314,7 +1315,7 @@ export class AgentSession {
 		const ctx = this._extensionRunner.createCommandContext(
 			command.ownerId,
 			command.sourceInfo.path,
-			command.byzWorkflowOwner,
+			command.managedResourceCapability,
 		);
 
 		try {
@@ -1599,7 +1600,8 @@ export class AgentSession {
 		return this._resourceLoader;
 	}
 
-	async replaceByzWorkflowResources(
+	async replaceManagedResources(
+		capability: ManagedResourceCapability,
 		extensionOwner: string,
 		extensionPath: string,
 		resources: ResourcesDiscoverResult,
@@ -1607,13 +1609,13 @@ export class AgentSession {
 		if (!this.isIdle || this.isCompacting) {
 			throw new Error("Extension resources cannot be updated while the agent is running.");
 		}
-		if (extensionPath !== "<inline:byz-workflow>") {
-			throw new Error("BYZ workflow resources can only be replaced by the built-in workflow extension.");
+		if (!this._resourceLoader.replaceManagedResources) {
+			throw new Error("The active resource loader does not support managed resource updates.");
 		}
-		if (!this._resourceLoader.replaceByzWorkflowResources) {
-			throw new Error("The active resource loader does not support BYZ workflow resource updates.");
+		if ((resources.themePaths?.length ?? 0) > 0) {
+			throw new Error("Managed resource updates support skills and prompts only.");
 		}
-		this._resourceLoader.replaceByzWorkflowResources(extensionOwner, {
+		this._resourceLoader.replaceManagedResources(capability, extensionOwner, {
 			promptPaths: this.buildExtensionResourcePaths(
 				(resources.promptPaths ?? []).map((path) => ({ path, extensionOwner, extensionPath })),
 			),
@@ -2473,16 +2475,20 @@ export class AgentSession {
 	}
 
 	private async extendResourcesFromExtensions(reason: "startup" | "reload"): Promise<void> {
-		if (!this._extensionRunner.hasHandlers("resources_discover")) {
-			return;
-		}
-
 		const { skillPaths, promptPaths, themePaths, extensionOwners } =
 			await this._extensionRunner.emitResourcesDiscover(this._cwd, reason);
+		const managedOwners = new Set(
+			extensionOwners
+				.filter((entry) => entry.managedResourceCapability !== undefined)
+				.map((entry) => entry.extensionOwner),
+		);
+		if (themePaths.some((entry) => managedOwners.has(entry.extensionOwner))) {
+			throw new Error("Managed resource updates support skills and prompts only.");
+		}
 
 		for (const entry of extensionOwners) {
-			if (entry.byzWorkflowOwner) {
-				this._resourceLoader.registerByzWorkflowResourceOwner?.(entry.extensionOwner);
+			if (entry.managedResourceCapability) {
+				this._resourceLoader.registerManagedResourceOwner?.(entry.managedResourceCapability, entry.extensionOwner);
 			}
 		}
 		const hasResources = skillPaths.length > 0 || promptPaths.length > 0 || themePaths.length > 0;
@@ -2661,8 +2667,8 @@ export class AgentSession {
 				},
 				getSystemPrompt: () => this.systemPrompt,
 				getSystemPromptOptions: () => this._baseSystemPromptOptions,
-				replaceByzWorkflowResources: (extensionOwner, extensionPath, resources) =>
-					this.replaceByzWorkflowResources(extensionOwner, extensionPath, resources),
+				replaceManagedResources: (capability, extensionOwner, extensionPath, resources) =>
+					this.replaceManagedResources(capability, extensionOwner, extensionPath, resources),
 			},
 			{
 				registerProvider: (name, config) => {
@@ -2831,27 +2837,63 @@ export class AgentSession {
 	async reload(options?: { beforeSessionStart?: () => void | Promise<void> }): Promise<void> {
 		const oldRunner = this._extensionRunner;
 		const previousFlagValues = oldRunner.getFlagValues();
+		const resourceTransaction = this._resourceLoader.beginReloadTransaction?.();
+		const runtimeSnapshot = {
+			baseToolDefinitions: this._baseToolDefinitions,
+			toolDefinitions: this._toolDefinitions,
+			toolPromptSnippets: this._toolPromptSnippets,
+			toolPromptGuidelines: this._toolPromptGuidelines,
+			toolRegistry: this._toolRegistry,
+			activeTools: this.agent.state.tools,
+			baseSystemPromptOptions: this._baseSystemPromptOptions,
+			baseSystemPrompt: this._baseSystemPrompt,
+			systemPrompt: this.agent.state.systemPrompt,
+		};
 		await emitSessionShutdownEvent(oldRunner, { type: "session_shutdown", reason: "reload" });
-		oldRunner.invalidate();
-		await this.settingsManager.reload();
-		this.syncQueueModesFromSettings();
-		resetApiProviders();
-		await this._resourceLoader.reload();
-		this._buildRuntime({
-			activeToolNames: this.getActiveToolNames(),
-			flagValues: previousFlagValues,
-			includeAllExtensionTools: true,
-		});
+		try {
+			await this.settingsManager.reload();
+			this.syncQueueModesFromSettings();
+			resetApiProviders();
+			await this._resourceLoader.reload();
+			this._buildRuntime({
+				activeToolNames: this.getActiveToolNames(),
+				flagValues: previousFlagValues,
+				includeAllExtensionTools: true,
+			});
 
-		const hasBindings =
-			this._extensionUIContext ||
-			this._extensionCommandContextActions ||
-			this._extensionShutdownHandler ||
-			this._extensionErrorListener;
-		if (hasBindings) {
-			await options?.beforeSessionStart?.();
-			await this._extensionRunner.emit({ type: "session_start", reason: "reload" });
-			await this.extendResourcesFromExtensions("reload");
+			const hasBindings =
+				this._extensionUIContext ||
+				this._extensionCommandContextActions ||
+				this._extensionShutdownHandler ||
+				this._extensionErrorListener;
+			if (hasBindings) {
+				await options?.beforeSessionStart?.();
+				await this._extensionRunner.emit({ type: "session_start", reason: "reload" });
+				await this.extendResourcesFromExtensions("reload");
+			}
+			oldRunner.invalidate();
+			resourceTransaction?.commit();
+		} catch (error) {
+			const failedRunner = this._extensionRunner;
+			if (failedRunner !== oldRunner) {
+				await emitSessionShutdownEvent(failedRunner, { type: "session_shutdown", reason: "reload" });
+				failedRunner.invalidate();
+			}
+			resourceTransaction?.rollback();
+			this._extensionRunner = oldRunner;
+			if (this._extensionRunnerRef) this._extensionRunnerRef.current = oldRunner;
+			this._baseToolDefinitions = runtimeSnapshot.baseToolDefinitions;
+			this._toolDefinitions = runtimeSnapshot.toolDefinitions;
+			this._toolPromptSnippets = runtimeSnapshot.toolPromptSnippets;
+			this._toolPromptGuidelines = runtimeSnapshot.toolPromptGuidelines;
+			this._toolRegistry = runtimeSnapshot.toolRegistry;
+			this.agent.state.tools = runtimeSnapshot.activeTools;
+			this._baseSystemPromptOptions = runtimeSnapshot.baseSystemPromptOptions;
+			this._baseSystemPrompt = runtimeSnapshot.baseSystemPrompt;
+			this.agent.state.systemPrompt = runtimeSnapshot.systemPrompt;
+			this._applyExtensionBindings(oldRunner);
+			await oldRunner.emit({ type: "session_start", reason: "reload" });
+			throw error;
 		}
 	}
 

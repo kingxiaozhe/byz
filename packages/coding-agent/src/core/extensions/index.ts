@@ -97,6 +97,9 @@ export type {
 	LoadExtensionsResult,
 	LsToolCallEvent,
 	LsToolResultEvent,
+	ManagedExtensionFactory,
+	ManagedResourceCapability,
+	ManagedResourcePrecedence,
 	MarkdownTransformContext,
 	MarkdownTransformer,
 	// Events - Message

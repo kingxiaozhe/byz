@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "task_id": "T-020",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    ".github/workflows/byz-release.yml",
+    "scripts/byz-release.mjs",
+    "scripts/byz-release.test.mjs"
+  ],
+  "implementation_sha256": "32f561ad9b67d0e7f7b6f0670dd34ed28434ebc3d256bfe3b8ee3a80cc92ca58",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Production BYZ image built and promoted successfully."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "139 of 139 BYZ package tests passed."
+    },
+    {
+      "command": "node --test scripts/byz-release.test.mjs scripts/byz-packed-runtime.test.mjs scripts/check-byz-public-package.test.mjs",
+      "status": "passed",
+      "evidence": "16 of 16 release, external packed-runtime, and public-package tests passed."
+    },
+    {
+      "command": "repeat scripts/byz-release.test.mjs 5 times",
+      "status": "passed",
+      "evidence": "All 5 consecutive single-producer and lock-fence regression runs passed."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, pinned dependency, import, shrinkwrap, type, and browser-smoke checks passed with no fixes."
+    },
+    {
+      "command": "cm-spec-manifest.py --status-file .cm-specs-status",
+      "status": "passed",
+      "evidence": "The approved 16-file v8 semantic manifest still matches."
+    }
+  ],
+  "evidence": [
+    "scripts/byz-release.test.mjs",
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-019-r2.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

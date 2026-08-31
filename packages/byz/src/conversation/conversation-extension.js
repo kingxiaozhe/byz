@@ -565,7 +565,7 @@ export function createConversationExtension(options = {}) {
 	let savedLanguage = getSavedLanguage();
 	let currentLanguage = detectLanguage("", savedLanguage);
 
-	return function conversationExtension(pi) {
+	return function conversationExtension(ports) {
 		let progressTimer;
 		let elapsedTimer;
 		let turnTiming;
@@ -608,7 +608,7 @@ export function createConversationExtension(options = {}) {
 			turnTiming = undefined;
 		}
 
-		pi.on("session_start", (_event, ctx) => {
+		ports.on("session_start", (_event, ctx) => {
 			routingPolicy.reset();
 			policy.setDetailEnabled(savedDetailMode === DETAIL_MODE_DETAILS);
 			currentThinkingLevel = normalizeThinkingLevel(ctx.thinkingLevel);
@@ -641,11 +641,11 @@ export function createConversationExtension(options = {}) {
 			});
 			ctx.ui.notify(WELCOME, "info");
 		});
-		pi.on("thinking_level_select", (event) => {
+		ports.on("thinking_level_select", (event) => {
 			currentThinkingLevel = normalizeThinkingLevel(event.level);
 			footerComponent?.invalidate();
 		});
-		pi.on("agent_start", (_event, ctx) => {
+		ports.on("agent_start", (_event, ctx) => {
 			activeCtx = ctx;
 			policy.resetProgress();
 			progressState.visible = false;
@@ -659,17 +659,17 @@ export function createConversationExtension(options = {}) {
 				publishProgress();
 			}, progressCardDelayMs);
 		});
-		pi.on("tool_execution_start", (event) => {
+		ports.on("tool_execution_start", (event) => {
 			updateProgressFromToolStart(progressState, event.toolName);
 			turnTiming?.transition(progressState.stageId);
 			publishWorking();
 		});
-		pi.on("tool_execution_end", (event) => {
+		ports.on("tool_execution_end", (event) => {
 			updateProgressFromToolEnd(progressState, event.toolName, event.args, event.isError);
 			turnTiming?.transition(progressState.stageId);
 			publishWorking();
 		});
-		pi.on("message_update", (event) => {
+		ports.on("message_update", (event) => {
 			if (event.message?.role !== "assistant") return;
 			const copy = textFor(progressState.language);
 			const stageChanged = progressState.stageId !== "reply";
@@ -680,12 +680,12 @@ export function createConversationExtension(options = {}) {
 			pushUnique(progressState.nextSteps, copy.nextResult);
 			if (stageChanged) publishWorking();
 		});
-		pi.on("agent_end", () => {
+		ports.on("agent_end", () => {
 			finishTurn({ notify: true });
 			activeCtx?.ui.setWorkingMessage?.();
 			activeCtx = undefined;
 		});
-		pi.on("session_shutdown", () => {
+		ports.on("session_shutdown", () => {
 			routingPolicy.reset();
 			footerComponent = undefined;
 			finishTurn();
@@ -755,15 +755,15 @@ export function createConversationExtension(options = {}) {
 			ctx.ui.notify(textFor(currentLanguage).languageUsage, "warning");
 		}
 
-		pi.registerCommand("details", {
+		ports.registerCommand("details", {
 			description: "Configure BYZ detail mode",
 			handler: async (args, ctx) => handleDetailsCommand(args, ctx),
 		});
-		pi.registerCommand("language", {
+		ports.registerCommand("language", {
 			description: "Configure BYZ language",
 			handler: async (args, ctx) => handleLanguageCommand(args, ctx),
 		});
-		pi.on("before_agent_start", async (event, ctx) => {
+		ports.on("before_agent_start", async (event, ctx) => {
 			currentLanguage = detectLanguage(event.prompt, savedLanguage);
 			const copy = textFor(currentLanguage);
 			const route = routingPolicy.route(event.prompt);

@@ -1,0 +1,290 @@
+{
+  "schemaVersion": "1.0",
+  "feature": "project-state-core",
+  "cases": [
+    {
+      "id": "TC-001",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-001"
+      ],
+      "taskIds": [
+        "T-004",
+        "T-011"
+      ],
+      "title": "项目身份文件不包含本机私有信息",
+      "preconditions": [
+        "在受信任临时 Git 项目中注册 Project"
+      ],
+      "steps": [
+        "读取 .byz/project.json"
+      ],
+      "expected": [
+        "文件只包含 schema、projectId 和非敏感可移植配置",
+        "不包含绝对路径、用户名、目标、决策或记忆正文"
+      ],
+      "cleanup": [
+        "删除临时项目和私有状态"
+      ]
+    },
+    {
+      "id": "TC-002",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-002",
+        "AC-005"
+      ],
+      "taskIds": [
+        "T-004",
+        "T-006",
+        "T-010"
+      ],
+      "title": "复制 projectId 不能读取原项目私有状态",
+      "preconditions": [
+        "项目 A 已有私有任务和决策",
+        "不相关目录 B 复制 A 的 project.json"
+      ],
+      "steps": [
+        "在未受信任 B 打开项目",
+        "信任 B 但不提供 repository anchor 关系再次打开"
+      ],
+      "expected": [
+        "未受信任时不返回私有状态",
+        "信任后仍进入冲突/重新关联流程",
+        "不会静默合并"
+      ],
+      "cleanup": [
+        "删除临时目录和状态"
+      ]
+    },
+    {
+      "id": "TC-003",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-003",
+        "AC-004"
+      ],
+      "taskIds": [
+        "T-004",
+        "T-006"
+      ],
+      "title": "合法 worktree 共享项目身份并保持独立 workspace",
+      "preconditions": [
+        "一个 Git repository 创建两个 worktree"
+      ],
+      "steps": [
+        "分别注册或关联两个 worktree",
+        "移动其中一个目录并确认重新关联"
+      ],
+      "expected": [
+        "两个 worktree 通过 common-dir anchor 共享 projectId",
+        "workspaceId 不同",
+        "移动后继续使用原状态而不复制事实"
+      ],
+      "cleanup": [
+        "删除 worktree 和私有状态"
+      ]
+    },
+    {
+      "id": "TC-004",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-006",
+        "AC-009"
+      ],
+      "taskIds": [
+        "T-002",
+        "T-005",
+        "T-010"
+      ],
+      "title": "事件与投影在故障时保持原子",
+      "preconditions": [
+        "项目 version 为 N"
+      ],
+      "steps": [
+        "分别在事件插入后、投影更新后和 commit 后注入崩溃",
+        "重新打开项目"
+      ],
+      "expected": [
+        "commit 前只观察到完整 version N",
+        "commit 后观察到完整 version N+1",
+        "不存在事件与投影版本不一致"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-005",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-007"
+      ],
+      "taskIds": [
+        "T-002",
+        "T-005",
+        "T-010"
+      ],
+      "title": "内存与 SQLite Repository 满足同一合同",
+      "preconditions": [
+        "准备两种 Repository fixture"
+      ],
+      "steps": [
+        "运行 create/open/append/query/archive/delete/access-denied conformance"
+      ],
+      "expected": [
+        "两种实现返回等价结果和错误码",
+        "所有私有操作都需要 VerifiedProjectAccess"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-006",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-008"
+      ],
+      "taskIds": [
+        "T-005",
+        "T-010"
+      ],
+      "title": "并发 Session 不静默覆盖项目决策",
+      "preconditions": [
+        "两个 writer 读取相同 project version"
+      ],
+      "steps": [
+        "writer A 提交决策",
+        "writer B 使用旧 expectedVersion 提交另一变化"
+      ],
+      "expected": [
+        "A 成功",
+        "B 收到版本冲突并重新加载",
+        "A 的决策未被覆盖"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-007",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-010"
+      ],
+      "taskIds": [
+        "T-003",
+        "T-010"
+      ],
+      "title": "Migration batch 失败保留原数据库",
+      "preconditions": [
+        "数据库有两个 pending migrations",
+        "第二个 migration 注入失败"
+      ],
+      "steps": [
+        "执行 migration",
+        "比较原数据库版本和内容",
+        "执行只读 status/export"
+      ],
+      "expected": [
+        "原数据库保持迁移前版本",
+        "临时副本不被 promote",
+        "旧 schema 只读 adapter 可提供安全 status/export"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-008",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-011"
+      ],
+      "taskIds": [
+        "T-007",
+        "T-009",
+        "T-011"
+      ],
+      "title": "项目导出严格限制数据范围",
+      "preconditions": [
+        "项目含任务、决策、诊断和其他项目状态"
+      ],
+      "steps": [
+        "导出 JSON 和 Markdown",
+        "检查字段"
+      ],
+      "expected": [
+        "导出只含目标项目 allowlist 数据",
+        "不含凭证、诊断原始事件和其他项目数据"
+      ],
+      "cleanup": [
+        "删除导出文件"
+      ]
+    },
+    {
+      "id": "TC-009",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-012"
+      ],
+      "taskIds": [
+        "T-008",
+        "T-010"
+      ],
+      "title": "删除项目使用 fence 并可从部分失败续跑",
+      "preconditions": [
+        "writer A 正在尝试 append",
+        "writer B 获得删除确认"
+      ],
+      "steps": [
+        "B 写 deleting tombstone 并取得 lease",
+        "A 再次 append",
+        "在删除 index 前注入失败后重试"
+      ],
+      "expected": [
+        "A 的新 open/append 被拒绝",
+        "DeleteReport 记录剩余项",
+        "重试完成数据库、index 和 managed exports 删除"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-010",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-013"
+      ],
+      "taskIds": [
+        "T-006",
+        "T-009",
+        "T-011"
+      ],
+      "title": "Project status 只显示安全摘要",
+      "preconditions": [
+        "受信任并已关联的项目存在任务和待决项"
+      ],
+      "steps": [
+        "运行 byz project status"
+      ],
+      "expected": [
+        "显示 project/workspace/version、活跃任务数和待决项数量",
+        "不展示记忆、决策和文件正文"
+      ],
+      "cleanup": []
+    }
+  ]
+}

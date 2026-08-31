@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "task_id": "T-014",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    ".github/workflows/byz-release.yml",
+    "packages/byz/scripts/build.mjs",
+    "packages/byz/scripts/pack.mjs",
+    "scripts/byz-packed-runtime.test.mjs",
+    "scripts/byz-release.mjs",
+    "scripts/byz-release.test.mjs"
+  ],
+  "implementation_sha256": "686b0139e555465732a60ab61c87b247498b0f2d36688bd29e661ab389db222c",
+  "verification": [
+    {
+      "command": "node --test scripts/byz-release.test.mjs scripts/byz-packed-runtime.test.mjs scripts/check-byz-public-package.test.mjs",
+      "status": "passed",
+      "evidence": "14 of 14 release, immutable-generation, stale-source, tampered-artifact, public-package, and repository-external packed-runtime tests passed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "139 of 139 BYZ package tests passed."
+    },
+    {
+      "command": "node packages/byz/scripts/pack.mjs --dry-run",
+      "status": "passed",
+      "evidence": "Dry-run resolved one validated @aibyzero/byz 0.1.11 current image containing 1333 package files."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Repository formatting, dependency, shrinkwrap, type, and browser-smoke checks passed with no fixes applied."
+    }
+  ],
+  "evidence": [
+    "scripts/byz-release.test.mjs",
+    "scripts/byz-packed-runtime.test.mjs",
+    ".github/workflows/byz-release.yml"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

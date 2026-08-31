@@ -27,20 +27,29 @@ export function createFastSessionController({
 	let snapshot;
 	let internalTransition = false;
 	let currentThinkingTransition;
-	let pi;
+	let currentFastContext;
+	let ports;
 	const ignoredThinkingTransitions = [];
 	const activeListeners = new Set();
 	const explicitSelectionListeners = new Set();
 
+	function getModelContext(ctx) {
+		if (ctx.modelRegistry) return ctx;
+		if (currentFastContext) return currentFastContext;
+		ctx.ui.notify("Fast session state is unavailable.", "error");
+		return undefined;
+	}
+
 	function notifyStatus(ctx) {
 		ctx.ui.notify(
-			`Fast: ${active ? "on" : "off"}; model=${formatModel(ctx.model)}; thinking=${pi.getThinkingLevel()}`,
+			`Fast: ${active ? "on" : "off"}; model=${formatModel(getModelContext(ctx)?.model)}; thinking=${ports.getThinkingLevel()}`,
 			"info",
 		);
 	}
 
 	async function emitListeners(listeners, event, ctx) {
-		for (const listener of listeners) await listener(event, ctx);
+		const listenerContext = Object.freeze({ ui: ctx.ui });
+		for (const listener of listeners) await listener(event, listenerContext);
 	}
 
 	async function exitForExplicitSelection(event, ctx) {
@@ -57,7 +66,7 @@ export function createFastSessionController({
 		if (
 			currentThinkingTransition &&
 			event.previousLevel === currentThinkingTransition.previousLevel &&
-			event.level === pi.getThinkingLevel()
+			event.level === ports.getThinkingLevel()
 		) {
 			currentThinkingTransition.consumed = true;
 			return;
@@ -74,8 +83,8 @@ export function createFastSessionController({
 
 	function beginThinkingTransition() {
 		const transition = {
-			previousLevel: pi.getThinkingLevel(),
-			level: pi.getThinkingLevel(),
+			previousLevel: ports.getThinkingLevel(),
+			level: ports.getThinkingLevel(),
 			consumed: false,
 		};
 		currentThinkingTransition = transition;
@@ -83,7 +92,7 @@ export function createFastSessionController({
 	}
 
 	function finishThinkingTransition(transition) {
-		transition.level = pi.getThinkingLevel();
+		transition.level = ports.getThinkingLevel();
 		currentThinkingTransition = undefined;
 		if (!transition.consumed && transition.level !== transition.previousLevel) {
 			ignoredThinkingTransitions.push(transition);
@@ -91,10 +100,10 @@ export function createFastSessionController({
 	}
 
 	function setThinkingInternally(level) {
-		if (pi.getThinkingLevel() === level) return;
+		if (ports.getThinkingLevel() === level) return;
 		const transition = beginThinkingTransition();
 		try {
-			pi.setThinkingLevel(level);
+			ports.setThinkingLevel(level);
 		} finally {
 			finishThinkingTransition(transition);
 		}
@@ -103,7 +112,7 @@ export function createFastSessionController({
 	async function setModelInternally(model) {
 		const transition = beginThinkingTransition();
 		try {
-			return await pi.setModel(model);
+			return await ports.setModel(model);
 		} finally {
 			finishThinkingTransition(transition);
 		}
@@ -113,24 +122,26 @@ export function createFastSessionController({
 		ctx,
 		{ requireAuth = false, requireModel = false, useConfiguredModel = true, useLowThinking = true } = {},
 	) {
+		const modelContext = getModelContext(ctx);
+		if (!modelContext) return undefined;
 		const configuredModel = useConfiguredModel ? env.BYZ_FAST_MODEL?.trim() : undefined;
-		let model = ctx.model;
+		let model = modelContext.model;
 		if (configuredModel) {
 			const reference = parseFastModelReference(configuredModel);
 			if (!reference) {
 				ctx.ui.notify(`Invalid BYZ_FAST_MODEL "${configuredModel}". Expected provider/model.`, "error");
 				return undefined;
 			}
-			model = ctx.modelRegistry.find(reference.provider, reference.modelId);
+			model = modelContext.modelRegistry.find(reference.provider, reference.modelId);
 			if (!model) {
 				ctx.ui.notify(`Fast model "${configuredModel}" was not found.`, "error");
 				return undefined;
 			}
-			if (!ctx.modelRegistry.hasConfiguredAuth(model)) {
+			if (!modelContext.modelRegistry.hasConfiguredAuth(model)) {
 				ctx.ui.notify(`Fast model "${configuredModel}" has no configured authentication.`, "error");
 				return undefined;
 			}
-			if (!ctx.model) {
+			if (!modelContext.model) {
 				ctx.ui.notify("Fast cannot preserve the current model because no model is selected.", "error");
 				return undefined;
 			}
@@ -139,21 +150,23 @@ export function createFastSessionController({
 			ctx.ui.notify("Fast cannot preserve the current model because no model is selected.", "error");
 			return undefined;
 		}
-		if (model && requireAuth && !ctx.modelRegistry.hasConfiguredAuth(model)) {
+		if (model && requireAuth && !modelContext.modelRegistry.hasConfiguredAuth(model)) {
 			ctx.ui.notify(`Fast model "${formatModel(model)}" has no configured authentication.`, "error");
 			return undefined;
 		}
 		return {
 			configuredModel,
 			model,
-			thinking: useLowThinking ? "low" : pi.getThinkingLevel(),
+			thinking: useLowThinking ? "low" : ports.getThinkingLevel(),
 		};
 	}
 
 	async function applyTarget(ctx, target) {
+		const modelContext = getModelContext(ctx);
+		if (!modelContext) return false;
 		internalTransition = true;
 		try {
-			if (target.model && !modelsMatch(ctx.model, target.model)) {
+			if (target.model && !modelsMatch(modelContext.model, target.model)) {
 				const changed = await setModelInternally(target.model);
 				if (!changed) {
 					ctx.ui.notify(`Fast model "${formatModel(target.model)}" has no configured authentication.`, "error");
@@ -183,9 +196,11 @@ export function createFastSessionController({
 
 		const target = resolveTarget(ctx, { useConfiguredModel, useLowThinking });
 		if (!target) return;
+		const modelContext = getModelContext(ctx);
+		if (!modelContext) return;
 		const nextSnapshot = {
-			model: ctx.model,
-			thinking: pi.getThinkingLevel(),
+			model: modelContext.model,
+			thinking: ports.getThinkingLevel(),
 		};
 		if (!(await applyTarget(ctx, target))) return;
 		snapshot = nextSnapshot;
@@ -213,11 +228,12 @@ export function createFastSessionController({
 	}
 
 	function extension(extensionApi) {
-		pi = extensionApi;
+		ports = extensionApi;
 
-		pi.registerCommand("fast", {
+		ports.registerCommand("fast", {
 			description: "Switch Fast mode for the current session",
 			handler: async (args, ctx) => {
+				currentFastContext = ctx;
 				const action = args.trim().toLowerCase() || "status";
 				if (action === "status") {
 					notifyStatus(ctx);
@@ -235,16 +251,22 @@ export function createFastSessionController({
 			},
 		});
 
-		pi.on("model_select", exitForExplicitSelection);
-		pi.on("thinking_level_select", handleThinkingSelection);
-		if (initiallyEnabled) {
-			pi.on("session_start", async (_event, ctx) => {
-				await enable(ctx, {
-					useConfiguredModel: initialUseConfiguredModel,
-					useLowThinking: initialUseLowThinking,
-				});
+		ports.on("model_select", async (event, ctx) => {
+			currentFastContext = ctx;
+			await exitForExplicitSelection(event, ctx);
+		});
+		ports.on("thinking_level_select", async (event, ctx) => {
+			currentFastContext = ctx;
+			await handleThinkingSelection(event, ctx);
+		});
+		ports.on("session_start", async (_event, ctx) => {
+			currentFastContext = ctx;
+			if (!initiallyEnabled) return;
+			await enable(ctx, {
+				useConfiguredModel: initialUseConfiguredModel,
+				useLowThinking: initialUseLowThinking,
 			});
-		}
+		});
 	}
 
 	return {
@@ -254,7 +276,7 @@ export function createFastSessionController({
 			return formatModel(target.model);
 		},
 		getThinkingLevel() {
-			return pi.getThinkingLevel();
+			return ports.getThinkingLevel();
 		},
 		isActive() {
 			return active;

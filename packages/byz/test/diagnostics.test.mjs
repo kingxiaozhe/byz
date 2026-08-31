@@ -340,13 +340,23 @@ test("update health compares only events recorded after a successful update", ()
 		assert.equal(comparison.correlationOnly, true);
 	}));
 
-test("BYZ CLI and build wire diagnostics without replacing workflow extensions", async () => {
+test("BYZ CLI and complete source-tree build wire diagnostics without replacing workflow extensions", async () => {
 	const cli = await readFile(new URL("../src/cli.js", import.meta.url), "utf8");
 	const build = await readFile(new URL("../scripts/build.mjs", import.meta.url), "utf8");
+	const manifest = JSON.parse(await readFile(new URL("../build-manifest.json", import.meta.url), "utf8"));
 	assert.match(cli, /handleDiagnosticsCommand\(commandArgs/);
 	assert.match(cli, /extensionFactories: \[diagnosticsExtension\]/);
-	assert.match(cli, /byzWorkflowExtensionFactory: byzExtension/);
-	assert.match(build, /"src", "diagnostics"/);
+	assert.match(cli, /managedExtensionFactories:/);
+	assert.match(cli, /resourcePrecedence: "before"/);
+	const dynamicBranchStart = cli.indexOf("if (loadWorkflow && isInteractive)");
+	const staticBranchStart = cli.indexOf("} else {", dynamicBranchStart);
+	const runtimeBranchEnd = cli.indexOf("diagnostics.record", staticBranchStart);
+	assert.ok(dynamicBranchStart >= 0 && staticBranchStart > dynamicBranchStart && runtimeBranchEnd > staticBranchStart);
+	assert.doesNotMatch(cli.slice(dynamicBranchStart, staticBranchStart), /additionalResourcePrecedence/);
+	assert.match(cli.slice(staticBranchStart, runtimeBranchEnd), /additionalResourcePrecedence: "before"/);
+	assert.equal(manifest.sourceRoot, "src");
+	assert.match(build, /compileSourceTree/);
+	assert.doesNotMatch(build, /"src", "diagnostics"/);
 });
 
 test("health comparison enforces samples, comparability, and correlation-only outcomes", () => {

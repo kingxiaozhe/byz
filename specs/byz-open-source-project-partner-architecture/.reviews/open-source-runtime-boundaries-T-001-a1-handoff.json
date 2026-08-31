@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "task_id": "T-001",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-001-baseline.md"
+  ],
+  "implementation_sha256": "b0a34ac7cbb8bd05bc4536f48237a88cdc2f24f637e51860bc8f11e31b999efe",
+  "verification": [
+    {
+      "command": "./test.sh",
+      "status": "passed",
+      "evidence": "Repository non-E2E regression exited 0; summary retained in baseline report."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "120 of 120 BYZ tests passed."
+    },
+    {
+      "command": "node --test scripts/byz-release.test.mjs scripts/byz-packed-runtime.test.mjs scripts/check-byz-public-package.test.mjs",
+      "status": "passed",
+      "evidence": "13 of 13 package and release checks passed."
+    }
+  ],
+  "evidence": [
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-001-baseline.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -3,18 +3,19 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { createPiExtensionPorts } from "../.byz-output/current/dist/adapters/pi/pi-runtime-adapter.js";
 import {
 	createAgentSessionFromServices,
 	createAgentSessionServices,
 	DefaultResourceLoader,
 	SessionManager,
 	SettingsManager,
-} from "../dist/runtime/bundle/index.js";
+} from "../.byz-output/current/dist/runtime/bundle/index.js";
 import {
 	createWorkflowSwitchExtension,
 	shouldEnableWorkflowSwitch,
 	shouldLoadWorkflow,
-} from "../dist/workflow-switch.js";
+} from "../.byz-output/current/dist/workflow-switch.js";
 
 function createExtensionHarness(options) {
 	const handlers = new Map();
@@ -37,7 +38,7 @@ function createCommandContext({ idle = true, updateError } = {}) {
 	return {
 		context: {
 			isIdle: () => (typeof idle === "function" ? idle() : idle),
-			replaceByzWorkflowResources: async (resources) => {
+			replaceManagedResources: async (resources) => {
 				if (updateError) throw updateError;
 				resourceUpdates.push(resources);
 			},
@@ -84,20 +85,27 @@ test("switches workflow resources in place without a model turn", async () => {
 test("switches resources without reloading unrelated extensions or changing the conversation", async () => {
 	const root = await mkdtemp(join(tmpdir(), "byz-workflow-session-"));
 	let session;
+	let managedThemeError;
 	let sessionStarts = 0;
 	let sessionShutdowns = 0;
 	let unrelatedUpdateError;
 	const agentDir = join(root, "agent");
+	const emptyManagedSkill = join(root, "managed", "skills", "managed-empty");
 	const cmSkill = join(root, "cm", "skills", "cm-ai");
 	const pluginSkill = join(root, "cm-plugin", "skills", "cm-plugin-ai");
 	const hostSkill = join(root, "host", "skills", "host-skill");
 	await Promise.all([
 		mkdir(agentDir, { recursive: true }),
+		mkdir(emptyManagedSkill, { recursive: true }),
 		mkdir(cmSkill, { recursive: true }),
 		mkdir(pluginSkill, { recursive: true }),
 		mkdir(hostSkill, { recursive: true }),
 	]);
 	await Promise.all([
+		writeFile(
+			join(emptyManagedSkill, "SKILL.md"),
+			"---\nname: managed-empty\ndescription: Managed empty\n---\nManaged empty\n",
+		),
 		writeFile(join(cmSkill, "SKILL.md"), "---\nname: cm-ai\ndescription: CM\n---\nCM\n"),
 		writeFile(join(pluginSkill, "SKILL.md"), "---\nname: cm-plugin-ai\ndescription: CM Plugin\n---\nCM Plugin\n"),
 		writeFile(join(hostSkill, "SKILL.md"), "---\nname: host-skill\ndescription: Host\n---\nHost\n"),
@@ -113,6 +121,18 @@ test("switches resources without reloading unrelated extensions or changing the 
 			initialWorkflowId: "none",
 			resolveResources,
 		});
+		const emptyManagedExtension = (pi) => {
+			pi.registerCommand("managed-empty", {
+				handler: async (_args, ctx) => {
+					try {
+						await ctx.replaceManagedResources({ themePaths: [join(root, "theme.json")] });
+					} catch (error) {
+						managedThemeError = error;
+					}
+					await ctx.replaceManagedResources({ skillPaths: [join(root, "managed", "skills")] });
+				},
+			});
+		};
 		const unrelatedExtension = (pi) => {
 			pi.on("resources_discover", () => ({ skillPaths: [join(root, "host", "skills")] }));
 			pi.on("session_start", () => {
@@ -124,9 +144,9 @@ test("switches resources without reloading unrelated extensions or changing the 
 			pi.registerCommand("unrelated-update", {
 				handler: async (_args, ctx) => {
 					unrelatedUpdateError = new Error(
-						typeof ctx.replaceByzWorkflowResources === "function"
-							? "unrelated extension received BYZ resource access"
-							: "BYZ resource access is unavailable",
+						typeof ctx.replaceManagedResources === "function"
+							? "unrelated extension received managed resource access"
+							: "managed resource access is unavailable",
 					);
 				},
 			});
@@ -136,10 +156,18 @@ test("switches resources without reloading unrelated extensions or changing the 
 			agentDir,
 			cwd: root,
 			settingsManager,
+			resourceLoaderReloadOptions: { resolveProjectTrust: async () => true },
 			resourceLoaderOptions: {
-				byzWorkflowExtensionFactory: workflowExtension,
-				// A caller-supplied display name must not grant the dedicated BYZ capability.
-				extensionFactories: [{ factory: unrelatedExtension, name: "byz-workflow" }],
+				managedExtensionFactories: [
+					{
+						factory: (pi) => workflowExtension(createPiExtensionPorts(pi).workflow),
+						name: "workflow",
+						resourcePrecedence: "before",
+					},
+					{ factory: emptyManagedExtension, name: "empty", resourcePrecedence: "after" },
+				],
+				// A caller-supplied display name must not grant a managed capability.
+				extensionFactories: [{ factory: unrelatedExtension, name: "managed:workflow" }],
 				noPromptTemplates: true,
 				noThemes: true,
 			},
@@ -169,33 +197,177 @@ test("switches resources without reloading unrelated extensions or changing the 
 		assert.ok(initialSkillNames.includes("host-skill"));
 		assert.ok(!initialSkillNames.includes("cm-ai"));
 		assert.ok(!initialSkillNames.includes("cm-plugin-ai"));
+		await session.prompt("/managed-empty");
+		assert.match(managedThemeError?.message, /support skills and prompts only/);
+		assert.ok(services.resourceLoader.getSkills().skills.some((skill) => skill.name === "managed-empty"));
 		await session.prompt("/workflow cm");
 		const cmSkillNames = services.resourceLoader.getSkills().skills.map((skill) => skill.name);
 		assert.ok(cmSkillNames.includes("cm-ai"));
 		assert.ok(cmSkillNames.includes("host-skill"));
+		assert.ok(cmSkillNames.includes("managed-empty"));
 		assert.ok(!cmSkillNames.includes("cm-plugin-ai"));
 		await session.prompt("/workflow cm-plugin");
 
 		const switchedSkillNames = services.resourceLoader.getSkills().skills.map((skill) => skill.name);
 		assert.ok(switchedSkillNames.includes("cm-plugin-ai"));
 		assert.ok(switchedSkillNames.includes("host-skill"));
+		assert.ok(switchedSkillNames.includes("managed-empty"));
 		assert.ok(!switchedSkillNames.includes("cm-ai"));
 		await session.prompt("/workflow none");
 		assert.deepEqual(
 			services.resourceLoader.getSkills().skills.map((skill) => skill.name),
-			initialSkillNames,
+			[...initialSkillNames, "managed-empty"],
 		);
 		await session.prompt("/unrelated-update");
-		assert.equal(unrelatedUpdateError?.message, "BYZ resource access is unavailable");
+		assert.equal(unrelatedUpdateError?.message, "managed resource access is unavailable");
 		assert.deepEqual(
 			services.resourceLoader.getSkills().skills.map((skill) => skill.name),
-			initialSkillNames,
+			[...initialSkillNames, "managed-empty"],
 		);
 		assert.equal(session.extensionRunner, initialRunner);
 		assert.equal(sessionStarts, 1);
 		assert.equal(sessionShutdowns, 0);
 		assert.equal(session.messages.length, 1);
 		assert.equal(session.messages[0].role, "user");
+	} finally {
+		session?.dispose();
+		await rm(root, { force: true, recursive: true });
+	}
+});
+
+test("rejects managed themes during startup discovery before applying sibling resources", async () => {
+	const root = await mkdtemp(join(tmpdir(), "byz-managed-theme-startup-"));
+	const agentDir = join(root, "agent");
+	const managedSkill = join(root, "managed", "skills", "managed-theme-sibling");
+	await Promise.all([mkdir(agentDir, { recursive: true }), mkdir(managedSkill, { recursive: true })]);
+	await writeFile(
+		join(managedSkill, "SKILL.md"),
+		"---\nname: managed-theme-sibling\ndescription: Must remain unapplied\n---\nunapplied\n",
+	);
+	let session;
+	try {
+		const managedExtension = (pi) => {
+			pi.on("resources_discover", () => ({
+				skillPaths: [join(root, "managed", "skills")],
+				themePaths: [join(root, "managed-theme.json")],
+			}));
+		};
+		const services = await createAgentSessionServices({
+			agentDir,
+			cwd: root,
+			settingsManager: SettingsManager.inMemory(),
+			resourceLoaderOptions: {
+				managedExtensionFactories: [
+					{ factory: managedExtension, name: "theme-reject", resourcePrecedence: "before" },
+				],
+				noPromptTemplates: true,
+				noThemes: true,
+			},
+		});
+		({ session } = await createAgentSessionFromServices({
+			services,
+			sessionManager: SessionManager.inMemory(),
+		}));
+		const initialSystemPrompt = session.systemPrompt;
+		let resourceEvents = 0;
+		session.subscribe((event) => {
+			if (event.type === "resources_changed") resourceEvents++;
+		});
+
+		await assert.rejects(session.bindExtensions({ mode: "tui" }), /support skills and prompts only/);
+
+		assert.equal(
+			services.resourceLoader.getSkills().skills.some((skill) => skill.name === "managed-theme-sibling"),
+			false,
+		);
+		assert.equal(session.systemPrompt, initialSystemPrompt);
+		assert.equal(resourceEvents, 0);
+	} finally {
+		session?.dispose();
+		await rm(root, { force: true, recursive: true });
+	}
+});
+
+test("rolls back a real reload when managed discovery returns a theme", async () => {
+	const root = await mkdtemp(join(tmpdir(), "byz-managed-theme-reload-"));
+	const agentDir = join(root, "agent");
+	const initialSkill = join(root, "managed", "initial", "managed-initial");
+	const rejectedSkill = join(root, "managed", "rejected", "managed-rejected");
+	await Promise.all([
+		mkdir(agentDir, { recursive: true }),
+		mkdir(initialSkill, { recursive: true }),
+		mkdir(rejectedSkill, { recursive: true }),
+	]);
+	await Promise.all([
+		writeFile(join(initialSkill, "SKILL.md"), "---\nname: managed-initial\ndescription: Initial\n---\ninitial\n"),
+		writeFile(join(rejectedSkill, "SKILL.md"), "---\nname: managed-rejected\ndescription: Rejected\n---\nrejected\n"),
+	]);
+	let session;
+	try {
+		let rejectTheme = false;
+		let commandRuns = 0;
+		let sessionStarts = 0;
+		let sessionShutdowns = 0;
+		const reasons = [];
+		const managedExtension = (pi) => {
+			pi.on("session_start", () => sessionStarts++);
+			pi.on("session_shutdown", () => sessionShutdowns++);
+			pi.registerCommand("still-active", { handler: async () => commandRuns++ });
+			pi.on("resources_discover", (event) => {
+				reasons.push(event.reason);
+				return rejectTheme
+					? {
+							skillPaths: [join(root, "managed", "rejected")],
+							themePaths: [join(root, "managed-theme.json")],
+						}
+					: { skillPaths: [join(root, "managed", "initial")] };
+			});
+		};
+		const services = await createAgentSessionServices({
+			agentDir,
+			cwd: root,
+			settingsManager: SettingsManager.inMemory(),
+			resourceLoaderOptions: {
+				managedExtensionFactories: [
+					{ factory: managedExtension, name: "theme-rollback", resourcePrecedence: "before" },
+				],
+				noPromptTemplates: true,
+				noThemes: true,
+			},
+		});
+		({ session } = await createAgentSessionFromServices({
+			services,
+			sessionManager: SessionManager.inMemory(),
+		}));
+		let resourceEvents = 0;
+		session.subscribe((event) => {
+			if (event.type === "resources_changed") resourceEvents++;
+		});
+		await session.bindExtensions({ mode: "tui", onError: () => {} });
+		const initialRunner = session.extensionRunner;
+		const initialSystemPrompt = session.systemPrompt;
+		const initialSkillPaths = services.resourceLoader.getSkills().skills.map((skill) => skill.filePath);
+		assert.ok(initialSkillPaths.includes(join(initialSkill, "SKILL.md")));
+
+		rejectTheme = true;
+		await assert.rejects(session.reload(), /support skills and prompts only/);
+
+		assert.deepEqual(reasons, ["startup", "reload"]);
+		assert.equal(session.extensionRunner, initialRunner);
+		assert.deepEqual(
+			services.resourceLoader.getSkills().skills.map((skill) => skill.filePath),
+			initialSkillPaths,
+		);
+		assert.equal(
+			services.resourceLoader.getSkills().skills.some((skill) => skill.name === "managed-rejected"),
+			false,
+		);
+		assert.equal(session.systemPrompt, initialSystemPrompt);
+		assert.equal(resourceEvents, 0);
+		assert.equal(sessionStarts, 3);
+		assert.equal(sessionShutdowns, 2);
+		await session.prompt("/still-active");
+		assert.equal(commandRuns, 1);
 	} finally {
 		session?.dispose();
 		await rm(root, { force: true, recursive: true });
@@ -389,6 +561,7 @@ test("BYZ dynamic workflow resources win collisions without hiding unrelated hos
 		const loader = new DefaultResourceLoader({
 			agentDir,
 			cwd,
+			managedExtensionFactories: [{ factory: () => {}, name: "workflow", resourcePrecedence: "before" }],
 			themesOverride: (themes) => {
 				themeOverrideCalls++;
 				return themes;
@@ -396,19 +569,22 @@ test("BYZ dynamic workflow resources win collisions without hiding unrelated hos
 		});
 		await loader.reload();
 		const themeOverrideCallsAfterReload = themeOverrideCalls;
-		const workflowOwner = "owner:byz-workflow";
+		const workflowOwner = "owner:managed-workflow";
 		const unrelatedOwner = "owner:host-extra";
+		const managedExtension = loader.getExtensions().extensions.find((extension) => extension.managedResource);
+		assert.ok(managedExtension?.managedResource);
+		const capability = managedExtension.managedResource.capability;
 		const metadata = {
 			origin: "top-level",
 			scope: "temporary",
-			source: "extension:inline:byz-workflow",
+			source: "extension:inline:managed:workflow",
 		};
 		const unrelatedMetadata = {
 			origin: "top-level",
 			scope: "temporary",
 			source: "extension:host-extra",
 		};
-		loader.registerByzWorkflowResourceOwner(workflowOwner);
+		loader.registerManagedResourceOwner(capability, workflowOwner);
 		loader.extendResources({
 			promptPaths: [
 				{ metadata, owner: workflowOwner, path: workflowPrompts },
@@ -436,7 +612,7 @@ test("BYZ dynamic workflow resources win collisions without hiding unrelated hos
 			join(hostUnrelated, "SKILL.md"),
 			"---\nname: host-only\ndescription: changed on disk\n---\nchanged\n",
 		);
-		loader.replaceByzWorkflowResources(workflowOwner, {});
+		loader.replaceManagedResources(capability, workflowOwner, {});
 		assert.equal(
 			loader.getSkills().skills.find((skill) => skill.name === "cm-ai")?.filePath,
 			join(hostCollision, "SKILL.md"),
@@ -449,7 +625,7 @@ test("BYZ dynamic workflow resources win collisions without hiding unrelated hos
 		assert.equal(loader.getSkills().skills.find((skill) => skill.name === "host-only")?.description, "host");
 		assert.equal(themeOverrideCalls, themeOverrideCallsAfterReload);
 
-		loader.replaceByzWorkflowResources(workflowOwner, {
+		loader.replaceManagedResources(capability, workflowOwner, {
 			promptPaths: [{ metadata, owner: workflowOwner, path: workflowPrompts }],
 			skillPaths: [{ metadata, owner: workflowOwner, path: workflowCollision }],
 		});
@@ -485,14 +661,35 @@ test("scoped replacement separates owners that share the same display source", a
 	]);
 
 	try {
-		const loader = new DefaultResourceLoader({ agentDir, cwd });
+		const loader = new DefaultResourceLoader({
+			agentDir,
+			cwd,
+			managedExtensionFactories: [
+				{ factory: () => {}, name: "first", resourcePrecedence: "before" },
+				{ factory: () => {}, name: "second", resourcePrecedence: "before" },
+			],
+		});
 		await loader.reload();
+		const managedExtensions = loader.getExtensions().extensions.filter((extension) => extension.managedResource);
+		assert.equal(managedExtensions.length, 2);
+		const firstCapability = managedExtensions[0].managedResource.capability;
+		const secondCapability = managedExtensions[1].managedResource.capability;
 		const metadata = {
 			origin: "top-level",
 			scope: "temporary",
-			source: "extension:inline:byz-workflow",
+			source: "extension:inline:managed:first",
 		};
-		loader.registerByzWorkflowResourceOwner("owner:first");
+		loader.registerManagedResourceOwner(firstCapability, "owner:first");
+		loader.registerManagedResourceOwner(secondCapability, "owner:second");
+		assert.throws(
+			() =>
+				loader.extendResources({
+					skillPaths: [{ metadata, owner: "owner:first", path: firstSkill }],
+					themePaths: [{ metadata, owner: "owner:first", path: join(root, "managed-theme.json") }],
+				}),
+			/support skills and prompts only/,
+		);
+		assert.ok(!loader.getSkills().skills.some((skill) => skill.name === "first-skill"));
 		loader.extendResources({
 			skillPaths: [
 				{ metadata, owner: "owner:first", path: firstSkill },
@@ -500,13 +697,17 @@ test("scoped replacement separates owners that share the same display source", a
 			],
 		});
 
-		loader.replaceByzWorkflowResources("owner:first", {});
+		loader.replaceManagedResources(firstCapability, "owner:first", {});
 
 		assert.ok(!loader.getSkills().skills.some((skill) => skill.name === "first-skill"));
 		assert.ok(loader.getSkills().skills.some((skill) => skill.name === "second-skill"));
 		assert.throws(
-			() => loader.replaceByzWorkflowResources("owner:second", {}),
-			/updates are reserved for the active BYZ workflow/,
+			() => loader.replaceManagedResources(firstCapability, "owner:second", {}),
+			/Invalid managed resource capability for this extension owner/,
+		);
+		assert.throws(
+			() => loader.replaceManagedResources(Symbol("forged"), "owner:first", {}),
+			/Invalid managed resource capability for this extension owner/,
 		);
 	} finally {
 		await rm(root, { force: true, recursive: true });

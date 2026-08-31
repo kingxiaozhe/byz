@@ -8,21 +8,22 @@
 		"configDir": ".byz"
 	},
 	"bin": {
-		"byz": "dist/cli.js"
+		"byz": ".byz-output/current/dist/cli.js"
 	},
-	"main": "./dist/runtime/bundle/index.js",
-	"types": "./dist/runtime/index.d.ts",
+	"main": "./.byz-output/current/dist/runtime/bundle/index.js",
+	"types": "./.byz-output/current/dist/runtime/index.d.ts",
 	"exports": {
 		".": {
-			"types": "./dist/runtime/index.d.ts",
-			"import": "./dist/runtime/bundle/index.js"
+			"types": "./.byz-output/current/dist/runtime/index.d.ts",
+			"import": "./.byz-output/current/dist/runtime/bundle/index.js"
 		},
 		"./rpc-entry": {
-			"import": "./dist/runtime/bundle/rpc-entry.js"
+			"import": "./.byz-output/current/dist/runtime/bundle/rpc-entry.js"
 		}
 	},
 	"files": [
 		"dist",
+		"build-manifest.json",
 		"CHANGELOG.md",
 		"docs",
 		"examples",
@@ -35,6 +36,8 @@
 	"scripts": {
 		"clean": "node ./scripts/clean.mjs",
 		"build": "node ./scripts/build.mjs",
+		"check:architecture": "node ./scripts/check-architecture.mjs",
+		"pack:image": "node ./scripts/pack.mjs",
 		"test": "node --test test/*.test.mjs"
 	},
 	"dependencies": {
@@ -63,6 +66,7 @@
 	},
 	"devDependencies": {
 		"@aibyzero/cm-plugin-workflow": "github:kingxiaozhe/cm-plugin-workflow#d9158aa5c6e143b6a39bfba415cb1d8a2a4051b1",
-		"@aibyzero/cm-workflow": "github:kingxiaozhe/cm-workflow#f181e3169a8deb3adf431860c30214fd49c249d7"
+		"@aibyzero/cm-workflow": "github:kingxiaozhe/cm-workflow#f181e3169a8deb3adf431860c30214fd49c249d7",
+		"typescript": "5.9.3"
 	}
 }

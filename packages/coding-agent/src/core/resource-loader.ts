@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import chalk from "chalk";
-import { APP_NAME, CONFIG_DIR_NAME } from "../config.ts";
+import { CONFIG_DIR_NAME } from "../config.ts";
 import { loadThemeFromPath, type Theme } from "../modes/interactive/theme/theme.ts";
 import type { ResourceDiagnostic } from "./diagnostics.ts";
 
@@ -18,10 +18,12 @@ import {
 } from "./extensions/loader.ts";
 import type {
 	Extension,
-	ExtensionFactory,
 	ExtensionRuntime,
 	InlineExtension,
 	LoadExtensionsResult,
+	ManagedExtensionFactory,
+	ManagedResourceCapability,
+	ManagedResourcePrecedence,
 } from "./extensions/types.ts";
 import { findGitPaths } from "./footer-data-provider.ts";
 import { DefaultPackageManager, type PathMetadata, type ResolvedResource } from "./package-manager.ts";
@@ -43,6 +45,13 @@ export interface ResourceLoaderReloadOptions {
 	resolveProjectTrust?: (input: { extensionsResult: LoadExtensionsResult }) => Promise<boolean>;
 }
 
+interface ManagedResourceSnapshot {
+	skills: Skill[];
+	skillDiagnostics: ResourceDiagnostic[];
+	prompts: PromptTemplate[];
+	promptDiagnostics: ResourceDiagnostic[];
+}
+
 export interface ResourceLoader {
 	getExtensions(): LoadExtensionsResult;
 	getSkills(): { skills: Skill[]; diagnostics: ResourceDiagnostic[] };
@@ -54,8 +63,9 @@ export interface ResourceLoader {
 	getAppendSystemPrompt(): string[];
 	getAppendSystemPromptSources(): Array<{ path: string }>;
 	extendResources(paths: ResourceExtensionPaths): void;
-	registerByzWorkflowResourceOwner?(owner: string): void;
-	replaceByzWorkflowResources?(owner: string, paths: ResourceExtensionPaths): void;
+	registerManagedResourceOwner?(capability: ManagedResourceCapability, owner: string): void;
+	replaceManagedResources?(capability: ManagedResourceCapability, owner: string, paths: ResourceExtensionPaths): void;
+	beginReloadTransaction?(): { commit(): void; rollback(): void };
 	reload(options?: ResourceLoaderReloadOptions): Promise<void>;
 }
 
@@ -173,8 +183,9 @@ export interface DefaultResourceLoaderOptions {
 	additionalSkillPaths?: string[];
 	additionalPromptTemplatePaths?: string[];
 	additionalThemePaths?: string[];
+	additionalResourcePrecedence?: "before" | "after";
 	extensionFactories?: InlineExtension[];
-	byzWorkflowExtensionFactory?: ExtensionFactory;
+	managedExtensionFactories?: ManagedExtensionFactory[];
 	noExtensions?: boolean;
 	noSkills?: boolean;
 	noPromptTemplates?: boolean;
@@ -212,8 +223,9 @@ export class DefaultResourceLoader implements ResourceLoader {
 	private additionalSkillPaths: string[];
 	private additionalPromptTemplatePaths: string[];
 	private additionalThemePaths: string[];
+	private additionalResourcePrecedence: "before" | "after";
 	private extensionFactories: InlineExtension[];
-	private byzWorkflowExtensionFactory?: ExtensionFactory;
+	private managedExtensionFactories: ManagedExtensionFactory[];
 	private noExtensions: boolean;
 	private noSkills: boolean;
 	private noPromptTemplates: boolean;
@@ -259,16 +271,12 @@ export class DefaultResourceLoader implements ResourceLoader {
 	private extensionSkillOwners: Map<string, string>;
 	private extensionPromptOwners: Map<string, string>;
 	private extensionThemeOwners: Map<string, string>;
-	private workflowResourceOwners: Set<string>;
-	private extensionResourceBaselines: Map<
-		string,
-		{
-			skills: Skill[];
-			skillDiagnostics: ResourceDiagnostic[];
-			prompts: PromptTemplate[];
-			promptDiagnostics: ResourceDiagnostic[];
-		}
+	private managedResourceCapabilities: Map<
+		ManagedResourceCapability,
+		{ owner?: string; precedence: ManagedResourcePrecedence }
 	>;
+	private managedResourceSnapshots: Map<string, ManagedResourceSnapshot>;
+	private extensionResourceBaselines: Map<string, ManagedResourceSnapshot>;
 	private resourceMetadataByPath: Map<string, PathMetadata>;
 	private lastPromptPaths: string[];
 	private lastThemePaths: string[];
@@ -288,8 +296,9 @@ export class DefaultResourceLoader implements ResourceLoader {
 		this.additionalSkillPaths = options.additionalSkillPaths ?? [];
 		this.additionalPromptTemplatePaths = options.additionalPromptTemplatePaths ?? [];
 		this.additionalThemePaths = options.additionalThemePaths ?? [];
+		this.additionalResourcePrecedence = options.additionalResourcePrecedence ?? "after";
 		this.extensionFactories = options.extensionFactories ?? [];
-		this.byzWorkflowExtensionFactory = options.byzWorkflowExtensionFactory;
+		this.managedExtensionFactories = options.managedExtensionFactories ?? [];
 		this.noExtensions = options.noExtensions ?? false;
 		this.noSkills = options.noSkills ?? false;
 		this.noPromptTemplates = options.noPromptTemplates ?? false;
@@ -322,7 +331,8 @@ export class DefaultResourceLoader implements ResourceLoader {
 		this.extensionSkillOwners = new Map();
 		this.extensionPromptOwners = new Map();
 		this.extensionThemeOwners = new Map();
-		this.workflowResourceOwners = new Set();
+		this.managedResourceCapabilities = new Map();
+		this.managedResourceSnapshots = new Map();
 		this.extensionResourceBaselines = new Map();
 		this.resourceMetadataByPath = new Map();
 		this.lastPromptPaths = [];
@@ -366,54 +376,135 @@ export class DefaultResourceLoader implements ResourceLoader {
 		return this.appendSystemPromptSourcePaths.map((path) => ({ path }));
 	}
 
+	beginReloadTransaction(): { commit(): void; rollback(): void } {
+		const snapshot = {
+			extensionsResult: this.extensionsResult,
+			skills: this.skills,
+			skillDiagnostics: this.skillDiagnostics,
+			prompts: this.prompts,
+			promptDiagnostics: this.promptDiagnostics,
+			themes: this.themes,
+			themeDiagnostics: this.themeDiagnostics,
+			agentsFiles: this.agentsFiles,
+			systemPrompt: this.systemPrompt,
+			systemPromptSourcePath: this.systemPromptSourcePath,
+			appendSystemPrompt: this.appendSystemPrompt,
+			appendSystemPromptSourcePaths: this.appendSystemPromptSourcePaths,
+			lastSkillPaths: this.lastSkillPaths,
+			extensionSkillSourceInfos: this.extensionSkillSourceInfos,
+			extensionPromptSourceInfos: this.extensionPromptSourceInfos,
+			extensionThemeSourceInfos: this.extensionThemeSourceInfos,
+			extensionSkillOwners: this.extensionSkillOwners,
+			extensionPromptOwners: this.extensionPromptOwners,
+			extensionThemeOwners: this.extensionThemeOwners,
+			managedResourceCapabilities: this.managedResourceCapabilities,
+			managedResourceSnapshots: this.managedResourceSnapshots,
+			extensionResourceBaselines: this.extensionResourceBaselines,
+			resourceMetadataByPath: this.resourceMetadataByPath,
+			lastPromptPaths: this.lastPromptPaths,
+			lastThemePaths: this.lastThemePaths,
+			loaded: this.loaded,
+		};
+		let active = true;
+		return {
+			commit: () => {
+				if (!active) throw new Error("Resource reload transaction is already closed.");
+				active = false;
+			},
+			rollback: () => {
+				if (!active) throw new Error("Resource reload transaction is already closed.");
+				this.extensionsResult = snapshot.extensionsResult;
+				this.skills = snapshot.skills;
+				this.skillDiagnostics = snapshot.skillDiagnostics;
+				this.prompts = snapshot.prompts;
+				this.promptDiagnostics = snapshot.promptDiagnostics;
+				this.themes = snapshot.themes;
+				this.themeDiagnostics = snapshot.themeDiagnostics;
+				this.agentsFiles = snapshot.agentsFiles;
+				this.systemPrompt = snapshot.systemPrompt;
+				this.systemPromptSourcePath = snapshot.systemPromptSourcePath;
+				this.appendSystemPrompt = snapshot.appendSystemPrompt;
+				this.appendSystemPromptSourcePaths = snapshot.appendSystemPromptSourcePaths;
+				this.lastSkillPaths = snapshot.lastSkillPaths;
+				this.extensionSkillSourceInfos = snapshot.extensionSkillSourceInfos;
+				this.extensionPromptSourceInfos = snapshot.extensionPromptSourceInfos;
+				this.extensionThemeSourceInfos = snapshot.extensionThemeSourceInfos;
+				this.extensionSkillOwners = snapshot.extensionSkillOwners;
+				this.extensionPromptOwners = snapshot.extensionPromptOwners;
+				this.extensionThemeOwners = snapshot.extensionThemeOwners;
+				this.managedResourceCapabilities = snapshot.managedResourceCapabilities;
+				this.managedResourceSnapshots = snapshot.managedResourceSnapshots;
+				this.extensionResourceBaselines = snapshot.extensionResourceBaselines;
+				this.resourceMetadataByPath = snapshot.resourceMetadataByPath;
+				this.lastPromptPaths = snapshot.lastPromptPaths;
+				this.lastThemePaths = snapshot.lastThemePaths;
+				this.loaded = snapshot.loaded;
+				active = false;
+			},
+		};
+	}
+
 	extendResources(paths: ResourceExtensionPaths): void {
 		const skillPaths = this.normalizeExtensionPaths(paths.skillPaths ?? []);
 		const promptPaths = this.normalizeExtensionPaths(paths.promptPaths ?? []);
 		const themePaths = this.normalizeExtensionPaths(paths.themePaths ?? []);
 
-		if (APP_NAME === "byz" && this.workflowResourceOwners.size > 0) {
-			this.extendNormalizedResources({
-				skillPaths: skillPaths.filter((entry) => !entry.owner || !this.workflowResourceOwners.has(entry.owner)),
-				promptPaths: promptPaths.filter((entry) => !entry.owner || !this.workflowResourceOwners.has(entry.owner)),
-				themePaths: themePaths.filter((entry) => !entry.owner || !this.workflowResourceOwners.has(entry.owner)),
-			});
-			for (const owner of this.workflowResourceOwners) {
-				this.extensionResourceBaselines.set(owner, {
-					skills: this.skills,
-					skillDiagnostics: this.skillDiagnostics,
-					prompts: this.prompts,
-					promptDiagnostics: this.promptDiagnostics,
-				});
-			}
-			this.extendNormalizedResources({
-				skillPaths: skillPaths.filter((entry) => entry.owner && this.workflowResourceOwners.has(entry.owner)),
-				promptPaths: promptPaths.filter((entry) => entry.owner && this.workflowResourceOwners.has(entry.owner)),
-				themePaths: [],
-			});
+		const managedOwners = new Set(
+			[...this.managedResourceCapabilities.values()]
+				.map((entry) => entry.owner)
+				.filter((owner): owner is string => owner !== undefined),
+		);
+		if (managedOwners.size === 0) {
+			this.extendNormalizedResources({ skillPaths, promptPaths, themePaths });
 			return;
 		}
+		if (themePaths.some((entry) => entry.owner && managedOwners.has(entry.owner))) {
+			throw new Error("Managed resource updates support skills and prompts only.");
+		}
 
-		this.extendNormalizedResources({ skillPaths, promptPaths, themePaths });
+		this.extendNormalizedResources({
+			skillPaths: skillPaths.filter((entry) => !entry.owner || !managedOwners.has(entry.owner)),
+			promptPaths: promptPaths.filter((entry) => !entry.owner || !managedOwners.has(entry.owner)),
+			themePaths: themePaths.filter((entry) => !entry.owner || !managedOwners.has(entry.owner)),
+		});
+		for (const owner of managedOwners) {
+			this.extensionResourceBaselines.set(owner, {
+				skills: this.skills,
+				skillDiagnostics: this.skillDiagnostics,
+				prompts: this.prompts,
+				promptDiagnostics: this.promptDiagnostics,
+			});
+		}
+		const managedSkillPaths = skillPaths.filter((entry) => entry.owner && managedOwners.has(entry.owner));
+		const managedPromptPaths = promptPaths.filter((entry) => entry.owner && managedOwners.has(entry.owner));
+		this.extendNormalizedResources({
+			skillPaths: managedSkillPaths,
+			promptPaths: managedPromptPaths,
+			themePaths: [],
+		});
+		for (const owner of managedOwners) {
+			this.managedResourceSnapshots.set(
+				owner,
+				this.loadManagedResourceSnapshot(
+					managedSkillPaths.filter((entry) => entry.owner === owner),
+					managedPromptPaths.filter((entry) => entry.owner === owner),
+				),
+			);
+		}
+		const base = this.extensionResourceBaselines.values().next().value;
+		if (base) this.applyManagedResourceSnapshots(base);
 	}
 
 	private extendNormalizedResources(paths: Required<ResourceExtensionPaths>): void {
 		const { skillPaths, promptPaths, themePaths } = paths;
 		const mergeExtensionPaths = (currentPaths: string[], entries: typeof skillPaths): string[] => {
-			if (APP_NAME !== "byz") {
-				return this.mergePaths(
-					currentPaths,
-					entries.map((entry) => entry.path),
-				);
-			}
-
-			const workflowPaths: string[] = [];
-			const otherExtensionPaths: string[] = [];
+			const priorityPaths: string[] = [];
+			const regularPaths: string[] = [];
 			for (const entry of entries) {
-				const target =
-					entry.owner && this.workflowResourceOwners.has(entry.owner) ? workflowPaths : otherExtensionPaths;
-				target.push(entry.path);
+				const managed = entry.owner ? this.getManagedResourceOwner(entry.owner) : undefined;
+				(managed?.precedence === "before" ? priorityPaths : regularPaths).push(entry.path);
 			}
-			return this.mergePaths(workflowPaths, this.mergePaths(currentPaths, otherExtensionPaths));
+			return this.mergePaths(priorityPaths, this.mergePaths(currentPaths, regularPaths));
 		};
 
 		for (const entry of skillPaths) {
@@ -448,9 +539,105 @@ export class DefaultResourceLoader implements ResourceLoader {
 		}
 	}
 
-	registerByzWorkflowResourceOwner(owner: string): void {
-		if (APP_NAME !== "byz" || this.workflowResourceOwners.has(owner)) return;
-		this.workflowResourceOwners.add(owner);
+	private loadManagedResourceSnapshot(
+		skillPaths: Array<{ path: string; metadata: PathMetadata; owner?: string }>,
+		promptPaths: Array<{ path: string; metadata: PathMetadata; owner?: string }>,
+		skillSourceInfos = this.extensionSkillSourceInfos,
+		promptSourceInfos = this.extensionPromptSourceInfos,
+	): ManagedResourceSnapshot {
+		let skills = loadSkills({
+			cwd: this.cwd,
+			agentDir: this.agentDir,
+			skillPaths: skillPaths.map((entry) => entry.path),
+			includeDefaults: false,
+		});
+		skills = this.skillsOverride ? this.skillsOverride(skills) : skills;
+		const mappedSkills = skills.skills.map((skill) => ({
+			...skill,
+			sourceInfo:
+				this.findSourceInfoForPath(skill.filePath, skillSourceInfos, this.resourceMetadataByPath) ??
+				skill.sourceInfo,
+		}));
+		let prompts = this.dedupePrompts(
+			loadPromptTemplates({
+				cwd: this.cwd,
+				agentDir: this.agentDir,
+				promptPaths: promptPaths.map((entry) => entry.path),
+				includeDefaults: false,
+			}),
+		);
+		prompts = this.promptsOverride ? this.promptsOverride(prompts) : prompts;
+		return {
+			skills: mappedSkills,
+			skillDiagnostics: skills.diagnostics,
+			prompts: prompts.prompts.map((prompt) => ({
+				...prompt,
+				sourceInfo:
+					this.findSourceInfoForPath(prompt.filePath, promptSourceInfos, this.resourceMetadataByPath) ??
+					prompt.sourceInfo,
+			})),
+			promptDiagnostics: prompts.diagnostics,
+		};
+	}
+
+	private applyManagedResourceSnapshots(base: ManagedResourceSnapshot): void {
+		const before: ManagedResourceSnapshot[] = [];
+		const after: ManagedResourceSnapshot[] = [];
+		for (const managed of this.managedResourceCapabilities.values()) {
+			if (!managed.owner) continue;
+			const snapshot = this.managedResourceSnapshots.get(managed.owner);
+			if (snapshot) (managed.precedence === "before" ? before : after).push(snapshot);
+		}
+		const orderedSnapshots = [...before, base, ...after];
+		const skillsByName = new Map<string, Skill>();
+		const collisionDiagnostics: ResourceDiagnostic[] = [];
+		for (const skill of orderedSnapshots.flatMap((snapshot) => snapshot.skills)) {
+			const existing = skillsByName.get(skill.name);
+			if (!existing) {
+				skillsByName.set(skill.name, skill);
+				continue;
+			}
+			collisionDiagnostics.push({
+				type: "collision",
+				message: `name "${skill.name}" collision`,
+				path: skill.filePath,
+				collision: {
+					resourceType: "skill",
+					name: skill.name,
+					winnerPath: existing.filePath,
+					loserPath: skill.filePath,
+				},
+			});
+		}
+		const prompts = this.dedupePrompts(orderedSnapshots.flatMap((snapshot) => snapshot.prompts));
+		this.skills = [...skillsByName.values()];
+		this.skillDiagnostics = [
+			...orderedSnapshots.flatMap((snapshot) => snapshot.skillDiagnostics),
+			...collisionDiagnostics,
+		];
+		this.prompts = prompts.prompts;
+		this.promptDiagnostics = [
+			...orderedSnapshots.flatMap((snapshot) => snapshot.promptDiagnostics),
+			...prompts.diagnostics,
+		];
+	}
+
+	private getManagedResourceOwner(
+		owner: string,
+	): { capability: ManagedResourceCapability; precedence: ManagedResourcePrecedence } | undefined {
+		for (const [capability, entry] of this.managedResourceCapabilities) {
+			if (entry.owner === owner) return { capability, precedence: entry.precedence };
+		}
+		return undefined;
+	}
+
+	registerManagedResourceOwner(capability: ManagedResourceCapability, owner: string): void {
+		const registered = this.managedResourceCapabilities.get(capability);
+		if (!registered) throw new Error("Invalid managed resource capability.");
+		if (registered.owner !== undefined && registered.owner !== owner) {
+			throw new Error("Managed resource capability is already bound to another extension.");
+		}
+		registered.owner = owner;
 		this.extensionResourceBaselines.set(owner, {
 			skills: this.skills,
 			skillDiagnostics: this.skillDiagnostics,
@@ -459,22 +646,19 @@ export class DefaultResourceLoader implements ResourceLoader {
 		});
 	}
 
-	replaceByzWorkflowResources(owner: string, paths: ResourceExtensionPaths): void {
+	replaceManagedResources(capability: ManagedResourceCapability, owner: string, paths: ResourceExtensionPaths): void {
 		const skillPaths = this.normalizeExtensionPaths(paths.skillPaths ?? []);
 		const promptPaths = this.normalizeExtensionPaths(paths.promptPaths ?? []);
 		const themePaths = this.normalizeExtensionPaths(paths.themePaths ?? []);
-		if (!this.workflowResourceOwners.has(owner)) {
-			throw new Error("Scoped resource updates are reserved for the active BYZ workflow.");
+		const managed = this.managedResourceCapabilities.get(capability);
+		if (!managed || managed.owner !== owner) {
+			throw new Error("Invalid managed resource capability for this extension owner.");
 		}
 		if (themePaths.length > 0) {
-			throw new Error("Scoped extension resource updates support skills and prompts only.");
+			throw new Error("Managed resource updates support skills and prompts only.");
 		}
-		if (
-			[...skillPaths, ...promptPaths].some(
-				(entry) => entry.owner !== owner || entry.metadata.source !== "extension:inline:byz-workflow",
-			)
-		) {
-			throw new Error("Scoped resource updates must contain only resources owned by the active BYZ workflow.");
+		if ([...skillPaths, ...promptPaths].some((entry) => entry.owner !== owner)) {
+			throw new Error("Managed resource updates must contain only resources owned by the calling extension.");
 		}
 
 		const ownedSkillRoots = [...this.extensionSkillOwners.entries()]
@@ -511,7 +695,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 			currentOwners: Map<string, string>,
 			entries: Array<{ path: string; metadata: PathMetadata; owner?: string }>,
 		): string[] => {
-			let insertionIndex = this.workflowResourceOwners.has(owner) ? 0 : currentPaths.length;
+			let insertionIndex = managed.precedence === "before" ? 0 : currentPaths.length;
 			const retainedPaths = currentPaths.filter((path, index) => {
 				if (currentOwners.get(path) !== owner) return true;
 				insertionIndex = Math.min(insertionIndex, index);
@@ -534,82 +718,17 @@ export class DefaultResourceLoader implements ResourceLoader {
 
 		const nextSkillPaths = replacePaths(this.lastSkillPaths, nextSkillSourceInfos, nextSkillOwners, skillPaths);
 		const nextPromptPaths = replacePaths(this.lastPromptPaths, nextPromptSourceInfos, nextPromptOwners, promptPaths);
-		let replacementSkills = loadSkills({
-			cwd: this.cwd,
-			agentDir: this.agentDir,
-			skillPaths: skillPaths.map((entry) => entry.path),
-			includeDefaults: false,
-		});
-		replacementSkills = this.skillsOverride ? this.skillsOverride(replacementSkills) : replacementSkills;
-		const mappedReplacementSkills = replacementSkills.skills.map((skill) => ({
-			...skill,
-			sourceInfo:
-				this.findSourceInfoForPath(skill.filePath, nextSkillSourceInfos, this.resourceMetadataByPath) ??
-				skill.sourceInfo,
-		}));
-		let replacementPrompts = this.dedupePrompts(
-			loadPromptTemplates({
-				cwd: this.cwd,
-				agentDir: this.agentDir,
-				promptPaths: promptPaths.map((entry) => entry.path),
-				includeDefaults: false,
-			}),
-		);
-		replacementPrompts = this.promptsOverride ? this.promptsOverride(replacementPrompts) : replacementPrompts;
-		const mappedReplacementPrompts = replacementPrompts.prompts.map((prompt) => ({
-			...prompt,
-			sourceInfo:
-				this.findSourceInfoForPath(prompt.filePath, nextPromptSourceInfos, this.resourceMetadataByPath) ??
-				prompt.sourceInfo,
-		}));
-
-		const workflowPriority = this.workflowResourceOwners.has(owner);
-		const orderedSkills = workflowPriority
-			? [...mappedReplacementSkills, ...baseline.skills]
-			: [...baseline.skills, ...mappedReplacementSkills];
-		const skillsByName = new Map<string, Skill>();
-		const skillCollisionDiagnostics: ResourceDiagnostic[] = [];
-		for (const skill of orderedSkills) {
-			const existing = skillsByName.get(skill.name);
-			if (!existing) {
-				skillsByName.set(skill.name, skill);
-				continue;
-			}
-			skillCollisionDiagnostics.push({
-				type: "collision",
-				message: `name "${skill.name}" collision`,
-				path: skill.filePath,
-				collision: {
-					resourceType: "skill",
-					name: skill.name,
-					winnerPath: existing.filePath,
-					loserPath: skill.filePath,
-				},
-			});
-		}
-		const orderedPrompts = workflowPriority
-			? [...mappedReplacementPrompts, ...baseline.prompts]
-			: [...baseline.prompts, ...mappedReplacementPrompts];
-		const mergedPrompts = this.dedupePrompts(orderedPrompts);
-
 		this.extensionSkillSourceInfos = nextSkillSourceInfos;
 		this.extensionPromptSourceInfos = nextPromptSourceInfos;
 		this.extensionSkillOwners = nextSkillOwners;
 		this.extensionPromptOwners = nextPromptOwners;
 		this.lastSkillPaths = nextSkillPaths;
 		this.lastPromptPaths = nextPromptPaths;
-		this.skills = [...skillsByName.values()];
-		this.skillDiagnostics = [
-			...replacementSkills.diagnostics,
-			...baseline.skillDiagnostics,
-			...skillCollisionDiagnostics,
-		];
-		this.prompts = mergedPrompts.prompts;
-		this.promptDiagnostics = [
-			...replacementPrompts.diagnostics,
-			...baseline.promptDiagnostics,
-			...mergedPrompts.diagnostics,
-		];
+		this.managedResourceSnapshots.set(
+			owner,
+			this.loadManagedResourceSnapshot(skillPaths, promptPaths, nextSkillSourceInfos, nextPromptSourceInfos),
+		);
+		this.applyManagedResourceSnapshots(baseline);
 	}
 
 	async loadProjectTrustExtensions(): Promise<LoadExtensionsResult> {
@@ -626,6 +745,9 @@ export class DefaultResourceLoader implements ResourceLoader {
 		if (this.loaded) {
 			clearExtensionCache();
 		}
+		// Managed inline factories may be loaded during the project-trust prepass.
+		// Clear before that pass so its fresh capability remains registered for the final reused extension.
+		this.managedResourceCapabilities = new Map();
 
 		let preTrustExtensions: LoadExtensionsResult | undefined;
 		if (options?.resolveProjectTrust) {
@@ -650,7 +772,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 		this.extensionSkillOwners = new Map();
 		this.extensionPromptOwners = new Map();
 		this.extensionThemeOwners = new Map();
-		this.workflowResourceOwners = new Set();
+		this.managedResourceSnapshots = new Map();
 		this.extensionResourceBaselines = new Map();
 
 		// Helper to extract enabled paths and store metadata
@@ -1103,9 +1225,9 @@ export class DefaultResourceLoader implements ResourceLoader {
 	}
 
 	private mergeDiscoverableResourcePaths(discovered: string[], additional: string[]): string[] {
-		// BYZ injects its version-locked workflow through explicit paths. Those
-		// resources must win same-name collisions without hiding unrelated host resources.
-		return APP_NAME === "byz" ? this.mergePaths(additional, discovered) : this.mergePaths(discovered, additional);
+		return this.additionalResourcePrecedence === "before"
+			? this.mergePaths(additional, discovered)
+			: this.mergePaths(discovered, additional);
 	}
 
 	private resolveResourcePath(p: string): string {
@@ -1214,18 +1336,20 @@ export class DefaultResourceLoader implements ResourceLoader {
 			}
 		}
 
-		if (this.byzWorkflowExtensionFactory) {
-			const extensionPath = "<inline:byz-workflow>";
+		for (const managedFactory of this.managedExtensionFactories) {
+			const extensionPath = `<inline:managed:${managedFactory.name}>`;
 			try {
 				const extension = await loadExtensionFromFactory(
-					this.byzWorkflowExtensionFactory,
+					managedFactory.factory,
 					this.cwd,
 					this.eventBus,
 					runtime,
 					extensionPath,
 				);
+				const capability = Symbol(`managed-resource:${managedFactory.name}`);
+				this.managedResourceCapabilities.set(capability, { precedence: managedFactory.resourcePrecedence });
 				extension.hidden = true;
-				extension.byzWorkflow = true;
+				extension.managedResource = { capability, precedence: managedFactory.resourcePrecedence };
 				extensions.push(extension);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : "failed to load extension";

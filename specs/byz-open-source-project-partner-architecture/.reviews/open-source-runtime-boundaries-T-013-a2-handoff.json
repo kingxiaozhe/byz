@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "task_id": "T-013",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/package.json",
+    "packages/byz/scripts/build.mjs",
+    "packages/byz/test/build.test.mjs"
+  ],
+  "implementation_sha256": "d13e02f74666c74d8e87a24a59fd9efb2c4826b0734b70448d5cc269e2c245aa",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/build.test.mjs packages/byz/test/build-safety.test.mjs",
+      "status": "passed",
+      "evidence": "17 of 17 targeted tests passed; the production fixture now includes a real bundled workflow and negative cases for workflow symlinks, reserved runtime collisions, alternate output roots, and non-dist public entries."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "137 of 137 BYZ package tests passed."
+    },
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "The real production build completed after scanning both locked workflow packages for symbolic links."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "The full repository check passed with no fixes or warnings."
+    }
+  ],
+  "evidence": [
+    "packages/byz/test/build.test.mjs",
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-013-r1.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

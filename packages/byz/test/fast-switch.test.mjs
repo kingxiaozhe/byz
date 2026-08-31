@@ -4,13 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { getModels } from "@earendil-works/pi-ai/compat";
+import { createPiExtensionPorts } from "../.byz-output/current/dist/adapters/pi/pi-runtime-adapter.js";
 import {
 	createAgentSessionFromServices,
 	createAgentSessionServices,
 	SessionManager,
 	SettingsManager,
-} from "../dist/runtime/bundle/index.js";
-import { createFastSwitchExtension } from "../src/fast-session.js";
+} from "../.byz-output/current/dist/runtime/bundle/index.js";
+import { createFastSessionController, createFastSwitchExtension } from "../src/fast-session.js";
 
 const ORIGINAL_MODEL = { provider: "provider-a", id: "original", reasoning: true };
 const FAST_MODEL = { provider: "provider-b", id: "fast", reasoning: true };
@@ -207,6 +208,68 @@ test("Fast switches to a configured target and restores the original session sta
 	assert.equal(harness.state.thinking, "high");
 	assert.equal(harness.state.sessionToken, sessionToken);
 	assert.equal(harness.state.workflowToken, workflowToken);
+});
+
+test("Fast restores an adapter-branded model snapshot after extension reload", async () => {
+	const models = [ORIGINAL_MODEL, FAST_MODEL];
+	const state = { model: ORIGINAL_MODEL, thinking: "high" };
+	const controller = createFastSessionController({ env: { BYZ_FAST_MODEL: "provider-b/fast" } });
+
+	function createRuntime() {
+		const commands = new Map();
+		const handlers = new Map();
+		const context = {
+			ui: { notify() {} },
+			modelRegistry: {
+				find: (provider, id) => models.find((model) => model.provider === provider && model.id === id),
+				hasConfiguredAuth: () => true,
+			},
+			isIdle: () => true,
+		};
+		Object.defineProperty(context, "model", { get: () => state.model });
+		const runtime = {
+			on(name, handler) {
+				const eventHandlers = handlers.get(name) ?? [];
+				eventHandlers.push(handler);
+				handlers.set(name, eventHandlers);
+			},
+			registerCommand: (name, command) => commands.set(name, command),
+			getAllTools: () => [],
+			getThinkingLevel: () => state.thinking,
+			setThinkingLevel(level) {
+				state.thinking = level;
+			},
+			async setModel(model) {
+				const previousModel = state.model;
+				state.model = model;
+				for (const handler of handlers.get("model_select") ?? []) {
+					await handler({ type: "model_select", model, previousModel, source: "set" }, context);
+				}
+				return true;
+			},
+		};
+		controller.extension(createPiExtensionPorts(runtime).fast);
+		return {
+			async start() {
+				for (const handler of handlers.get("session_start") ?? []) {
+					await handler({ type: "session_start" }, context);
+				}
+			},
+			run: (args) => commands.get("fast").handler(args, context),
+		};
+	}
+
+	const beforeReload = createRuntime();
+	await beforeReload.start();
+	await beforeReload.run("on");
+	assert.equal(state.model, FAST_MODEL);
+	assert.equal(state.thinking, "low");
+
+	const afterReload = createRuntime();
+	await afterReload.start();
+	await afterReload.run("off");
+	assert.equal(state.model, ORIGINAL_MODEL);
+	assert.equal(state.thinking, "high");
 });
 
 test("Fast runs through a real AgentSession command without replacing the conversation", async () => {

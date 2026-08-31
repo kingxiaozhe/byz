@@ -39,6 +39,7 @@ import type {
 	InputEventResult,
 	InputSource,
 	LoadExtensionsResult,
+	ManagedResourceCapability,
 	MarkdownTransformer,
 	MessageEndEvent,
 	MessageEndEventResult,
@@ -289,7 +290,8 @@ export class ExtensionRunner {
 	private compactFn: (options?: CompactOptions) => void = () => {};
 	private getSystemPromptFn: () => string = () => "";
 	private getSystemPromptOptionsFn: () => BuildSystemPromptOptions = () => ({ cwd: this.cwd });
-	private replaceByzWorkflowResourcesFn: (
+	private replaceManagedResourcesFn: (
+		capability: ManagedResourceCapability,
 		extensionOwner: string,
 		extensionPath: string,
 		resources: ResourcesDiscoverResult,
@@ -359,8 +361,8 @@ export class ExtensionRunner {
 		this.compactFn = contextActions.compact;
 		this.getSystemPromptFn = contextActions.getSystemPrompt;
 		this.getSystemPromptOptionsFn = contextActions.getSystemPromptOptions ?? (() => ({ cwd: this.cwd }));
-		this.replaceByzWorkflowResourcesFn =
-			contextActions.replaceByzWorkflowResources ??
+		this.replaceManagedResourcesFn =
+			contextActions.replaceManagedResources ??
 			(async () => {
 				throw new Error("Extension resource updates are not available in this runtime.");
 			});
@@ -616,7 +618,11 @@ export class ExtensionRunner {
 	}
 
 	private resolveRegisteredCommands(): ResolvedCommand[] {
-		const commands: Array<{ command: RegisteredCommand; ownerId: string; byzWorkflowOwner: boolean }> = [];
+		const commands: Array<{
+			command: RegisteredCommand;
+			ownerId: string;
+			managedResourceCapability?: ManagedResourceCapability;
+		}> = [];
 		const counts = new Map<string, number>();
 
 		for (const [extensionIndex, ext] of this.extensions.entries()) {
@@ -624,7 +630,7 @@ export class ExtensionRunner {
 				commands.push({
 					command,
 					ownerId: this.getExtensionOwnerId(ext, extensionIndex),
-					byzWorkflowOwner: ext.byzWorkflow === true,
+					managedResourceCapability: ext.managedResource?.capability,
 				});
 				counts.set(command.name, (counts.get(command.name) ?? 0) + 1);
 			}
@@ -633,7 +639,7 @@ export class ExtensionRunner {
 		const seen = new Map<string, number>();
 		const takenInvocationNames = new Set<string>();
 
-		return commands.map(({ command, ownerId, byzWorkflowOwner }) => {
+		return commands.map(({ command, managedResourceCapability, ownerId }) => {
 			const occurrence = (seen.get(command.name) ?? 0) + 1;
 			seen.set(command.name, occurrence);
 
@@ -652,7 +658,7 @@ export class ExtensionRunner {
 				...command,
 				invocationName,
 				ownerId,
-				byzWorkflowOwner,
+				managedResourceCapability,
 			};
 		});
 	}
@@ -778,7 +784,7 @@ export class ExtensionRunner {
 	createCommandContext(
 		extensionOwner?: string,
 		extensionPath?: string,
-		byzWorkflowOwner = false,
+		managedResourceCapability?: ManagedResourceCapability,
 	): ExtensionCommandContext {
 		// Use property descriptors instead of object spread so the guarded getters from
 		// createContext() stay lazy. A spread would eagerly read them once and freeze the
@@ -815,13 +821,13 @@ export class ExtensionRunner {
 			this.assertActive();
 			return this.reloadHandler();
 		};
-		if (extensionOwner && extensionPath && byzWorkflowOwner) {
-			const byzContext = context as ExtensionCommandContext & {
-				replaceByzWorkflowResources(resources: ResourcesDiscoverResult): Promise<void>;
+		if (extensionOwner && extensionPath && managedResourceCapability) {
+			const managedContext = context as ExtensionCommandContext & {
+				replaceManagedResources(resources: ResourcesDiscoverResult): Promise<void>;
 			};
-			byzContext.replaceByzWorkflowResources = (resources) => {
+			managedContext.replaceManagedResources = (resources) => {
 				this.assertActive();
-				return this.replaceByzWorkflowResourcesFn(extensionOwner, extensionPath, resources);
+				return this.replaceManagedResourcesFn(managedResourceCapability, extensionOwner, extensionPath, resources);
 			};
 		}
 		return context;
@@ -1189,7 +1195,11 @@ export class ExtensionRunner {
 		skillPaths: Array<{ path: string; extensionOwner: string; extensionPath: string }>;
 		promptPaths: Array<{ path: string; extensionOwner: string; extensionPath: string }>;
 		themePaths: Array<{ path: string; extensionOwner: string; extensionPath: string }>;
-		extensionOwners: Array<{ extensionOwner: string; extensionPath: string; byzWorkflowOwner: boolean }>;
+		extensionOwners: Array<{
+			extensionOwner: string;
+			extensionPath: string;
+			managedResourceCapability?: ManagedResourceCapability;
+		}>;
 	}> {
 		const ctx = this.createContext();
 		const skillPaths: Array<{ path: string; extensionOwner: string; extensionPath: string }> = [];
@@ -1198,18 +1208,18 @@ export class ExtensionRunner {
 		const extensionOwners: Array<{
 			extensionOwner: string;
 			extensionPath: string;
-			byzWorkflowOwner: boolean;
+			managedResourceCapability?: ManagedResourceCapability;
 		}> = [];
 
 		for (const [extensionIndex, ext] of this.extensions.entries()) {
 			const extensionOwner = this.getExtensionOwnerId(ext, extensionIndex);
-			const handlers = ext.handlers.get("resources_discover");
-			if (!handlers || handlers.length === 0) continue;
 			extensionOwners.push({
 				extensionOwner,
 				extensionPath: ext.path,
-				byzWorkflowOwner: ext.byzWorkflow === true,
+				managedResourceCapability: ext.managedResource?.capability,
 			});
+			const handlers = ext.handlers.get("resources_discover");
+			if (!handlers || handlers.length === 0) continue;
 
 			for (const handler of handlers) {
 				try {

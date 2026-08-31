@@ -7,17 +7,20 @@
 - **RPC queue clearing** — Clear and recover queued steering and follow-up messages from RPC clients. See [RPC Mode](docs/rpc.md#clear_queue).
 - **Extension presentation hooks** — Customize assistant messages, tool rows, and confirmation prompts without changing conversation data.
 - **Scoped resource replacement** — Switch wrapper-managed skills and prompts without restarting the session.
+- **Interactive product profiles** — Let wrappers configure built-in startup presentation without product-specific environment branches.
 
 ### Added
 
 - Added extension UI presentation hooks for display-only assistant-message, tool-row, and confirmation customization.
 - Added scoped extension resource replacement so wrappers can switch managed skills and prompts without restarting the session.
+- Added product-neutral interactive profiles for built-in startup headers and loaded-resource summaries.
 - Exported the image MIME detector from the public package API ([#8600](https://github.com/earendil-works/pi/pull/8600)).
 - Added inherited experimental DeepSeek V4 Flash vision model metadata.
 - Added RPC `clear_queue` to retrieve and remove queued steering and follow-up messages ([#8432](https://github.com/earendil-works/pi/issues/8432)).
 
 ### Fixed
 
+- Fixed wrapper-managed resource precedence changing ordinary Pi skill and prompt collision order, and reject unsupported managed themes before applying sibling discovery resources.
 - Fixed hidden extension tool rows being rendered through assistant message updates and restored transcripts.
 - Fixed compaction summary text to describe the user-facing recovery behavior instead of exposing raw token-count jargon by default.
 - Fixed runtime asset lookup for wrapper packages that contain source files but ship runtime assets only in `dist/`.

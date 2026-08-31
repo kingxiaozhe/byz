@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BYZ_PACKAGE_NAME, getLatestByzRelease, handleByzUpdate, planByzUpdate } from "../dist/update.js";
+import {
+	BYZ_PACKAGE_NAME,
+	getLatestByzRelease,
+	handleByzUpdate,
+	planByzUpdate,
+} from "../.byz-output/current/dist/update.js";
 import { runUpdateWithDiagnostics } from "../src/diagnostics/update-integration.js";
 
 test("reads only the fixed BYZ npm registry endpoint", async () => {

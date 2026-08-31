@@ -331,6 +331,24 @@ function formatLoginProviderCompletionDescription(provider: LoginProviderComplet
 	return provider.name === provider.id ? authTypes : `${provider.name} · ${authTypes}`;
 }
 
+export interface InteractiveProductProfile {
+	/** Show Pi's built-in logo, onboarding text, and keybinding help. */
+	showStartupHeader?: boolean;
+	/** Show the built-in extension, skill, prompt, and diagnostic summary. */
+	showLoadedResources?: boolean;
+}
+
+export const DEFAULT_INTERACTIVE_PRODUCT_PROFILE: Required<InteractiveProductProfile> = {
+	showStartupHeader: true,
+	showLoadedResources: true,
+};
+
+export function resolveInteractiveProductProfile(
+	profile?: InteractiveProductProfile,
+): Required<InteractiveProductProfile> {
+	return { ...DEFAULT_INTERACTIVE_PRODUCT_PROFILE, ...profile };
+}
+
 /**
  * Options for InteractiveMode initialization.
  */
@@ -355,6 +373,8 @@ export interface InteractiveModeOptions {
 	tuiMode?: TuiMode;
 	/** Initial interactive theme setting for this invocation. */
 	initialThemeSetting?: string;
+	/** Product-neutral control over built-in startup presentation. */
+	productProfile?: InteractiveProductProfile;
 }
 
 interface InteractiveTuiOptions {
@@ -546,6 +566,7 @@ export class InteractiveMode {
 	private customHeader: (Component & { dispose?(): void }) | undefined = undefined;
 
 	private options: InteractiveModeOptions;
+	private readonly productProfile: Required<InteractiveProductProfile>;
 	private readonly onRightClickPaste = (): void => {
 		void this.handleRightClickPaste();
 	};
@@ -570,6 +591,7 @@ export class InteractiveMode {
 		this.runtimeHost = runtimeHost;
 		const tuiMode = options.tuiMode ?? this.settingsManager.getTuiMode();
 		this.options = { ...options, tuiMode };
+		this.productProfile = resolveInteractiveProductProfile(options.productProfile);
 		this.autoTrustOnReloadCwd = options.autoTrustOnReloadCwd;
 		this.runtimeHost.setBeforeSessionInvalidate(() => {
 			this.resetExtensionUI();
@@ -959,10 +981,7 @@ export class InteractiveMode {
 		await this.themeController.applyFromSettings();
 
 		// Add header with keybindings from config (unless silenced)
-		if (
-			process.env.BYZ_CODING_AGENT !== "true" &&
-			(this.options.verbose || !this.settingsManager.getQuietStartup())
-		) {
+		if (this.productProfile.showStartupHeader && (this.options.verbose || !this.settingsManager.getQuietStartup())) {
 			const logo = theme.bold(theme.fg("accent", APP_NAME)) + theme.fg("dim", ` v${this.version}`);
 
 			// Build startup instructions using keybinding hint helpers
@@ -1981,7 +2000,7 @@ export class InteractiveMode {
 
 		const extensionRunner = this.session.extensionRunner;
 		this.setupExtensionShortcuts(extensionRunner);
-		if (process.env.BYZ_CODING_AGENT !== "true") {
+		if (this.productProfile.showLoadedResources) {
 			this.showLoadedResources({ force: false, showDiagnosticsWhenQuiet: true });
 		}
 		this.showStartupNoticesIfNeeded();
@@ -3241,7 +3260,9 @@ export class InteractiveMode {
 
 			case "resources_changed":
 				this.setupAutocompleteProvider();
-				this.showLoadedResources({ force: false, showDiagnosticsWhenQuiet: true });
+				if (this.productProfile.showLoadedResources) {
+					this.showLoadedResources({ force: false, showDiagnosticsWhenQuiet: true });
+				}
 				this.ui.requestRender();
 				break;
 
@@ -6042,10 +6063,12 @@ export class InteractiveMode {
 			this.setupAutocompleteProvider();
 			const runner = this.session.extensionRunner;
 			this.setupExtensionShortcuts(runner);
-			this.showLoadedResources({
-				force: false,
-				showDiagnosticsWhenQuiet: true,
-			});
+			if (this.productProfile.showLoadedResources) {
+				this.showLoadedResources({
+					force: false,
+					showDiagnosticsWhenQuiet: true,
+				});
+			}
 			const savedImplicitProjectTrust = this.maybeSaveImplicitProjectTrustAfterReload();
 			const modelsJsonError = this.session.modelRuntime.getError();
 			if (modelsJsonError) {

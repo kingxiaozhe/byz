@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "task_id": "T-015",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/scripts/build-support.mjs",
+    "packages/byz/test/build-safety.test.mjs"
+  ],
+  "implementation_sha256": "b10430af9d1c51eb3cf9b8344d741605180dfbec8503b8cfa4dd32fadffd96f7",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/build-safety.test.mjs packages/byz/test/build.test.mjs",
+      "status": "passed",
+      "evidence": "14 of 14 tests passed, covering live-owner exclusion, confirmed-death and PID-reuse recovery, unknown fail-closed behavior, atomic owner visibility, output replacement, concurrent recovery, stale-handle publication, and portable workflow aliases."
+    },
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "The production build completed with the system process-start identity probe and held v3 lock through package-image promotion."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Full repository check passed with no fixes or warnings."
+    }
+  ],
+  "evidence": [
+    "packages/byz/test/build-safety.test.mjs"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -1,0 +1,463 @@
+{
+  "schemaVersion": "1.0",
+  "feature": "open-source-runtime-boundaries",
+  "cases": [
+    {
+      "id": "TC-001",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-001",
+        "AC-002",
+        "AC-012"
+      ],
+      "taskIds": [
+        "T-008",
+        "T-009",
+        "T-011"
+      ],
+      "title": "公开发布要求绑定当前提交的可信许可证审批",
+      "preconditions": [
+        "准备一个待发布提交和普通仓库内 provenance marker"
+      ],
+      "steps": [
+        "仅提交普通 marker 后运行发布检查",
+        "再提供来自受保护授权边界且绑定当前提交的审批记录"
+      ],
+      "expected": [
+        "普通 marker 不能通过许可证门禁",
+        "可信审批记录与提交匹配后门禁通过",
+        "上游和贡献边界文档可定位"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-002",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-003"
+      ],
+      "taskIds": [
+        "T-022",
+        "T-010"
+      ],
+      "title": "BYZ Domain 和 Application 不依赖 Pi 实现",
+      "preconditions": [
+        "BYZ 新分层源码存在"
+      ],
+      "steps": [
+        "运行架构依赖检查"
+      ],
+      "expected": [
+        "Domain/Application 导入 Pi、TUI、SQLite 或 fs 实现时检查失败",
+        "BYZ 功能 factory 接受完整 Pi Extension API、透明 Proxy 或 raw handle 时检查失败",
+        "只依赖 ports/domain 且组合根注入显式 facade 时检查通过"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-003",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-004",
+        "AC-005"
+      ],
+      "taskIds": [
+        "T-021",
+        "T-010"
+      ],
+      "title": "Managed resource capability 不能被普通扩展冒充",
+      "preconditions": [
+        "注册一个 managed owner 和一个同名普通扩展"
+      ],
+      "steps": [
+        "由 managed owner 替换自己的 skills/prompts",
+        "由普通扩展尝试替换 managed resources"
+      ],
+      "expected": [
+        "managed owner 只更新自己的资源，双 owner、空资源替换和 reload 不删除其他 owner",
+        "普通扩展及伪造、陈旧、owner 不匹配的 token 调用被拒绝",
+        "无 resources_discover handler 的 managed owner 仍可通过自己的命令能力更新资源",
+        "Pi Core 公共契约不含 BYZ 专属名称"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-004",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-006"
+      ],
+      "taskIds": [
+        "T-005",
+        "T-010"
+      ],
+      "title": "BYZ 命令统一返回 CommandResult",
+      "preconditions": [
+        "update、workflow 和 diagnostics command 已注册"
+      ],
+      "steps": [
+        "分别执行成功、参数错误和 passthrough 场景"
+      ],
+      "expected": [
+        "每个命令返回统一 status/exitCode/stdout/stderr",
+        "只有 CLI 组合根修改进程退出状态",
+        "双横线参数保持原顺序"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-005",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-007"
+      ],
+      "taskIds": [
+        "T-006",
+        "T-010"
+      ],
+      "title": "Conversation 分层保持既有终端行为",
+      "preconditions": [
+        "使用 faux provider 和隔离 HOME"
+      ],
+      "steps": [
+        "启动会话并切换语言与详情模式",
+        "触发工具进度、确认等待、Thinking 更新和完成摘要"
+      ],
+      "expected": [
+        "欢迎语、Footer、进度、计时和确认语义与既有合同一致",
+        "普通技术正文中的 model/tool/workflow 不被关键词替换"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-006",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-008"
+      ],
+      "taskIds": [
+        "T-007",
+        "T-010"
+      ],
+      "title": "Conversation 偏好并发写入不丢字段",
+      "preconditions": [
+        "两个进程读取相同初始偏好"
+      ],
+      "steps": [
+        "进程 A 保存 language",
+        "进程 B 同时保存 detailMode",
+        "重新读取配置",
+        "提供损坏 JSON 再初始化"
+      ],
+      "expected": [
+        "两个字段都被保留或陈旧写入明确失败",
+        "文件权限为当前用户私有",
+        "损坏配置被隔离并产生可诊断默认状态"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-007",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-009"
+      ],
+      "taskIds": [
+        "T-018"
+      ],
+      "title": "真实生产构建自动收录 BYZ 源模块并更新 workspace 入口",
+      "preconditions": [
+        "准备使用生产 build manifest 和 tsconfig 的隔离 BYZ workspace"
+      ],
+      "steps": [
+        "在隔离 workspace 的 src 嵌套目录添加测试模块",
+        "不修改逐文件复制数组并调用生产 build 编排",
+        "通过源码 package 的 bin、main、types 和 exports 解析 current generation"
+      ],
+      "expected": [
+        "测试模块进入不可变 package image",
+        "构建脚本不存在逐源码文件维护清单",
+        "全部 workspace 公开入口解析到本次 generation，且发布 metadata 只引用 image 内 dist"
+      ],
+      "cleanup": [
+        "删除测试模块"
+      ]
+    },
+    {
+      "id": "TC-008",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-010",
+        "AC-011",
+        "AC-014"
+      ],
+      "taskIds": [
+        "T-018",
+        "T-020",
+        "T-011"
+      ],
+      "title": "干净 clone 可重现完整 BYZ 发布包",
+      "preconditions": [
+        "使用干净 clone 和隔离安装目录"
+      ],
+      "steps": [
+        "安装依赖并构建",
+        "运行 check 和非 E2E 测试",
+        "由 CI artifact step 调用一次 release dry-run，在进程身份锁内生成绑定 generation、SHA-256 与 entry 大小清单的 tarball 和 artifact receipt，并直接传递返回路径，不再独立 pack",
+        "在 receipt 验证后切换新 generation 并保留源码根陈旧产物，从仓库外安装 verifier 返回的私有 tarball snapshot 并 smoke",
+        "在 smoke 后和 publish 前再次核对 receipt、tarball SHA-256 与 current generation identity"
+      ],
+      "expected": [
+        "所有命令成功",
+        "包包含 runtime assets、docs、examples 和锁定 workflows",
+        "构建在 pointer promotion 前失败时保持旧 current，在 promotion 后确认不完整时保留新 current generation，均不暴露悬空 pointer",
+        "dry-run 是 CI 唯一制品生产者，仓库外 smoke 与 publish 直接消费其返回并由同一 receipt 绑定的相同 generation 和 tarball 字节，不读取源码根陈旧产物、不二次 pack 或只信可变 pathname"
+      ],
+      "cleanup": [
+        "删除临时 clone、安装目录和 tarball"
+      ]
+    },
+    {
+      "id": "TC-009",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-013"
+      ],
+      "taskIds": [
+        "T-016",
+        "T-018"
+      ],
+      "title": "构建拒绝越界输出与可移植 workflow 冲突并在所有锁阶段对 unknown 失败关闭",
+      "preconditions": [
+        "准备隔离 package 根、外部目录、多个 owner token 和可按选举阶段注入 same/absent/different/unknown 的进程身份 probe"
+      ],
+      "steps": [
+        "把 .byz-output 设为指向外部目录的 symlink 并启动构建",
+        "分别配置 workflows 根、大小写或 Unicode 别名、尾随点空格和祖先/后代 workflow destination",
+        "让 owner 进程保持存活但暂停，并由第二个构建尝试取得锁",
+        "分别模拟 owner 终止、PID 被无关进程复用和首次竞争 probe unknown 后尝试恢复",
+        "让多个 claimant 并发安装完整 owner，其中至少一个创建 active marker 后再把其身份观察切换为 unknown",
+        "让已失去身份或遇到 competing unknown 的 owner 尝试发布 current 和释放其他 owner 的锁"
+      ],
+      "expected": [
+        "构建在写入或递归清理前拒绝 symlink 输出根，外部目录保持不变",
+        "全部可移植文件系统冲突在复制前被拒绝",
+        "暂停但仍存活的 owner 始终阻止第二个构建，首次竞争和激活后最终选举中的 unknown 都失败关闭",
+        "owner 终止或同 PID 启动身份变化时可恢复完整锁",
+        "并发激活窗口不能返回两个可发布的 lock handle",
+        "旧 owner 或无法排除 competing unknown 的 handle 不能发布 generation 或释放其他 owner 的锁"
+      ],
+      "cleanup": [
+        "删除隔离 fixture"
+      ]
+    },
+    {
+      "id": "TC-010",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-015"
+      ],
+      "taskIds": [
+        "T-018"
+      ],
+      "title": "生产构建拒绝全部可移植 dist 冲突并保留已 promotion 的 current generation",
+      "preconditions": [
+        "准备使用真实生产 build 编排的隔离 workspace、可控 publication probe 和一个完整旧 current generation"
+      ],
+      "steps": [
+        "分别让 BYZ 编译输出以大小写、Unicode 规范化或尾随点空格别名占用保留 Pi runtime、runtime asset 或 package metadata 目标",
+        "提供 A.js、a.js-foo.js、a.js/b.js 三项并运行 portable namespace 校验和真实生产构建",
+        "运行生产构建并检查最终 image 和旧 current",
+        "生成一个完整候选 generation，并在 current pointer 原子 rename 后、后置 ownership fence 前把 competing owner 观察切换为 unknown",
+        "等待构建返回失败或 promotion 未确认结果，再解析 current 并检查候选 generation"
+      ],
+      "expected": [
+        "全部 portable path 别名在复制前被拒绝，metadata 和保留 runtime asset 不会静默覆盖编译输出",
+        "被无关 sibling 隔开的 A.js 与 a.js/b.js 祖先冲突仍被拒绝，检测结果不依赖排序相邻性",
+        "冲突失败保持旧 current 完整可解析",
+        "rename 后的围栏不确定性被标记为 promoted-unconfirmed，而不是误报为未发布",
+        "清理保留 current 指向或无法排除被 current 指向的完整 generation，current 不会悬空"
+      ],
+      "cleanup": [
+        "删除隔离 workspace"
+      ]
+    },
+    {
+      "id": "TC-011",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-016"
+      ],
+      "taskIds": [
+        "T-018"
+      ],
+      "title": "编译前拒绝 BYZ 源码树中的外部 symlink 和非普通条目",
+      "preconditions": [
+        "准备隔离 BYZ workspace、package 外 JavaScript 文件和真实生产 build 编排"
+      ],
+      "steps": [
+        "在 BYZ src 中创建指向 package 外 JavaScript 文件的 leak.js symlink",
+        "运行生产 build 并观察编译器是否启动及 current 是否变化",
+        "分别以可用平台支持的 junction 或非普通文件重复源码树验证",
+        "移除异常条目后添加普通嵌套源码并重新构建"
+      ],
+      "expected": [
+        "源码 symlink 在编译器读取前被拒绝，package 外内容不会出现在 staging 或 package image",
+        "junction 和非普通源码条目同样失败关闭，旧 current 保持完整可解析",
+        "移除异常条目后普通完整源码树仍可成功编译并发布"
+      ],
+      "cleanup": [
+        "删除隔离 workspace 和 package 外测试文件"
+      ]
+    },
+    {
+      "id": "TC-012",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-017"
+      ],
+      "taskIds": [
+        "T-020"
+      ],
+      "title": "Artifact receipt 在解压前阻断制品替换、destination 竞态和高展开比压缩包",
+      "preconditions": [
+        "准备隔离 current generation、可控 pack 执行边界、私有临时基目录和可构造 tar header 的测试工具"
+      ],
+      "steps": [
+        "从 current image 执行 pack，检查自建私有目录、artifact receipt、tarball SHA-256、entry 清单和展开大小",
+        "在 smoke 前及 smoke 后分别替换原 tarball pathname，再执行 receipt verifier 和 publish 捕获",
+        "把调用方 destination symlink 在校验后、npm pack 前重定向到 .byz-output/current",
+        "分别构造重复/越界路径、link、特殊条目、receipt 大小不匹配、单文件超限和总展开超限的高压缩比 tar",
+        "记录 verifier 拒绝前是否发生解压、安装、CLI 执行或整文件读取"
+      ],
+      "expected": [
+        "npm 只写入 pack 原子创建且位于输出根外的 canonical 私有目录，destination 重定向不能修改 current image",
+        "smoke 与 publish 只消费 receipt SHA-256 匹配的私有 snapshot，任一阶段 pathname 替换都失败",
+        "全部异常 tar 在首次解压、安装、执行或整文件读取前由流式 header 检查拒绝",
+        "合法 receipt 可证明 smoke 与 publish 使用相同 generation 和相同 tarball 字节"
+      ],
+      "cleanup": [
+        "删除私有制品目录、snapshot 和隔离 workspace"
+      ]
+    },
+    {
+      "id": "TC-013",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-014",
+        "AC-018"
+      ],
+      "taskIds": [
+        "T-020"
+      ],
+      "title": "Release dry-run 在锁内维持唯一制品 lineage 并对 current 切换失败关闭",
+      "preconditions": [
+        "准备两个完整 generation、可控进程身份锁 probe、可在 npm pack 边界切换 current 的测试 hook 和 release workflow fixture"
+      ],
+      "steps": [
+        "执行 CI 使用的 release dry-run，并在初始 current 校验后、npm pack 或最终 receipt 围栏前切换 current generation",
+        "分别在 pack 后最终 ownership 断言前模拟 owner token 丢失或 competing owner unknown",
+        "检查失败结果是否输出任何可供 smoke 或 publish 使用的 artifact/receipt 路径",
+        "检查 CI workflow 的 artifact 生产步骤及后续 smoke/publish 参数来源"
+      ],
+      "expected": [
+        "current 在 pack 边界内切换时 dry-run 失败，不交付旧 generation 或新 generation 的候选制品路径",
+        "ownership 丢失或 unknown 时最终围栏失败关闭，私有候选不会进入 smoke/publish",
+        "正常路径只调用一次 release dry-run 生产 tarball 与 receipt，CI 不再调用独立 pack",
+        "smoke 与 publish 的 artifact/receipt 参数直接来自该唯一 dry-run 结果并保持 generation 和 SHA-256 一致"
+      ],
+      "cleanup": [
+        "恢复 current fixture 并删除私有候选目录"
+      ]
+    },
+    {
+      "id": "TC-014",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-004",
+        "AC-019"
+      ],
+      "taskIds": [
+        "T-021"
+      ],
+      "title": "普通 Pi precedence 保持兼容且 managed startup theme 明确失败",
+      "preconditions": [
+        "准备同名的 auto-discovered 与 additional skill/prompt、一个普通 Pi session、一个 BYZ 组合根和可在 startup/reload discovery 返回 themePaths 的 managed extension"
+      ],
+      "steps": [
+        "不配置产品 profile 或 managed owner，加载普通 Pi session 并记录同名 skill/prompt 的获胜资源",
+        "通过产品无关 additional precedence 配置分别选择默认值与 before，再由 BYZ 组合根加载静态和动态 workflow",
+        "让 managed extension 在 startup 和 reload discovery 分别返回非空 themePaths，并记录 loader resources、system prompt 与 resources_changed 事件",
+        "移除 themePaths 后重复 discovery 和 managed skill/prompt replacement"
+      ],
+      "expected": [
+        "普通 Pi 默认场景保持 v9 前 auto-discovered/additional 冲突顺序，未因 BYZ 需求全局变更",
+        "只有显式产品无关配置使 BYZ 静态 workflow 使用 before，动态 workflow 使用其 managed owner precedence",
+        "managed startup/reload theme 在任何 skills/prompts、system prompt 或 resources_changed 副作用前明确失败，不能静默丢弃或部分应用",
+        "移除 themePaths 后合法 managed skills/prompts 可正常发现、替换并保持 owner 隔离"
+      ],
+      "cleanup": [
+        "删除隔离 resource fixtures"
+      ]
+    },
+    {
+      "id": "TC-015",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-020"
+      ],
+      "taskIds": [
+        "T-022",
+        "T-006",
+        "T-010"
+      ],
+      "title": "Pi Adapter 只向各 BYZ 功能暴露声明的最小能力",
+      "preconditions": [
+        "准备带有额外可识别 Pi-only 方法的 fake Extension API，并装配 diagnostics、workflow、Fast、Prewalk 和 Conversation"
+      ],
+      "steps": [
+        "分别捕获组合根注入五类功能的 facade 并枚举可访问属性",
+        "触发 lifecycle event 和 interactive command，检查转换后的产品事件与 command context",
+        "由普通功能尝试访问未声明 Pi-only 方法和 managed resource replacement",
+        "由 workflow owner 使用其显式 resource port 替换自身 skills/prompts"
+      ],
+      "expected": [
+        "每个功能只能访问其声明的 runtime/session/model/resource/UI/command/tool capability slice，不存在 raw Pi handle、透明 Proxy 穿透或未声明属性",
+        "Pi lifecycle payload 与 command context 在 Adapter 内转换后仍驱动既有 diagnostics、workflow、Fast、Prewalk 和 Conversation 行为",
+        "未声明 Pi-only 方法不可访问，managed replacement 对非 workflow 功能不存在或明确拒绝",
+        "workflow owner 仍能通过 owner-bound resource port 合法更新自己的 skills/prompts"
+      ],
+      "cleanup": []
+    }
+  ]
+}

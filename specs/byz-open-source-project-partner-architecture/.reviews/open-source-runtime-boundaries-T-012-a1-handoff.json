@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "task_id": "T-012",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/scripts/build-support.mjs",
+    "packages/byz/test/build-safety.test.mjs"
+  ],
+  "implementation_sha256": "f7ca0f97e84ea03248e08cf5f07d7bdec00c26f45dc33a5cc595ba05515c3bdc",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/build-safety.test.mjs packages/byz/test/build.test.mjs",
+      "status": "passed",
+      "evidence": "8 of 8 tests passed, including output-root symlink rejection, workflow destination overlap, expired lease recovery, PID-independence, and ownership fencing."
+    },
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "The existing production build completed through the callable fenced-lease compatibility surface."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Full repository check passed with no fixes applied."
+    }
+  ],
+  "evidence": [
+    "packages/byz/test/build-safety.test.mjs"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"sourceRoot": "src",
+	"generatedRoots": ["dist", "docs", "examples", "workflows"],
+	"runtimeAssets": [
+		"modes/interactive/theme/dark.json",
+		"modes/interactive/theme/light.json",
+		"modes/interactive/theme/theme-schema.json",
+		"modes/interactive/assets/clankolas.png",
+		"core/export-html/template.html",
+		"core/export-html/template.css",
+		"core/export-html/template.js",
+		"core/export-html/vendor/marked.min.js",
+		"core/export-html/vendor/highlight.min.js"
+	],
+	"packageMetadata": [
+		"package.json",
+		"build-manifest.json",
+		"CHANGELOG.md",
+		"LICENSE",
+		"README.md",
+		"upstream.json",
+		"workflows.lock.json"
+	]
+}

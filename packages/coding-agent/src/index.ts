@@ -103,6 +103,9 @@ export type {
 	KeybindingsManager,
 	LoadExtensionsResult,
 	LsToolCallEvent,
+	ManagedExtensionFactory,
+	ManagedResourceCapability,
+	ManagedResourcePrecedence,
 	MarkdownTransformContext,
 	MarkdownTransformer,
 	MessageEndEvent,
@@ -347,8 +350,10 @@ export {
 export { type MainOptions, main } from "./main.ts";
 // Run modes for programmatic SDK usage
 export {
+	DEFAULT_INTERACTIVE_PRODUCT_PROFILE,
 	InteractiveMode,
 	type InteractiveModeOptions,
+	type InteractiveProductProfile,
 	type JsonAgentSessionEvent,
 	type ModelInfo,
 	type PrintModeOptions,
@@ -360,6 +365,7 @@ export {
 	type RpcExtensionUIResponse,
 	type RpcResponse,
 	type RpcSessionState,
+	resolveInteractiveProductProfile,
 	runPrintMode,
 	runRpcMode,
 } from "./modes/index.ts";

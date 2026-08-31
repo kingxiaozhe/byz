@@ -1,0 +1,355 @@
+{
+  "schemaVersion": "1.0",
+  "feature": "community-extension-platform",
+  "cases": [
+    {
+      "id": "TC-001",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-001",
+        "AC-002"
+      ],
+      "taskIds": [
+        "T-002",
+        "T-010",
+        "T-015"
+      ],
+      "title": "扩展信任等级和系统权限警告真实可见",
+      "preconditions": [
+        "准备 declarative 与 trusted-code manifests"
+      ],
+      "steps": [
+        "尝试给 declarative manifest 设置 entry",
+        "安装 trusted-code extension"
+      ],
+      "expected": [
+        "declarative 可执行入口被拒绝",
+        "trusted-code 安装提示同进程系统权限",
+        "提示明确 Capability 不是系统沙箱"
+      ],
+      "cleanup": [
+        "删除测试扩展"
+      ]
+    },
+    {
+      "id": "TC-002",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-003"
+      ],
+      "taskIds": [
+        "T-002",
+        "T-015"
+      ],
+      "title": "Manifest 非法或 API 不兼容时拒绝安装",
+      "preconditions": [
+        "准备缺字段、非法枚举、未知 required Capability 和未来 API 版本 manifests"
+      ],
+      "steps": [
+        "逐个执行 manifest validation/install"
+      ],
+      "expected": [
+        "每个非法 manifest 被拒绝并指出字段",
+        "不会加载扩展入口或写授权"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-003",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-004",
+        "AC-010",
+        "AC-012"
+      ],
+      "taskIds": [
+        "T-007",
+        "T-008",
+        "T-015"
+      ],
+      "title": "Capability 和 scope 在每次 BYZ API 调用校验",
+      "preconditions": [
+        "扩展只获 project A 的 summary read"
+      ],
+      "steps": [
+        "读取 project A summary",
+        "读取 project B",
+        "调用未声明 memory、decision confirm、project delete 和 shell API"
+      ],
+      "expected": [
+        "project A allowlisted summary 成功",
+        "project B 和未授权调用失败且不返回保护数据",
+        "禁止 API 不存在于 public context"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-004",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-005"
+      ],
+      "taskIds": [
+        "T-007",
+        "T-009",
+        "T-015"
+      ],
+      "title": "Broker 外部写入首次使用需要分级确认",
+      "preconditions": [
+        "扩展已安装但未批准 external service write"
+      ],
+      "steps": [
+        "通过 BYZ broker 请求写入",
+        "分别选择允许一次、项目记住和拒绝"
+      ],
+      "expected": [
+        "确认卡显示目标、动作、发送与不发送数据类别",
+        "三种选择按 scope 生效",
+        "界面说明 trusted-code 直接 OS I/O 不在 broker 强制范围"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-005",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-006",
+        "AC-007"
+      ],
+      "taskIds": [
+        "T-003",
+        "T-004",
+        "T-005",
+        "T-006",
+        "T-015"
+      ],
+      "title": "扩展 artifact identity 覆盖完整可执行依赖",
+      "preconditions": [
+        "顶层扩展版本不变但一个 transitive dependency 解析为不同版本"
+      ],
+      "steps": [
+        "分别安装两次并计算 lock/tree digest",
+        "尝试复用第一次授权"
+      ],
+      "expected": [
+        "完整依赖图逐包记录 integrity",
+        "executable tree digest 不同",
+        "旧授权不匹配第二个 artifact"
+      ],
+      "cleanup": [
+        "删除隔离安装目录"
+      ]
+    },
+    {
+      "id": "TC-006",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-007"
+      ],
+      "taskIds": [
+        "T-004",
+        "T-005",
+        "T-015"
+      ],
+      "title": "浮动来源和 lifecycle scripts 不进入安装",
+      "preconditions": [
+        "准备 npm range、Git branch/tag 和含 lifecycle script 的 fixture"
+      ],
+      "steps": [
+        "尝试锁定并安装"
+      ],
+      "expected": [
+        "最终 lock 只接受 exact npm version/full commit",
+        "lifecycle script 未执行",
+        "无法固定的来源安装失败"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-007",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-008",
+        "AC-013"
+      ],
+      "taskIds": [
+        "T-005",
+        "T-006",
+        "T-011"
+      ],
+      "title": "Local extension 路径和用户授权不进入共享 lock",
+      "preconditions": [
+        "安装本地开发扩展并授予项目权限"
+      ],
+      "steps": [
+        "检查 .byz/extensions.lock.json 和私有配置",
+        "改变本地内容 hash 后 reload"
+      ],
+      "expected": [
+        "共享 lock 不含绝对路径和 grants",
+        "私有配置保存路径",
+        "界面持续标记 development extension",
+        "hash 变化要求重新确认"
+      ],
+      "cleanup": [
+        "删除测试扩展和授权"
+      ]
+    },
+    {
+      "id": "TC-008",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-009"
+      ],
+      "taskIds": [
+        "T-009",
+        "T-015"
+      ],
+      "title": "Credential broker 不返回或记录明文凭证",
+      "preconditions": [
+        "使用假凭证和 loopback service"
+      ],
+      "steps": [
+        "扩展通过 credential use 发起请求",
+        "检查扩展返回值和审计"
+      ],
+      "expected": [
+        "请求成功但扩展得不到明文",
+        "审计不含 Authorization、请求正文和响应正文"
+      ],
+      "cleanup": [
+        "清除假凭证和审计 fixture"
+      ]
+    },
+    {
+      "id": "TC-009",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-011"
+      ],
+      "taskIds": [
+        "T-007",
+        "T-009",
+        "T-010",
+        "T-015"
+      ],
+      "title": "权限撤销与高风险 action claim 原子竞争",
+      "preconditions": [
+        "存在 pending 高风险 action 和当前 grant generation"
+      ],
+      "steps": [
+        "并发执行 revoke 与 pending-to-executing claim"
+      ],
+      "expected": [
+        "transaction 只允许 revoke 前已合法 claim 或撤销取消二者之一",
+        "撤销后没有新 action 使用旧 generation 开始",
+        "既有项目产物不被删除"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-010",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-014"
+      ],
+      "taskIds": [
+        "T-002",
+        "T-008",
+        "T-015"
+      ],
+      "title": "公共 SDK 不泄露 Pi 和存储内部类型",
+      "preconditions": [
+        "构建并 pack BYZ"
+      ],
+      "steps": [
+        "从仓库外导入 @aibyzero/byz/extension",
+        "检查声明和 runtime exports"
+      ],
+      "expected": [
+        "可使用 manifest/define/context types",
+        "导出不包含 Pi ExtensionContext、SQLite 表或 Session 内部对象"
+      ],
+      "cleanup": [
+        "删除临时安装"
+      ]
+    },
+    {
+      "id": "TC-011",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-015"
+      ],
+      "taskIds": [
+        "T-012",
+        "T-013",
+        "T-015"
+      ],
+      "title": "官方样例无需真实凭证和生产副作用",
+      "preconditions": [
+        "隔离 HOME 和 loopback fixture 可用"
+      ],
+      "steps": [
+        "运行 Project Summary Exporter",
+        "运行 Test External Integration"
+      ],
+      "expected": [
+        "Exporter 只输出 allowlisted summary",
+        "外部样例只访问 loopback/测试端点并使用假 handle",
+        "不要求真实账号、付费 token 或生产写入"
+      ],
+      "cleanup": [
+        "删除样例产物和 fixture"
+      ]
+    },
+    {
+      "id": "TC-012",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-016"
+      ],
+      "taskIds": [
+        "T-014",
+        "T-015"
+      ],
+      "title": "Extension API v1 同一 minor 不允许 breaking change",
+      "preconditions": [
+        "准备当前 public API snapshot"
+      ],
+      "steps": [
+        "在 patch release 删除已有导出并只添加 deprecated/migration 文档",
+        "运行 compatibility check"
+      ],
+      "expected": [
+        "breaking change 仍被拒绝",
+        "当前 minor 只能弃用",
+        "移除最早安排在下一允许 minor并要求迁移说明"
+      ],
+      "cleanup": []
+    }
+  ]
+}

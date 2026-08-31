@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createPiExtensionPorts, createPiRuntimeAdapter } from "./adapters/pi/pi-runtime-adapter.js";
 import { createConversationExtension } from "./conversation/conversation-extension.js";
 import { handleDiagnosticsCommand } from "./diagnostics/commands.js";
 import { createDiagnosticsExtension } from "./diagnostics/diagnostics-extension.js";
@@ -17,8 +18,12 @@ import {
 	resolveWorkflowRuntimeResources,
 } from "./workflows.js";
 
+const piRuntime = createPiRuntimeAdapter(main, {
+	showStartupHeader: false,
+	showLoadedResources: false,
+});
+
 process.title = "byz";
-process.env.BYZ_CODING_AGENT = "true";
 process.env.PI_CODING_AGENT = "true";
 process.env.AI_AGENT = "byz";
 process.env.PI_SKIP_VERSION_CHECK = "1";
@@ -43,7 +48,8 @@ try {
 	} else {
 		diagnostics ??= createDiagnosticsRecorder();
 		const mode = mapMode(commandArgs);
-		const diagnosticsExtension = createDiagnosticsExtension({ recorder: diagnostics, mode });
+		const diagnosticsFeature = createDiagnosticsExtension({ recorder: diagnostics, mode });
+		const diagnosticsExtension = (pi) => diagnosticsFeature(createPiExtensionPorts(pi).diagnostics);
 		const loadWorkflow = shouldLoadWorkflow(commandArgs);
 		const isInteractive = shouldEnableWorkflowSwitch(commandArgs, {
 			stdinIsTTY: process.stdin.isTTY,
@@ -67,18 +73,22 @@ try {
 			const prewalkExtension = createPrewalkExtension({ fastController });
 			const conversationExtension = createConversationExtension();
 			const byzExtension = (pi) => {
-				conversationExtension(pi);
-				workflowExtension(pi);
-				fastController.extension(pi);
-				prewalkExtension(pi);
+				const ports = createPiExtensionPorts(pi);
+				conversationExtension(ports.conversation);
+				workflowExtension(ports.workflow);
+				fastController.extension(ports.fast);
+				prewalkExtension(ports.prewalk);
 			};
-			await main(parsedRuntimeWorkflow.forwardedArgs, {
+			await piRuntime.run(parsedRuntimeWorkflow.forwardedArgs, {
 				extensionFactories: [diagnosticsExtension],
-				byzWorkflowExtensionFactory: byzExtension,
+				managedExtensionFactories: [{ factory: byzExtension, name: "workflow", resourcePrecedence: "before" }],
 			});
 		} else {
 			const prepared = await prepareWorkflowRuntimeArgs(runtimeArgs, { load: loadWorkflow });
-			await main(prepared.args, { extensionFactories: [diagnosticsExtension] });
+			await piRuntime.run(prepared.args, {
+				extensionFactories: [diagnosticsExtension],
+				additionalResourcePrecedence: "before",
+			});
 		}
 		diagnostics.record("byz.app.run", {
 			version: VERSION,

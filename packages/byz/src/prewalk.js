@@ -4,8 +4,8 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 const PREWALK_COMMAND_USAGE = "Usage: /prewalk [cancel|status]";
 const WRITE_TOOL_NAMES = new Set(["edit", "write"]);
 
-function hasBuiltinWriteTools(pi) {
-	const tools = new Map(pi.getAllTools().map((tool) => [tool.name, tool]));
+function hasBuiltinWriteTools(ports) {
+	const tools = new Map(ports.getAllTools().map((tool) => [tool.name, tool]));
 	return [...WRITE_TOOL_NAMES].every((name) => {
 		const sourceInfo = tools.get(name)?.sourceInfo;
 		return sourceInfo?.source === "builtin" && sourceInfo.path === `<builtin:${name}>`;
@@ -31,7 +31,7 @@ async function isWorkspacePath(cwd, inputPath) {
 export function createPrewalkExtension({ fastController }) {
 	if (!fastController) throw new Error("Prewalk requires the Fast session controller.");
 
-	return function prewalkExtension(pi) {
+	return function prewalkExtension(ports) {
 		let state = "idle";
 		let target;
 		let candidateQueue = Promise.resolve();
@@ -79,7 +79,7 @@ export function createPrewalkExtension({ fastController }) {
 				ctx.ui.notify("Prewalk is already armed.", "info");
 				return;
 			}
-			if (!hasBuiltinWriteTools(pi)) {
+			if (!hasBuiltinWriteTools(ports)) {
 				ctx.ui.notify("Prewalk requires the built-in edit and write tools.", "warning");
 				return;
 			}
@@ -93,7 +93,11 @@ export function createPrewalkExtension({ fastController }) {
 		async function considerToolResult(event, ctx) {
 			if (state !== "armed" || !target) return;
 			if (event.isError || !WRITE_TOOL_NAMES.has(event.toolName)) return;
-			if (!hasBuiltinWriteTools(pi)) return;
+			if (!ctx.isProjectTrusted()) {
+				cancel(ctx, "Prewalk: canceled because project trust is no longer active.");
+				return;
+			}
+			if (!hasBuiltinWriteTools(ports)) return;
 			if (!(await isWorkspacePath(ctx.cwd, event.input?.path))) return;
 			if (state !== "armed" || !target) return;
 
@@ -112,7 +116,7 @@ export function createPrewalkExtension({ fastController }) {
 			ctx.ui.notify("Prewalk: handoff failed and was canceled.", "error");
 		}
 
-		pi.registerCommand("prewalk", {
+		ports.registerCommand("prewalk", {
 			description: "Arm a one-time handoff to the Fast target after the first successful write",
 			handler: async (args, ctx) => {
 				const action = args.trim().toLowerCase();
@@ -132,7 +136,7 @@ export function createPrewalkExtension({ fastController }) {
 			},
 		});
 
-		pi.on("tool_result", (event, ctx) => {
+		ports.on("tool_result", (event, ctx) => {
 			candidateQueue = candidateQueue.then(
 				() => considerToolResult(event, ctx),
 				() => considerToolResult(event, ctx),

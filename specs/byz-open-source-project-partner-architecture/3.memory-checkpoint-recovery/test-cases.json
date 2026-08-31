@@ -1,0 +1,320 @@
+{
+  "schemaVersion": "1.0",
+  "feature": "memory-checkpoint-recovery",
+  "cases": [
+    {
+      "id": "TC-001",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-001",
+        "AC-002",
+        "AC-003"
+      ],
+      "taskIds": [
+        "T-002",
+        "T-003",
+        "T-011"
+      ],
+      "title": "模型候选不会自动成为正式记忆",
+      "preconditions": [
+        "项目中产生工具证据和模型记忆建议"
+      ],
+      "steps": [
+        "查看 evidence、candidate 和正式记忆",
+        "用户接受其中一条候选"
+      ],
+      "expected": [
+        "工具结果只在 ObservedEvidence",
+        "候选未接受前不进入长期上下文",
+        "接受后形成带来源和确认时间的正式记忆"
+      ],
+      "cleanup": [
+        "忘记测试记忆"
+      ]
+    },
+    {
+      "id": "TC-002",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-004"
+      ],
+      "taskIds": [
+        "T-003",
+        "T-011"
+      ],
+      "title": "忘记记忆删除当前 BYZ 管理存储中的正文",
+      "preconditions": [
+        "project 与 global memory 各存在一条唯一正文并已生成 managed export"
+      ],
+      "steps": [
+        "分别执行 forget",
+        "查询数据库、投影、索引和 managed exports"
+      ],
+      "expected": [
+        "唯一正文不可检索",
+        "事件只保留无正文 tombstone",
+        "报告不夸大为删除 OS 备份"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-003",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-005"
+      ],
+      "taskIds": [
+        "T-006",
+        "T-012"
+      ],
+      "title": "Checkpoint 保存显式恢复基线且不复制内容",
+      "preconditions": [
+        "任务有 artifact、decision、verification 和 pending item"
+      ],
+      "steps": [
+        "提交 checkpoint",
+        "检查持久化字段"
+      ],
+      "expected": [
+        "包含 project/task version、branch、HEAD、status digest、decision IDs 和 typed pending items",
+        "不含文件正文、完整 diff、环境变量和完整命令输出"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-004",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-006",
+        "AC-014"
+      ],
+      "taskIds": [
+        "T-004",
+        "T-005",
+        "T-012"
+      ],
+      "title": "并发活跃 Operation 不被启动扫描误中断",
+      "preconditions": [
+        "进程 A 持有有效 Operation lease",
+        "进程 B 打开同一项目"
+      ],
+      "steps": [
+        "B 执行 recovery assessment",
+        "让 A lease 过期后由 B 执行 CAS interruption"
+      ],
+      "expected": [
+        "首次 assessment 只读且 A 保持 active",
+        "lease 过期后只有一个 CAS 写入 OperationInterrupted",
+        "stable runId 保留 lineage"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-005",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-006",
+        "AC-007"
+      ],
+      "taskIds": [
+        "T-005",
+        "T-007",
+        "T-009",
+        "T-012"
+      ],
+      "title": "验证前崩溃后从缺失验证恢复",
+      "preconditions": [
+        "修改已完成但验证未执行时进程崩溃",
+        "工作区无漂移"
+      ],
+      "steps": [
+        "重新启动 BYZ",
+        "用户输入继续"
+      ],
+      "expected": [
+        "任务仍为 active 且不显示完成",
+        "恢复创建 parentOperationId 关联的新 Operation",
+        "从缺失验证开始且不重复确认决策"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-006",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-008",
+        "AC-009"
+      ],
+      "taskIds": [
+        "T-008",
+        "T-009",
+        "T-012"
+      ],
+      "title": "工作区漂移要求重新核对且不回滚",
+      "preconditions": [
+        "已有 checkpoint"
+      ],
+      "steps": [
+        "分别改变 branch、HEAD、记录文件 hash 和 workspaceId",
+        "选择按当前工作区重新核对"
+      ],
+      "expected": [
+        "每类变化进入 needs-reconciliation",
+        "只执行读取和验证",
+        "不执行 reset、checkout、clean、stash、覆盖或删除"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-007",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-010"
+      ],
+      "taskIds": [
+        "T-009",
+        "T-010",
+        "T-012"
+      ],
+      "title": "恢复待决事项复用原始决策合同",
+      "preconditions": [
+        "项目存在 PendingDecision"
+      ],
+      "steps": [
+        "启动恢复",
+        "检查决策卡并选择拒绝"
+      ],
+      "expected": [
+        "展示原 impact、recommendation、alternatives 和 reject outcome",
+        "用户决定前任务不继续",
+        "拒绝结果按原合同执行"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-008",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-011",
+        "AC-012"
+      ],
+      "taskIds": [
+        "T-009",
+        "T-010",
+        "T-013"
+      ],
+      "title": "恢复界面低噪声并只突出一个事项",
+      "preconditions": [
+        "准备无恢复项目和同时含待决、漂移、阻塞的项目"
+      ],
+      "steps": [
+        "分别启动两个项目",
+        "在第二个项目输入继续"
+      ],
+      "expected": [
+        "无恢复项目不显示项目摘要",
+        "异常项目按优先级只突出一个推荐项",
+        "继续只作用于当前 recoveryId"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-009",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-013"
+      ],
+      "taskIds": [
+        "T-003",
+        "T-013"
+      ],
+      "title": "交互与 CLI Memory 控制语义一致",
+      "preconditions": [
+        "存在 project/global candidates 和正式记忆"
+      ],
+      "steps": [
+        "分别通过 /memory 与 byz memory 执行 list、accept、reject、forget"
+      ],
+      "expected": [
+        "两种入口调用相同 use case并返回等价结果",
+        "需要确认的动作不会被 CLI 绕过"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-010",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-014"
+      ],
+      "taskIds": [
+        "T-004",
+        "T-005",
+        "T-009",
+        "T-012"
+      ],
+      "title": "连续恢复中断保持 Operation lineage 与 settled outcome",
+      "preconditions": [
+        "同一任务连续两次在恢复后中断"
+      ],
+      "steps": [
+        "依次触发 retrying、aborted、failed 和 completed settled outcome"
+      ],
+      "expected": [
+        "retrying 不关闭 lineage",
+        "每个终止 runId 只关闭一次",
+        "不会重复 TaskCompleted 或丢失最初 Operation 关联"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-011",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-005",
+        "AC-006",
+        "AC-014"
+      ],
+      "taskIds": [
+        "T-007",
+        "T-012"
+      ],
+      "title": "任务完成要求 settled、验证和 committed checkpoint",
+      "preconditions": [
+        "Operation 已收到 completed settled outcome"
+      ],
+      "steps": [
+        "分别缺少 verification、缺少 checkpoint、三项齐全时请求 TaskCompleted",
+        "重复提交同一完成请求"
+      ],
+      "expected": [
+        "缺少任一证据时拒绝完成",
+        "三项齐全时只写一次 TaskCompleted",
+        "重复请求幂等"
+      ],
+      "cleanup": []
+    }
+  ]
+}

@@ -38,13 +38,13 @@ export function createWorkflowSwitchExtension({ initialResources, initialWorkflo
 	let activeResources = initialResources;
 	let activeWorkflowId = initialWorkflowId;
 
-	return function workflowSwitchExtension(pi) {
-		pi.on("resources_discover", () => ({
+	return function workflowSwitchExtension(ports) {
+		ports.on("resources_discover", () => ({
 			promptPaths: activeResources.promptPaths,
 			skillPaths: activeResources.skillPaths,
 		}));
 
-		pi.registerCommand("workflow", {
+		ports.registerCommand("workflow", {
 			description: "Show or switch the active BYZ workflow",
 			handler: async (args, ctx) => {
 				const targetWorkflowId = args.trim();
@@ -79,7 +79,7 @@ export function createWorkflowSwitchExtension({ initialResources, initialWorkflo
 
 				ctx.ui.notify(`Switching BYZ workflow to ${targetWorkflowId}...`, "info");
 				try {
-					await ctx.replaceByzWorkflowResources(nextResources);
+					await ctx.replaceManagedResources(nextResources);
 				} catch (error) {
 					ctx.ui.notify(
 						`BYZ workflow switch failed: ${error instanceof Error ? error.message : String(error)}`,

@@ -4,8 +4,9 @@ import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/pr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-const packageDir = new URL("../packages/byz/", import.meta.url);
+const packageDir = fileURLToPath(new URL("../packages/byz/", import.meta.url));
 
 function run(command, args, options = {}) {
 	return execFileSync(command, args, {
@@ -63,12 +64,26 @@ test("packed BYZ initializes its theme and exports HTML outside the repository",
 		mkdir(homeDir, { recursive: true }),
 	]);
 
-	const packOutput = run("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", tarballDir], {
+	const packOutput = run(process.execPath, [join(packageDir, "scripts", "pack.mjs"), "--pack-destination", tarballDir], {
 		cwd: packageDir,
 	});
 	const packResult = JSON.parse(packOutput);
 	const packed = Array.isArray(packResult) ? packResult[0] : Object.values(packResult)[0];
-	const tarballPath = join(tarballDir, packed.filename);
+	const verification = JSON.parse(
+		run(process.execPath, [
+			join(packageDir, "scripts", "verify-artifact.mjs"),
+			"--tarball",
+			packed.artifactPath,
+			"--receipt",
+			packed.receiptPath,
+			"--expected-generation",
+			packed.generationIdentity,
+			"--expected-sha256",
+			packed.sha256,
+		]),
+	);
+	t.after(() => rm(verification.snapshotDir, { force: true, recursive: true }));
+	const tarballPath = verification.snapshotPath;
 	run("npm", ["install", "--prefix", installDir, "--ignore-scripts", "--no-audit", "--no-fund", tarballPath]);
 
 	const isolatedEnv = {
@@ -112,6 +127,7 @@ test("packed BYZ initializes its theme and exports HTML outside the repository",
 const loader = new DefaultResourceLoader({
   cwd: ${JSON.stringify(root)},
   agentDir: ${JSON.stringify(agentDir)},
+  additionalResourcePrecedence: "before",
   additionalSkillPaths: [${JSON.stringify(join(byzPackageRoot, "workflows", "cm", "skills", "cm-ai"))}],
   additionalPromptTemplatePaths: [${JSON.stringify(join(byzPackageRoot, "workflows", "cm", "compat", "claude-commands"))}],
 });

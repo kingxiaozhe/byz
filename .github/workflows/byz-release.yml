@@ -63,16 +63,25 @@ jobs:
           npm install -g npm@11.16.0 --ignore-scripts
           npm --version
 
-      - name: Pack BYZ release artifact
+      - name: Create the single BYZ release artifact
         run: |
           set -euo pipefail
           package_dir="$RUNNER_TEMP/byz-package"
           rm -rf "$package_dir"
           mkdir -p "$package_dir"
-          (cd packages/byz && npm pack --pack-destination "$package_dir/" --ignore-scripts)
-          package_files=("$package_dir"/*.tgz)
-          test "${#package_files[@]}" -eq 1
-          echo "BYZ_TARBALL=${package_files[0]}" >> "$GITHUB_ENV"
+          artifact_json="$(node scripts/byz-release.mjs --tag "$GITHUB_REF_NAME" --pack-destination "$package_dir")"
+          artifact_path="$(printf '%s' "$artifact_json" | node -e 'const row = JSON.parse(require("node:fs").readFileSync(0, "utf8")); process.stdout.write(row.artifactPath)')"
+          receipt_path="$(printf '%s' "$artifact_json" | node -e 'const row = JSON.parse(require("node:fs").readFileSync(0, "utf8")); process.stdout.write(row.receiptPath)')"
+          generation_identity="$(printf '%s' "$artifact_json" | node -e 'const row = JSON.parse(require("node:fs").readFileSync(0, "utf8")); process.stdout.write(row.generationIdentity)')"
+          artifact_sha256="$(printf '%s' "$artifact_json" | node -e 'const row = JSON.parse(require("node:fs").readFileSync(0, "utf8")); process.stdout.write(row.sha256)')"
+          test -f "$artifact_path"
+          test -f "$receipt_path"
+          test -n "$generation_identity"
+          test -n "$artifact_sha256"
+          echo "BYZ_TARBALL=$artifact_path" >> "$GITHUB_ENV"
+          echo "BYZ_RECEIPT=$receipt_path" >> "$GITHUB_ENV"
+          echo "BYZ_GENERATION_IDENTITY=$generation_identity" >> "$GITHUB_ENV"
+          echo "BYZ_ARTIFACT_SHA256=$artifact_sha256" >> "$GITHUB_ENV"
 
       - name: Smoke packed BYZ outside the repository
         run: |
@@ -80,14 +89,18 @@ jobs:
           prefix_dir="$(mktemp -d)"
           home_dir="$(mktemp -d)"
           inspect_dir="$(mktemp -d)"
-          trap 'rm -rf "$prefix_dir" "$home_dir" "$inspect_dir"' EXIT
-          tar -xzf "$BYZ_TARBALL" -C "$inspect_dir"
+          verify_json="$(node packages/byz/scripts/verify-artifact.mjs --tarball "$BYZ_TARBALL" --receipt "$BYZ_RECEIPT" --expected-generation "$BYZ_GENERATION_IDENTITY" --expected-sha256 "$BYZ_ARTIFACT_SHA256")"
+          smoke_tarball="$(printf '%s' "$verify_json" | node -e 'const row = JSON.parse(require("node:fs").readFileSync(0, "utf8")); process.stdout.write(row.snapshotPath)')"
+          snapshot_dir="$(printf '%s' "$verify_json" | node -e 'const row = JSON.parse(require("node:fs").readFileSync(0, "utf8")); process.stdout.write(row.snapshotDir)')"
+          trap 'rm -rf "$prefix_dir" "$home_dir" "$inspect_dir" "$snapshot_dir"' EXIT
+          tar -xzf "$smoke_tarball" -C "$inspect_dir"
           node scripts/check-byz-public-package.mjs "$inspect_dir/package"
-          npm install -g --prefix "$prefix_dir" --ignore-scripts "$BYZ_TARBALL"
+          npm install -g --prefix "$prefix_dir" --ignore-scripts "$smoke_tarball"
           HOME="$home_dir" "$prefix_dir/bin/byz" --version
           HOME="$home_dir" "$prefix_dir/bin/byz" workflow check cm
           HOME="$home_dir" "$prefix_dir/bin/byz" workflow check cm-plugin
           HOME="$home_dir" node --input-type=module --eval 'import assert from "node:assert/strict"; import { realpathSync } from "node:fs"; import { pathToFileURL } from "node:url"; const [modulePath, prefix] = process.argv.slice(1); const { getByzManualUpdateCommand, getByzUpdateCommand } = await import(pathToFileURL(modulePath).href); for (const command of [getByzUpdateCommand("@aibyzero/byz@0.2.0"), getByzManualUpdateCommand("@aibyzero/byz@0.2.0")]) { assert.equal(command?.command, "npm"); assert.ok(command.args.includes("--@aibyzero:registry=https://registry.npmjs.org/")); const index = command.args.indexOf("--prefix"); assert.equal(realpathSync(command.args[index + 1]), realpathSync(prefix)); }' "$prefix_dir/lib/node_modules/@aibyzero/byz/dist/update.js" "$prefix_dir"
+          node packages/byz/scripts/verify-artifact.mjs --check-only --tarball "$smoke_tarball" --receipt "$BYZ_RECEIPT" --expected-generation "$BYZ_GENERATION_IDENTITY" --expected-sha256 "$BYZ_ARTIFACT_SHA256"
 
       - name: Publish BYZ package
-        run: node scripts/byz-release.mjs --tag "$GITHUB_REF_NAME" --publish "$BYZ_TARBALL"
+        run: node scripts/byz-release.mjs --tag "$GITHUB_REF_NAME" --publish "$BYZ_TARBALL" --receipt "$BYZ_RECEIPT" --expected-generation "$BYZ_GENERATION_IDENTITY" --expected-sha256 "$BYZ_ARTIFACT_SHA256"

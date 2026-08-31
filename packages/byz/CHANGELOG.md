@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Changed
+
+- Changed bundled workflow precedence and replacement to use product-neutral managed-resource capabilities while preserving ordinary Pi resource ordering.
+- Routed Pi startup through a product-neutral interactive profile and explicit feature-scoped runtime, session, model, resource, command, tool, and UI facades instead of a BYZ-specific Pi Core branch or transparent full-context proxy.
+
 ## 0.1.11 - 2026-08-30
 
 ### Added

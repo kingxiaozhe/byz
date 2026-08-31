@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "task_id": "T-021",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/CHANGELOG.md",
+    "packages/byz/src/cli.js",
+    "packages/byz/src/workflow-switch.js",
+    "packages/byz/test/diagnostics.test.mjs",
+    "packages/byz/test/workflow-switch.test.mjs",
+    "packages/coding-agent/CHANGELOG.md",
+    "packages/coding-agent/src/core/agent-session.ts",
+    "packages/coding-agent/src/core/extensions/index.ts",
+    "packages/coding-agent/src/core/extensions/runner.ts",
+    "packages/coding-agent/src/core/extensions/types.ts",
+    "packages/coding-agent/src/core/resource-loader.ts",
+    "packages/coding-agent/src/index.ts",
+    "packages/coding-agent/src/main.ts",
+    "packages/coding-agent/test/resource-loader.test.ts"
+  ],
+  "implementation_sha256": "f2f898d95c821656b6bc82162eba6d3d7434f3020c102db3c13373d6e17b6eff",
+  "verification": [
+    {
+      "command": "npm --prefix packages/coding-agent run build && npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Coding-agent bundle and BYZ production generation built successfully."
+    },
+    {
+      "command": "cd packages/coding-agent && node ../../node_modules/vitest/dist/cli.js --run test/resource-loader.test.ts test/extensions-runner.test.ts",
+      "status": "passed",
+      "evidence": "80 of 80 resource-loader and extension-runner tests passed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "141 of 141 BYZ package tests passed."
+    },
+    {
+      "command": "repeat packages/byz/test/workflow-switch.test.mjs 10 times",
+      "status": "passed",
+      "evidence": "All 10 runs passed, including default/explicit precedence, two-owner replacement, empty-owner command, and startup/reload managed-theme rejection."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency checks, import checks, shrinkwrap/install-lock checks, typecheck, and browser smoke passed."
+    },
+    {
+      "command": "cm-spec-manifest.py specs/byz-open-source-project-partner-architecture --status-file .cm-specs-status",
+      "status": "passed",
+      "evidence": "Approved 16-file v9 specification manifest matched."
+    }
+  ],
+  "evidence": [
+    "packages/coding-agent/test/resource-loader.test.ts",
+    "packages/byz/test/workflow-switch.test.mjs",
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-003-r2.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

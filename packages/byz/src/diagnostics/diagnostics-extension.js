@@ -16,14 +16,14 @@ export function createDiagnosticsExtension(options) {
 	const { recorder } = options;
 	const mode = options.mode ?? mapMode([]);
 	const home = options.home;
-	return function diagnosticsExtension(pi) {
+	return function diagnosticsExtension(ports) {
 		let agentStartedAt;
 		let noticePending = false;
 		let noticeTimer;
 		const modelStarts = [];
 		const toolStarts = new Map();
 
-		pi.on("session_start", (_event, ctx) => {
+		ports.on("session_start", (_event, ctx) => {
 			if (mode !== "interactive" || !recorder.enabled || noticePending || wasNoticeShown(home)) return;
 			noticePending = true;
 			noticeTimer = setTimeout(() => {
@@ -33,10 +33,10 @@ export function createDiagnosticsExtension(options) {
 				markNoticeShown(home);
 			}, 100);
 		});
-		pi.on("agent_start", () => {
+		ports.on("agent_start", () => {
 			agentStartedAt = performance.now();
 		});
-		pi.on("agent_end", (event) => {
+		ports.on("agent_end", (event) => {
 			recorder.record("byz.agent.run", {
 				mode,
 				outcome: lastStopReason(event.messages) === "error" ? "error" : "ok",
@@ -57,10 +57,10 @@ export function createDiagnosticsExtension(options) {
 				});
 			}
 		});
-		pi.on("before_provider_request", (_event, ctx) => {
+		ports.on("before_provider_request", (_event, ctx) => {
 			modelStarts.push({ startedAt: performance.now(), provider: mapProvider(ctx.model?.provider) });
 		});
-		pi.on("after_provider_response", (event) => {
+		ports.on("after_provider_response", (event) => {
 			const pending = modelStarts.shift();
 			recorder.record("byz.model.request", {
 				provider_category: pending?.provider ?? "unknown",
@@ -70,10 +70,10 @@ export function createDiagnosticsExtension(options) {
 				duration_bucket: bucketDuration(pending ? performance.now() - pending.startedAt : undefined),
 			});
 		});
-		pi.on("tool_execution_start", (event) => {
+		ports.on("tool_execution_start", (event) => {
 			toolStarts.set(event.toolCallId, performance.now());
 		});
-		pi.on("tool_execution_end", (event) => {
+		ports.on("tool_execution_end", (event) => {
 			const startedAt = toolStarts.get(event.toolCallId);
 			toolStarts.delete(event.toolCallId);
 			recorder.record("byz.tool.execution", {
@@ -82,7 +82,7 @@ export function createDiagnosticsExtension(options) {
 				duration_bucket: bucketDuration(startedAt === undefined ? undefined : performance.now() - startedAt),
 			});
 		});
-		pi.on("session_shutdown", () => {
+		ports.on("session_shutdown", () => {
 			if (noticeTimer) clearTimeout(noticeTimer);
 			noticeTimer = undefined;
 			noticePending = false;

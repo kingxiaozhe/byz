@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "task_id": "T-022",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "package-lock.json",
+    "package.json",
+    "packages/byz/CHANGELOG.md",
+    "packages/byz/package.json",
+    "packages/byz/scripts/check-architecture.mjs",
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/cli.js",
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/src/diagnostics/diagnostics-extension.js",
+    "packages/byz/src/fast-session.js",
+    "packages/byz/src/prewalk.js",
+    "packages/byz/src/workflow-switch.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/prewalk.test.mjs",
+    "packages/byz/test/workflow-switch.test.mjs",
+    "packages/coding-agent/CHANGELOG.md",
+    "packages/coding-agent/src/index.ts",
+    "packages/coding-agent/src/main.ts",
+    "packages/coding-agent/src/modes/index.ts",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/test/interactive-product-profile.test.ts",
+    "scripts/byz-packed-runtime.test.mjs"
+  ],
+  "implementation_sha256": "047198856241323ed6743191102407a56ec0e89c0b72df2d4af66dfd69d27b00",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Production BYZ package image built successfully after the final adapter and feature-shell changes."
+    },
+    {
+      "command": "node --test packages/byz/test/architecture.test.mjs",
+      "status": "passed",
+      "evidence": "7 of 7 adapter, capability-slice, composition, profile, and dependency-gate tests passed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "148 of 148 BYZ package tests passed, including real managed workflow and Fast/Prewalk composition through feature ports."
+    },
+    {
+      "command": "cd packages/coding-agent && node \"$(git rev-parse --show-toplevel)/node_modules/vitest/dist/cli.js\" --run test/interactive-product-profile.test.ts",
+      "status": "passed",
+      "evidence": "2 of 2 ordinary Pi/default and wrapper product-profile tests passed."
+    },
+    {
+      "command": "node --test scripts/byz-packed-runtime.test.mjs",
+      "status": "passed",
+      "evidence": "The external packed-runtime install, explicit BYZ resource precedence, TUI asset, and HTML export smoke passed."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome made no final fixes; pinned dependencies, imports, shrinkwrap, install lock, architecture gate, tsgo, and browser smoke all passed."
+    }
+  ],
+  "evidence": [
+    "TC-002: dependency gate rejects Pi/runtime, filesystem, SQLite, path escapes, dynamic imports, transparent Proxy, and the legacy full-context adapter.",
+    "TC-015: plain frozen facades expose only diagnostics/workflow/Fast/Prewalk/Conversation slices; models, session entries, lifecycle events, command contexts, and footer UI arguments are projected without raw Pi handles.",
+    "The managed workflow slice alone receives replaceManagedResources; diagnostics and all other feature contexts lack that capability.",
+    "The initial architecture test failed because createPiExtensionPorts did not exist, then passed after the implementation.",
+    "The packed-runtime regression required the BYZ fixture to declare additionalResourcePrecedence before, matching the approved product-neutral composition contract.",
+    "Pre-task dirty status and expected-file digests are retained in /tmp/T022-pre-status.txt and /tmp/T022-pre-files.sha256."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

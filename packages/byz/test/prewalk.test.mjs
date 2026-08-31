@@ -4,12 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createFauxCore, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { createPiExtensionPorts } from "../.byz-output/current/dist/adapters/pi/pi-runtime-adapter.js";
 import {
 	createAgentSessionFromServices,
 	createAgentSessionServices,
 	SessionManager,
 	SettingsManager,
-} from "../dist/runtime/bundle/index.js";
+} from "../.byz-output/current/dist/runtime/bundle/index.js";
 import { createFastSessionController } from "../src/fast-session.js";
 import { createPrewalkExtension } from "../src/prewalk.js";
 
@@ -17,17 +18,20 @@ const ORIGINAL_MODEL = { provider: "provider-a", id: "original", reasoning: true
 const FAST_MODEL = { provider: "provider-b", id: "fast", reasoning: true };
 const USER_MODEL = { provider: "provider-c", id: "user", reasoning: true };
 
-test("the CLI composes Prewalk with the shared Fast controller and the build copies both modules", async () => {
+test("the CLI composes Prewalk and the build compiles the complete BYZ source tree", async () => {
 	const packageDir = new URL("..", import.meta.url);
-	const [cliSource, buildSource] = await Promise.all([
+	const [cliSource, buildSource, manifestSource] = await Promise.all([
 		readFile(new URL("src/cli.js", packageDir), "utf8"),
 		readFile(new URL("scripts/build.mjs", packageDir), "utf8"),
+		readFile(new URL("build-manifest.json", packageDir), "utf8"),
 	]);
 	assert.match(cliSource, /createFastSessionController/);
 	assert.match(cliSource, /createPrewalkExtension\(\{ fastController \}\)/);
-	assert.match(cliSource, /fastController\.extension\(pi\);\s+prewalkExtension\(pi\);/);
-	assert.match(buildSource, /"src", "fast-session\.js"/);
-	assert.match(buildSource, /"src", "prewalk\.js"/);
+	assert.match(cliSource, /const ports = createPiExtensionPorts\(pi\);/);
+	assert.match(cliSource, /fastController\.extension\(ports\.fast\);\s+prewalkExtension\(ports\.prewalk\);/);
+	assert.equal(JSON.parse(manifestSource).sourceRoot, "src");
+	assert.match(buildSource, /compileSourceTree/);
+	assert.doesNotMatch(buildSource, /"src", "(?:fast-session|prewalk)\.js"/);
 });
 
 function createPrewalkHarness({
@@ -198,8 +202,9 @@ test("actual Prewalk and Fast composition hands the next request off after built
 								name: "byz-prewalk-under-test",
 								factory: (pi) => {
 									pi.registerProvider(faux.getModel().provider, providerConfig(faux));
-									fastController.extension(pi);
-									createPrewalkExtension({ fastController })(pi);
+									const ports = createPiExtensionPorts(pi);
+									fastController.extension(ports.fast);
+									createPrewalkExtension({ fastController })(ports.prewalk);
 								},
 							},
 						],

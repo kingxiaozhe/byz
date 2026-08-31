@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "task_id": "T-014",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    ".github/workflows/byz-release.yml",
+    "packages/byz/scripts/build.mjs",
+    "packages/byz/scripts/pack.mjs",
+    "scripts/byz-packed-runtime.test.mjs",
+    "scripts/byz-release.mjs",
+    "scripts/byz-release.test.mjs"
+  ],
+  "implementation_sha256": "5db8202cd412c85a3b9f47a1dbdd4ecbd4315a6c0ff94414a015ab8495ed05e4",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "The real production package image rebuilt with exact deterministic metadata validation."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "139 of 139 BYZ package tests passed after attempt 2."
+    },
+    {
+      "command": "node --test scripts/byz-release.test.mjs scripts/byz-packed-runtime.test.mjs scripts/check-byz-public-package.test.mjs",
+      "status": "passed",
+      "evidence": "14 of 14 tests passed, including malformed image metadata, source tarball replacement after private capture, tarball symlink rejection, output-root pack destinations, stale source output, generation switches, and repository-external install smoke."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Final repository formatting, dependency, shrinkwrap, type, and browser-smoke checks passed with no fixes applied."
+    }
+  ],
+  "evidence": [
+    "scripts/byz-release.test.mjs",
+    "scripts/byz-packed-runtime.test.mjs",
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-014-r1.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}
