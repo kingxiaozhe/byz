@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.12 - 2026-09-01
+
 ### Added
 
 - Added a read-only trusted CM recovery card that summarizes current project workflow state at startup and exposes bounded status/details commands with lazy Git HEAD lookup.
