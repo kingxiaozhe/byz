@@ -47,7 +47,7 @@ export class VirtualTerminal implements Terminal {
 		this.resizeHandler = undefined;
 	}
 
-	write(data: string): void {
+	write(data: string | Uint8Array): void {
 		this.xterm.write(data);
 	}
 

@@ -9,6 +9,8 @@ import type {
 	NotificationLevel,
 	PiFeaturePorts,
 	PrewalkContext,
+	RecoveryContext,
+	RecoverySessionStartReason,
 	RuntimeLaunchPort,
 	RuntimeProductProfile,
 	ThinkingLevel,
@@ -94,6 +96,14 @@ const DIAGNOSTICS_EVENTS = new Set([
 const WORKFLOW_EVENTS = new Set(["resources_discover"]);
 const FAST_EVENTS = new Set(["model_select", "thinking_level_select", "session_start"]);
 const PREWALK_EVENTS = new Set(["tool_result"]);
+const RECOVERY_EVENTS = new Set(["session_start", "session_shutdown"]);
+const RECOVERY_SESSION_START_REASONS = new Set<RecoverySessionStartReason>([
+	"startup",
+	"reload",
+	"new",
+	"resume",
+	"fork",
+]);
 const CONVERSATION_EVENTS = new Set([
 	"session_start",
 	"thinking_level_select",
@@ -101,6 +111,7 @@ const CONVERSATION_EVENTS = new Set([
 	"tool_execution_start",
 	"tool_execution_end",
 	"message_update",
+	"message_end",
 	"agent_end",
 	"session_shutdown",
 	"before_agent_start",
@@ -120,6 +131,49 @@ function projectUsage(value: unknown): Record<string, unknown> | undefined {
 	const cost = asRecord(usage.cost);
 	if (typeof cost.total === "number") projected.cost = { total: cost.total };
 	return Object.keys(projected).length > 0 ? projected : undefined;
+}
+
+const OBSERVED_USAGE_FIELDS = ["input", "output", "cacheRead", "cacheWrite"] as const;
+
+type ObservedUsage = Partial<Record<(typeof OBSERVED_USAGE_FIELDS)[number], number>>;
+
+function projectSafeUsage(value: unknown): ObservedUsage | undefined {
+	const usage = asRecord(value);
+	const projected: ObservedUsage = {};
+	for (const field of OBSERVED_USAGE_FIELDS) {
+		const count = usage[field];
+		if (Number.isSafeInteger(count) && (count as number) >= 0) projected[field] = count as number;
+	}
+	return Object.keys(projected).length > 0 ? projected : undefined;
+}
+
+function projectObservedUsage(value: unknown): ObservedUsage | undefined {
+	const projected = projectSafeUsage(value);
+	const observed = OBSERVED_USAGE_FIELDS.some((field) => (projected?.[field] ?? 0) > 0);
+	return observed && projected ? Object.freeze(projected) : undefined;
+}
+
+function aggregateObservedUsage(messages: unknown): ObservedUsage | undefined {
+	if (!Array.isArray(messages)) return undefined;
+	const totals: ObservedUsage = {};
+	const invalid = new Set<(typeof OBSERVED_USAGE_FIELDS)[number]>();
+	for (const value of messages) {
+		const message = asRecord(value);
+		if (message.role !== "assistant" && message.role !== "toolResult") continue;
+		const usage = projectSafeUsage(message.usage);
+		for (const field of OBSERVED_USAGE_FIELDS) {
+			if (invalid.has(field) || usage?.[field] === undefined) continue;
+			const total = (totals[field] ?? 0) + usage[field];
+			if (!Number.isSafeInteger(total)) {
+				delete totals[field];
+				invalid.add(field);
+			} else {
+				totals[field] = total;
+			}
+		}
+	}
+	const observed = OBSERVED_USAGE_FIELDS.some((field) => (totals[field] ?? 0) > 0);
+	return observed ? Object.freeze(totals) : undefined;
 }
 
 function projectSessionEntry(value: unknown): Record<string, unknown> {
@@ -300,6 +354,25 @@ function createPrewalkContext(context: PiContextLike): PrewalkContext {
 	});
 }
 
+function createRecoveryContext(
+	context: PiContextLike,
+	reason: RecoverySessionStartReason | undefined,
+): RecoveryContext {
+	const sessionManager = context.sessionManager;
+	return Object.freeze({
+		cwd: context.cwd ?? process.cwd(),
+		reason,
+		ui: createNotifyUi(context),
+		isProjectTrusted() {
+			return context.isProjectTrusted?.() ?? false;
+		},
+		readSessionSummary() {
+			if (!(context.isProjectTrusted?.() ?? false)) return undefined;
+			return { hasHistory: (sessionManager?.getEntries?.().length ?? 0) > 0 };
+		},
+	});
+}
+
 function createDiagnosticsContext(
 	context: PiContextLike,
 	modelProjector: ReturnType<typeof createModelProjector>,
@@ -353,6 +426,7 @@ function createConversationContext(
 }
 
 function projectEvent(
+	feature: string,
 	eventName: string,
 	value: unknown,
 	modelProjector: ReturnType<typeof createModelProjector>,
@@ -362,6 +436,9 @@ function projectEvent(
 		case "resources_discover":
 			return Object.freeze({ type: eventName, reason: event.reason });
 		case "agent_end":
+			if (feature === "conversation") {
+				return Object.freeze({ type: eventName, usage: aggregateObservedUsage(event.messages) });
+			}
 			return Object.freeze({
 				type: eventName,
 				messages: Array.isArray(event.messages)
@@ -412,8 +489,20 @@ function projectEvent(
 			});
 		case "thinking_level_select":
 			return Object.freeze({ type: eventName, level: event.level, previousLevel: event.previousLevel });
-		case "message_update":
-			return Object.freeze({ type: eventName, message: { role: asRecord(event.message).role } });
+		case "message_update": {
+			const message = asRecord(event.message);
+			return Object.freeze({
+				type: eventName,
+				message: Object.freeze({ role: message.role, usage: projectObservedUsage(message.usage) }),
+			});
+		}
+		case "message_end": {
+			const message = asRecord(event.message);
+			return Object.freeze({
+				type: eventName,
+				message: Object.freeze({ role: message.role, usage: projectObservedUsage(message.usage) }),
+			});
+		}
 		case "before_agent_start":
 			return Object.freeze({ type: eventName, prompt: event.prompt, systemPrompt: event.systemPrompt });
 		default:
@@ -439,7 +528,7 @@ function createEventPort<TContext>(
 			if (typeof rawContext !== "object" || rawContext === null) {
 				throw new Error(`${feature} event ${JSON.stringify(event)} is missing its Pi context.`);
 			}
-			return handler(projectEvent(event, rawEvent, modelProjector), createContext(rawContext));
+			return handler(projectEvent(feature, event, rawEvent, modelProjector), createContext(rawContext));
 		});
 		return Object.freeze({
 			dispose() {
@@ -466,6 +555,55 @@ function registerCommand<TContext>(
 	});
 }
 
+function createRecoveryEventPort(pi: PiExtensionApiLike) {
+	return function on(
+		event: string,
+		handler: (event: ByzEvent, context: RecoveryContext) => unknown | Promise<unknown>,
+	): Disposable {
+		if (!RECOVERY_EVENTS.has(event)) throw new Error(`recovery port does not allow event ${JSON.stringify(event)}.`);
+		let active = true;
+		pi.on(event, (rawEvent, rawContext) => {
+			if (!active) return undefined;
+			if (typeof rawContext !== "object" || rawContext === null) {
+				throw new Error(`recovery event ${JSON.stringify(event)} is missing its Pi context.`);
+			}
+			if (!(rawContext.isProjectTrusted?.() ?? false)) return undefined;
+			const rawReason = asRecord(rawEvent).reason;
+			const reason =
+				event === "session_start" && RECOVERY_SESSION_START_REASONS.has(rawReason as RecoverySessionStartReason)
+					? (rawReason as RecoverySessionStartReason)
+					: undefined;
+			if (event === "session_start" && reason === undefined) {
+				throw new Error("Recovery session_start event has an unsupported reason.");
+			}
+			return handler(
+				Object.freeze({ type: event, ...(reason ? { reason } : {}) }),
+				createRecoveryContext(rawContext, reason),
+			);
+		});
+		return Object.freeze({
+			dispose() {
+				active = false;
+			},
+		});
+	};
+}
+
+function registerRecoveryCommand(
+	pi: PiExtensionApiLike,
+	name: string,
+	command: CommandDefinition<RecoveryContext>,
+): void {
+	if (name !== "project") throw new Error(`recovery port does not allow command ${JSON.stringify(name)}.`);
+	pi.registerCommand(name, {
+		description: command.description,
+		handler(args, rawContext) {
+			if (!(rawContext.isProjectTrusted?.() ?? false)) return Promise.resolve();
+			return command.handler(args, createRecoveryContext(rawContext, undefined));
+		},
+	});
+}
+
 export function createPiExtensionPorts(pi: PiExtensionApiLike): PiFeaturePorts {
 	let currentFastContext: PiContextLike | undefined;
 	const modelProjector = createModelProjector((provider, id) => currentFastContext?.modelRegistry?.find(provider, id));
@@ -479,6 +617,12 @@ export function createPiExtensionPorts(pi: PiExtensionApiLike): PiFeaturePorts {
 
 	const diagnostics = Object.freeze({
 		on: createEventPort(pi, "diagnostics", DIAGNOSTICS_EVENTS, modelProjector, diagnosticsContext),
+	});
+	const recovery = Object.freeze({
+		on: createRecoveryEventPort(pi),
+		registerCommand(name: string, command: CommandDefinition<RecoveryContext>) {
+			registerRecoveryCommand(pi, name, command);
+		},
 	});
 	const workflow = Object.freeze({
 		on: createEventPort(pi, "workflow", WORKFLOW_EVENTS, modelProjector, createWorkflowContext),
@@ -520,7 +664,7 @@ export function createPiExtensionPorts(pi: PiExtensionApiLike): PiFeaturePorts {
 		},
 	});
 
-	return Object.freeze({ diagnostics, workflow, fast, prewalk, conversation });
+	return Object.freeze({ diagnostics, recovery, workflow, fast, prewalk, conversation });
 }
 
 export function createPiRuntimeAdapter<TOptions extends ProductProfileOptions>(

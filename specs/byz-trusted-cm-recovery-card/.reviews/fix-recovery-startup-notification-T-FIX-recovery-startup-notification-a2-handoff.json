@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "task_id": "T-FIX-recovery-startup-notification",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/coding-agent/CHANGELOG.md",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/test/interactive-mode-status.test.ts",
+    "scripts/byz-packed-runtime.test.mjs"
+  ],
+  "implementation_sha256": "3f84fe6ad8164ae4c4e8f5f60bd897033e40be8390efd6f0cade96461c43ea16",
+  "verification": [
+    {
+      "command": "cd packages/coding-agent && node \"$(git rev-parse --show-toplevel)/node_modules/vitest/dist/cli.js\" --run test/interactive-mode-status.test.ts",
+      "status": "passed",
+      "evidence": "/tmp/cm-fix-recovery-green-a2.log: 34 passed"
+    },
+    {
+      "command": "node --test scripts/byz-packed-runtime.test.mjs",
+      "status": "passed",
+      "evidence": "/tmp/cm-fix-recovery-green-a2.log: packed BYZ waits for recovery plus delayed diagnostics; 1 passed"
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "/tmp/cm-fix-recovery-check-a2.log"
+    }
+  ],
+  "evidence": [
+    "/tmp/cm-fix-recovery-visible-red-a2.log",
+    "/tmp/cm-fix-recovery-green-a2.log",
+    "/tmp/cm-fix-recovery-check-a2.log",
+    "specs/byz-trusted-cm-recovery-card/.reviews/fix-recovery-startup-notification-cause-r1.md",
+    "specs/byz-trusted-cm-recovery-card/.reviews/fix-recovery-startup-notification-T-FIX-recovery-startup-notification-r1.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

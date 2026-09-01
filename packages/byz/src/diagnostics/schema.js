@@ -9,7 +9,18 @@ const STOP_REASONS = ["stop", "length", "tool_use", "error", "aborted", "deferre
 const HTTP_CLASSES = ["2xx", "3xx", "4xx", "5xx", "network_error", "unknown"];
 const PROVIDERS = ["anthropic", "openai", "google", "aws", "azure", "mistral", "openrouter", "other", "unknown"];
 const TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls", "powershell", "custom", "unknown"];
-const COMPONENTS = ["config", "recorder", "worker", "writer", "reader", "retention", "summary", "export", "update"];
+const COMPONENTS = [
+	"config",
+	"recorder",
+	"worker",
+	"writer",
+	"reader",
+	"retention",
+	"summary",
+	"export",
+	"update",
+	"recovery",
+];
 const REASONS = [
 	"disabled",
 	"queue_full",
@@ -163,6 +174,15 @@ export function mapHttpStatus(status) {
 
 export function mapStopReason(value) {
 	return STOP_REASONS.includes(value) ? value : "unknown";
+}
+
+export function mapRecoveryDegradeReason(value) {
+	if (["unsafe_path", "no_nofollow"].includes(value)) return "permission";
+	if (["invalid_record", "content_limit", "missing_source"].includes(value)) return "invalid_record";
+	if (value === "source_changed") return "generation_changed";
+	if (["candidate_limit", "review_limit", "size_limit"].includes(value)) return "schema_mismatch";
+	if (value === "io_error") return "corrupt_file";
+	return "unknown";
 }
 
 export function mapMode(args, stdinIsTTY = process.stdin.isTTY, stdoutIsTTY = process.stdout.isTTY) {

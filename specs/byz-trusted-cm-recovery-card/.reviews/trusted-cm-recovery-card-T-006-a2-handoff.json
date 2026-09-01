@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "T-006",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/recovery-extension.js",
+    "packages/byz/test/recovery-extension.test.mjs"
+  ],
+  "implementation_sha256": "e2c3594803ec05a87d70cb14d3642d3161109c0f1da28486560e43af2e27dd5c",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/recovery-extension.test.mjs",
+      "status": "passed",
+      "evidence": "15 tests passed after renderer-input sanitization."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository static gates passed."
+    }
+  ],
+  "evidence": [
+    "Both default and injected renderers now receive a frozen bounded sanitized projection, session, receipt and Git input.",
+    "A malicious ANSI/newline/bidi feature returned directly by an injected renderer remains sanitized and capped.",
+    "Relative-path filtering, short-HEAD validation and decision-only projection handling remain in the pre-render boundary.",
+    "All attempt-1 lifecycle, trust, generation, command and failure-isolation tests remain passing."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

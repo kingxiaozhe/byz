@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "task_id": "T-FIX-recovery-startup-notification",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/coding-agent/CHANGELOG.md",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/test/interactive-mode-status.test.ts"
+  ],
+  "implementation_sha256": "14159cf4f8bb98a39f88d17a3f556c49aa96933f4c3d69538c75bb73dfb7717b",
+  "verification": [
+    {
+      "command": "cd packages/coding-agent && node \"$(git rev-parse --show-toplevel)/node_modules/vitest/dist/cli.js\" --run test/interactive-mode-status.test.ts",
+      "status": "passed",
+      "evidence": "/tmp/cm-fix-recovery-green2.log: 34 passed"
+    },
+    {
+      "command": "node --test scripts/byz-packed-runtime.test.mjs",
+      "status": "passed",
+      "evidence": "/tmp/cm-fix-recovery-green2.log: packed BYZ 1 passed"
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "/tmp/cm-fix-recovery-check.log"
+    }
+  ],
+  "evidence": [
+    "/tmp/cm-fix-recovery-packed-red.log",
+    "/tmp/cm-fix-recovery-status-red.log",
+    "/tmp/cm-fix-recovery-green2.log",
+    "/tmp/cm-fix-recovery-check.log",
+    "specs/byz-trusted-cm-recovery-card/.reviews/fix-recovery-startup-notification-cause-r1.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

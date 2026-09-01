@@ -64,11 +64,25 @@ When sufficient comparable samples exist, `diagnostics summary` can show a trend
 
 ## Interactive timing
 
-During an interactive turn, BYZ updates the working indicator once per second with the current stage and elapsed time. When the turn completes, one summary shows time spent in each stage, total active execution time, time waiting for confirmation, and total elapsed time.
+During an interactive turn, BYZ updates the working indicator once per second with the current stage, elapsed time, and observed input/output Token usage for that turn. When the turn completes, one summary shows time spent in each stage, total active execution time, time waiting for confirmation, total elapsed time, and observed input, output, cache-read, and cache-write usage. The footer remains Session-cumulative.
 
-Confirmation wait is reported separately and is not counted as agent execution. Timing is turn-local, uses a monotonic clock, and is not written to the session, diagnostics, or model context.
+BYZ does not estimate missing usage. Before usage is observed, and when a Provider returns only a mandatory all-zero placeholder without independent presence evidence, the turn shows `Token —`. Once a positive field proves a payload was observed, explicit legal zero sibling fields remain `0`.
+
+Confirmation wait is reported separately and is not counted as agent execution. Timing and turn usage are turn-local, use the existing monotonic clock and one-second refresh, and are not written to the session, diagnostics, or model context.
 
 The interactive footer shows the current effective Thinking level next to the model. Shift+Tab, `/thinking`, Fast, and model capability changes update it immediately without `/reload`.
+
+## Project recovery
+
+For a trusted project with valid CM state, BYZ shows a read-only recovery card at interactive startup. The card summarizes the current feature, task, CM node/state, Session history, and next CM entry without creating a second task or memory store.
+
+```text
+/project status
+/project details
+/project dismiss
+```
+
+`/project details` performs a second trust check before lazily reading the current Git HEAD. Startup, status, and dismiss do not run Git. Untrusted projects are not scanned for CM, Session, or Git recovery data.
 
 ## Fast mode
 

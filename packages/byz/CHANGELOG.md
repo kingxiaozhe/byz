@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+### Added
+
+- Added a read-only trusted CM recovery card that summarizes current project workflow state at startup and exposes bounded status/details commands with lazy Git HEAD lookup.
+
 ### Changed
 
+- Changed interactive progress and completion summaries to show observed current-turn Token usage while keeping Footer totals session-scoped.
 - Changed bundled workflow precedence and replacement to use product-neutral managed-resource capabilities while preserving ordinary Pi resource ordering.
 - Routed Pi startup through a product-neutral interactive profile and explicit feature-scoped runtime, session, model, resource, command, tool, and UI facades instead of a BYZ-specific Pi Core branch or transparent full-context proxy.
 

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "task_id": "T-001",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "1c25c932e5a83beac198733e48913cd6280fa81a9017afb8090d1ddc79431d16",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs (pre-change)",
+      "status": "passed",
+      "evidence": "Existing Conversation baseline passed 14 of 14 tests."
+    },
+    {
+      "command": "expected-red wrapper around node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "Both newly added current-turn usage regressions fail against existing behavior while their names and expected Token boundary are present in the failure log."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency checks, architecture gate, tsgo and browser smoke passed."
+    }
+  ],
+  "evidence": [
+    "Unknown current-turn usage is asserted separately from pre-existing Session totals.",
+    "Streaming snapshot replacement, message-end commit and multi-response exact-once accumulation are asserted before implementation.",
+    "T-001 changes only the previously clean Conversation test file; prior Recovery Card dirty paths are excluded."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

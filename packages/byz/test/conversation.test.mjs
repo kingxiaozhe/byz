@@ -1,8 +1,16 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { createFauxCore, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { createPiExtensionPorts } from "../.byz-output/current/dist/adapters/pi/pi-runtime-adapter.js";
+import {
+	createAgentSessionFromServices,
+	createAgentSessionServices,
+	SessionManager,
+	SettingsManager,
+} from "../.byz-output/current/dist/runtime/bundle/index.js";
 import { createConversationExtension, WELCOME } from "../src/conversation/conversation-extension.js";
 import {
 	createInteractionPolicy,
@@ -11,6 +19,27 @@ import {
 } from "../src/conversation/interaction-policy.js";
 import { classifyRequest, createRoutingPolicy, parseSessionPreference } from "../src/conversation/routing-policy.js";
 import { createTurnTiming, formatElapsed } from "../src/conversation/turn-timing.js";
+
+function fauxProviderConfig(faux) {
+	const model = faux.getModel();
+	return {
+		baseUrl: model.baseUrl,
+		apiKey: "faux-key",
+		api: faux.api,
+		streamSimple: faux.streamSimple,
+		models: faux.models.map((registeredModel) => ({
+			id: registeredModel.id,
+			name: registeredModel.name,
+			api: registeredModel.api,
+			reasoning: registeredModel.reasoning,
+			input: registeredModel.input,
+			cost: registeredModel.cost,
+			contextWindow: registeredModel.contextWindow,
+			maxTokens: registeredModel.maxTokens,
+			baseUrl: registeredModel.baseUrl,
+		})),
+	};
+}
 
 test("maps structural conversation states to readable, low-noise output", () => {
 	const policy = createInteractionPolicy();
@@ -176,6 +205,278 @@ test("conversation extension refreshes current stage timing and freezes one fina
 	assert.equal(workingMessages.length, countAfterFinish);
 });
 
+test("current turn usage starts unknown and does not inherit session totals", async () => {
+	const handlers = new Map();
+	const workingMessages = [];
+	const notifications = [];
+	createConversationExtension({ setInterval: () => 1, clearInterval() {} })({
+		on: (name, handler) => handlers.set(name, handler),
+		registerCommand() {},
+	});
+	const ctx = {
+		sessionManager: {
+			getEntries: () => [{ type: "message", message: { role: "assistant", usage: { input: 9_999, output: 999 } } }],
+		},
+		ui: {
+			notify: (message) => notifications.push(message),
+			setTitle() {},
+			setMessagePresenter() {},
+			setToolExecutionVisible() {},
+			setFooter() {},
+			setConfirmationPresenter() {},
+			setWorkingMessage: (message) => workingMessages.push(message),
+		},
+	};
+	await handlers.get("session_start")({}, ctx);
+	await handlers.get("before_agent_start")({ prompt: "显示本轮 Token", systemPrompt: "base" }, ctx);
+	await handlers.get("agent_start")({}, ctx);
+	assert.match(workingMessages.at(-1), /Token —/);
+	assert.doesNotMatch(workingMessages.at(-1), /9\.9k|999/);
+	await handlers.get("message_update")({ message: { role: "assistant", usage: { input: 120, output: 8 } } }, ctx);
+	assert.match(workingMessages.at(-1), /Token ↑120 · ↓8/);
+	await handlers.get("message_end")({ message: { role: "assistant", usage: { input: 120, output: 8 } } }, ctx);
+	await handlers.get("tool_execution_start")({ toolName: "read" }, ctx);
+	assert.match(workingMessages.at(-1), /Token ↑120 · ↓8/);
+	await handlers.get("agent_end")({ usage: { input: 120, output: 8, cacheRead: 40, cacheWrite: 0 } }, ctx);
+	assert.match(notifications.at(-1), /Token：输入 120；输出 8；缓存读取 40；缓存写入 0/);
+});
+
+test("streaming usage snapshots and multiple responses are accumulated exactly once", async () => {
+	const handlers = new Map();
+	const workingMessages = [];
+	const notifications = [];
+	createConversationExtension({ setInterval: () => 1, clearInterval() {} })({
+		on: (name, handler) => handlers.set(name, handler),
+		registerCommand() {},
+	});
+	const ctx = {
+		ui: {
+			notify: (message) => notifications.push(message),
+			setTitle() {},
+			setMessagePresenter() {},
+			setToolExecutionVisible() {},
+			setFooter() {},
+			setConfirmationPresenter() {},
+			setWorkingMessage: (message) => workingMessages.push(message),
+		},
+	};
+	await handlers.get("session_start")({}, ctx);
+	await handlers.get("before_agent_start")({ prompt: "累计多次响应", systemPrompt: "base" }, ctx);
+	await handlers.get("agent_start")({}, ctx);
+	await handlers.get("message_update")({ message: { role: "assistant", usage: { input: 10, output: 1 } } }, ctx);
+	await handlers.get("message_update")({ message: { role: "assistant", usage: { input: 15, output: 1 } } }, ctx);
+	await handlers.get("message_update")({ message: { role: "assistant", usage: { input: 20, output: 2 } } }, ctx);
+	await handlers.get("message_end")({ message: { role: "assistant", usage: { input: 20, output: 2 } } }, ctx);
+	await handlers.get("message_update")({ message: { role: "assistant", usage: { input: 5, output: 3 } } }, ctx);
+	await handlers.get("message_end")({ message: { role: "assistant", usage: { input: 5, output: 3 } } }, ctx);
+	assert.match(workingMessages.at(-1), /Token ↑25 · ↓5/);
+	await handlers.get("agent_end")({ usage: { input: 25, output: 5 } }, ctx);
+	assert.match(notifications.at(-1), /Token：输入 25；输出 5/);
+	assert.doesNotMatch(notifications.at(-1), /输入 55|输出 9/);
+});
+
+test("partial, invalid, and cumulatively overflowing usage fail closed by field", async () => {
+	const handlers = new Map();
+	const workingMessages = [];
+	const notifications = [];
+	createConversationExtension({ setInterval: () => 1, clearInterval() {} })({
+		on: (name, handler) => handlers.set(name, handler),
+		registerCommand() {},
+	});
+	const ctx = {
+		ui: {
+			notify: (message) => notifications.push(message),
+			setTitle() {},
+			setMessagePresenter() {},
+			setToolExecutionVisible() {},
+			setFooter() {},
+			setConfirmationPresenter() {},
+			setWorkingMessage: (message) => workingMessages.push(message),
+		},
+	};
+	await handlers.get("session_start")({}, ctx);
+	await handlers.get("before_agent_start")({ prompt: "拒绝非法 Token", systemPrompt: "base" }, ctx);
+	await handlers.get("agent_start")({}, ctx);
+	await handlers.get("message_update")(
+		{
+			message: { role: "assistant", usage: { input: -1, output: 7, cacheRead: Number.NaN } },
+		},
+		ctx,
+	);
+	assert.match(workingMessages.at(-1), /Token ↓7/);
+	assert.doesNotMatch(workingMessages.at(-1), /↑/);
+	await handlers.get("message_end")({ message: { role: "assistant", usage: { output: 7 } } }, ctx);
+	await handlers.get("message_update")(
+		{
+			message: { role: "assistant", usage: { input: Number.MAX_SAFE_INTEGER } },
+		},
+		ctx,
+	);
+	await handlers.get("message_end")(
+		{
+			message: { role: "assistant", usage: { input: Number.MAX_SAFE_INTEGER } },
+		},
+		ctx,
+	);
+	await handlers.get("message_update")({ message: { role: "assistant", usage: { input: 1 } } }, ctx);
+	assert.doesNotMatch(workingMessages.at(-1), /↑/);
+	await handlers.get("message_end")({ message: { role: "assistant", usage: { input: 1 } } }, ctx);
+	await handlers.get("agent_end")({ usage: { output: 7, cacheWrite: 0 } }, ctx);
+	assert.match(notifications.at(-1), /Token：输出 7；缓存写入 0/);
+	assert.doesNotMatch(notifications.at(-1), /输入/);
+});
+
+test("actual AgentSession error and abort paths emit agent_end and clear turn usage", async (t) => {
+	const root = await mkdtemp(join(tmpdir(), "byz-turn-usage-runtime-"));
+	const agentDir = join(root, "agent");
+	const faux = createFauxCore({ models: [{ id: "usage", name: "Usage" }], tokensPerSecond: 20 });
+	const notifications = [];
+	const workingMessages = [];
+	const agentEnds = [];
+	let intervals = 0;
+	let intervalClears = 0;
+	let networkCalls = 0;
+	let session;
+	const originalFetch = globalThis.fetch;
+	globalThis.fetch = async () => {
+		networkCalls += 1;
+		throw new Error("unexpected network call");
+	};
+	t.after(async () => {
+		globalThis.fetch = originalFetch;
+		session?.dispose();
+		await rm(root, { force: true, recursive: true });
+	});
+
+	await mkdir(agentDir, { recursive: true });
+	await writeFile(join(agentDir, "auth.json"), JSON.stringify({ faux: { type: "api_key", key: "faux-key" } }));
+	const settingsManager = SettingsManager.inMemory();
+	settingsManager.applyOverrides({ retry: { enabled: false } });
+	const services = await createAgentSessionServices({
+		agentDir,
+		cwd: root,
+		settingsManager,
+		resourceLoaderOptions: {
+			extensionFactories: [
+				{
+					name: "byz-turn-usage-under-test",
+					factory: (pi) => {
+						pi.registerProvider(faux.getModel().provider, fauxProviderConfig(faux));
+						createConversationExtension({
+							setInterval(handler, milliseconds) {
+								intervals += 1;
+								return globalThis.setInterval(handler, milliseconds);
+							},
+							clearInterval(interval) {
+								intervalClears += 1;
+								globalThis.clearInterval(interval);
+							},
+						})(createPiExtensionPorts(pi).conversation);
+					},
+				},
+			],
+			noPromptTemplates: true,
+			noSkills: true,
+			noThemes: true,
+		},
+	});
+	({ session } = await createAgentSessionFromServices({
+		services,
+		sessionManager: SessionManager.inMemory(),
+		model: faux.getModel("usage"),
+	}));
+	session.subscribe((event) => {
+		if (event.type === "agent_end") agentEnds.push(event);
+	});
+	await session.bindExtensions({
+		mode: "tui",
+		uiContext: {
+			select: async () => undefined,
+			confirm: async () => false,
+			input: async () => undefined,
+			notify: (message, type) => notifications.push({ message, type }),
+			onTerminalInput: () => () => {},
+			setStatus() {},
+			setWorkingMessage: (message) => workingMessages.push(message),
+			setWorkingVisible() {},
+			setWorkingIndicator() {},
+			setHiddenThinkingLabel() {},
+			setWidget() {},
+			setFooter() {},
+			setHeader() {},
+			setTitle() {},
+			setMessagePresenter() {},
+			setToolExecutionVisible() {},
+			setConfirmationPresenter() {},
+			custom: async () => undefined,
+		},
+	});
+
+	const agentDirBeforeTurns = await readdir(agentDir);
+	faux.setResponses([fauxAssistantMessage("observed usage")]);
+	await session.prompt("normal turn");
+	assert.equal(agentEnds.length, 1);
+	assert.equal(intervals, 1);
+	assert.equal(intervalClears, 1);
+	assert.match(notifications.at(-1).message, /Tokens: input (?!0(?:\D|$))[^;]+; output (?!0(?:\D|$))[^;\n]+/);
+
+	const errorWorkingStart = workingMessages.length;
+	faux.setResponses([
+		fauxAssistantMessage(fauxToolCall("bash", { command: "true" }), { stopReason: "toolUse" }),
+		() => {
+			throw new Error("faux provider failure");
+		},
+	]);
+	await session.prompt("error after observed usage").catch(() => {});
+	assert.equal(agentEnds.length, 2);
+	assert.equal(
+		workingMessages.slice(errorWorkingStart).some((message) => /Tokens? ↑/.test(message ?? "")),
+		true,
+	);
+	assert.match(notifications.at(-1).message, /Tokens?: input/);
+	assert.equal(intervals, 2);
+	assert.equal(intervalClears, 2);
+	assert.equal(workingMessages.at(-1), undefined);
+
+	const abortWorkingStart = workingMessages.length;
+	faux.setResponses([fauxAssistantMessage(fauxToolCall("bash", { command: "sleep 5" }), { stopReason: "toolUse" })]);
+	const pending = session.prompt("abort after observed usage");
+	for (
+		let attempt = 0;
+		attempt < 400 && !workingMessages.slice(abortWorkingStart).some((message) => /Tokens? ↑/.test(message ?? ""));
+		attempt += 1
+	) {
+		await new Promise((resolve) => setTimeout(resolve, 5));
+	}
+	assert.equal(session.isStreaming, true);
+	assert.equal(
+		workingMessages.slice(abortWorkingStart).some((message) => /Tokens? ↑/.test(message ?? "")),
+		true,
+	);
+	await session.abort();
+	await pending.catch(() => {});
+	assert.equal(agentEnds.length, 3);
+	assert.match(notifications.at(-1).message, /Tokens?: input/);
+	assert.equal(intervals, 3);
+	assert.equal(intervalClears, 3);
+	assert.equal(workingMessages.at(-1), undefined);
+
+	const postAbortWorkingStart = workingMessages.length;
+	faux.setResponses([fauxAssistantMessage("after abort")]);
+	await session.prompt("post abort turn");
+	assert.equal(agentEnds.length, 4);
+	assert.equal(
+		workingMessages.slice(postAbortWorkingStart).some((message) => /Tokens? —/.test(message ?? "")),
+		true,
+	);
+	assert.equal(intervals, 4);
+	assert.equal(intervalClears, 4);
+	assert.equal(faux.state.callCount, 5);
+	assert.equal(networkCalls, 0);
+	assert.deepEqual(await readdir(agentDir), agentDirBeforeTurns);
+	assert.equal(workingMessages.at(-1), undefined);
+});
+
 test("confirmation input and fallback time count only as waiting", async () => {
 	const handlers = new Map();
 	const notifications = [];
@@ -261,6 +562,8 @@ test("session shutdown clears timing without rendering a completion summary", as
 	await handlers.get("session_start")({}, ctx);
 	await handlers.get("before_agent_start")({ prompt: "关闭计时", systemPrompt: "base" }, ctx);
 	await handlers.get("agent_start")({}, ctx);
+	await handlers.get("message_update")({ message: { role: "assistant", usage: { input: 10, output: 2 } } }, ctx);
+	assert.match(workingMessages.at(-1), /Token ↑10 · ↓2/);
 	await handlers.get("session_shutdown")({}, ctx);
 	assert.equal(clears, 1);
 	assert.equal(
@@ -270,6 +573,10 @@ test("session shutdown clears timing without rendering a completion summary", as
 	const rendersAfterShutdown = workingMessages.length;
 	tick();
 	assert.equal(workingMessages.length, rendersAfterShutdown);
+	await handlers.get("before_agent_start")({ prompt: "新回合", systemPrompt: "base" }, ctx);
+	await handlers.get("agent_start")({}, ctx);
+	assert.match(workingMessages.at(-1), /Token —/);
+	await handlers.get("agent_end")({}, ctx);
 });
 
 test("conversation extension shows a scoped progress card after a short wait", async () => {
@@ -481,6 +788,7 @@ test("language preference can be saved and reused across sessions", async () => 
 		await new Promise((resolve) => setTimeout(resolve, 5));
 		assert.match(workingMessages.at(-1), /Working on: fix the release/);
 		assert.match(workingMessages.at(-1), /Boundary: I will stop only when a human decision is needed/);
+		assert.match(workingMessages.at(-1), /Tokens —/);
 		await secondHandlers.get("agent_end")({}, secondCtx);
 	} finally {
 		if (originalAgentDir === undefined) {

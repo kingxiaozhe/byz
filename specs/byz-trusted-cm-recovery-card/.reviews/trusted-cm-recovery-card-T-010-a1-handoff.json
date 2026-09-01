@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "T-010",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/recovery-state.js",
+    "packages/byz/test/recovery-state.test.mjs"
+  ],
+  "implementation_sha256": "f1feaa4e25edab729fb1f6da907c96b39cf7cabae329edf1d4d9a5265b7d215b",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs",
+      "status": "passed",
+      "evidence": "6 of 6 focused tests passed."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency checks, architecture gate, tsgo and browser smoke passed."
+    }
+  ],
+  "evidence": [
+    "TC-005 parser/reducer cases cover malformed nested records, missing handoff, canonical authority fields, state precedence and historical review semantics.",
+    "TC-007 is covered for the T-010 sanitizer boundary; exact ui.notify rendering remains assigned to T-006.",
+    "v3 removes JSONL projection rather than retaining the dropped P1 source.",
+    "Pre-task inherited bytes and exclusions are recorded in trusted-cm-recovery-card-T-010-prestate.md."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

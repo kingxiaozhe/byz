@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "task_id": "T-003",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/cm-evidence-reader.js",
+    "packages/byz/src/recovery/safe-read.js",
+    "packages/byz/test/recovery-reader.test.mjs"
+  ],
+  "implementation_sha256": "cb9f422d2a9f99c3e2a3b728837337c381991a26e9a5749e88850b8c2489c7fd",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs packages/byz/test/recovery-reader.test.mjs",
+      "status": "passed",
+      "evidence": "13 focused parser and reader tests passed."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency, architecture, type and browser gates passed."
+    }
+  ],
+  "evidence": [
+    "Untrusted calls return before the injected filesystem object is accessed.",
+    "Only up to 64 direct specs directories and four current-task reviews are enumerated; JSONL and global CM state are not opened.",
+    "Project, specs, candidate, feature and review directories are real, contained and identity-revalidated.",
+    "Leaf files use lstat, realpath containment, O_NOFOLLOW, handle stat, pre-read size/budget checks, post-read identity checks and SHA-256 receipts.",
+    "Candidate, review, per-file and total snapshot bounds plus symlink and identity replacement regressions pass."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

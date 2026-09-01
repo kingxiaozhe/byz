@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task_id": "T-002",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/recovery-state.js",
+    "packages/byz/test/recovery-state.test.mjs"
+  ],
+  "implementation_sha256": "8d0663945dd48f14836b9b1e8d394556c93db37c62e6fb831aafad6cca65a8d7",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs",
+      "status": "passed",
+      "evidence": "6 of 6 focused parser, reducer, historical-review and terminal-sanitizer tests passed."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency pins, import rules, shrinkwrap/install locks, BYZ architecture, tsgo and browser smoke all passed."
+    }
+  ],
+  "evidence": [
+    "TC-005 statically and dynamically covers structured state precedence and historical reviews.",
+    "TC-007 focused test captures exact sanitized output and fixed next-entry behavior."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

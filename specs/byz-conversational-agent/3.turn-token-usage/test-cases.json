@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "1.0",
+  "feature": "turn-token-usage",
+  "cases": [
+    {
+      "id": "TC-001",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-001", "AC-002", "AC-006"],
+      "taskIds": ["T-001", "T-002"],
+      "title": "当前回合从不可用状态开始并在首次 observed usage 后更新",
+      "preconditions": ["Session 已存在历史 usage", "新的 Agent turn 即将开始"],
+      "steps": ["触发 agent_start 并读取 working message", "发送带输入和输出 usage 的首次模型响应结束事件", "触发工具执行并再次读取 working message"],
+      "expected": ["起始显示 Token — 且不包含历史 Session usage", "模型响应结束后显示当前回合输入和输出", "后续工具执行期间保留已经确认的 usage"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-002",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-003", "AC-004"],
+      "taskIds": ["T-001", "T-002"],
+      "title": "Streaming 快照与多次模型响应恰好累计一次",
+      "preconditions": ["Agent turn 已开始", "测试 harness 可发送 usage 事件"],
+      "steps": ["先发送 mandatory standalone all-zero message_update 并读取 working message", "为第一响应发送三次递增的 message_update usage", "发送相同最终 usage 的 message_end", "为第二响应发送 update 和 end", "发送包含本次 run 聚合 usage 的 agent_end"],
+      "expected": ["standalone all-zero placeholder 保持 Token —", "第一响应按最后快照计一次而不是三次求和", "第二响应与第一响应各计一次", "完成摘要与 agent_end 聚合值完全一致", "payload 已由正值证明 observed 时，同一 payload 的缓存零值显示为 0 而非不可用"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-003",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-006", "AC-007"],
+      "taskIds": ["T-002"],
+      "title": "缺失与非法 usage 不会被估算或进入累计",
+      "preconditions": ["Conversation facade 可接收构造的 Pi usage"],
+      "steps": ["分别发送缺失 usage、只含 output 的部分字段 usage，并以部分字段 agent_end 聚合收口", "发送 NaN、Infinity、负数、字符串和超安全整数 usage", "发送两个单值合法但相加超过安全整数范围的 usage", "读取 projected event、working message 与完成摘要"],
+      "expected": ["完全缺失时显示 Token —", "部分字段及 agent_end 聚合只保留显式 observed 字段，不把缺失字段补成 0", "所有非法单值被 Adapter 省略", "累计溢出的字段失败关闭且不会以舍入值出现", "未知值不会显示为 0 或估算值"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-004",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-005", "AC-008", "AC-009"],
+      "taskIds": ["T-002", "T-003"],
+      "title": "Usage 生命周期清理且不改变 Footer 或运行时副作用",
+      "preconditions": ["Footer、计时和 usage 状态均已初始化"],
+      "steps": ["完成一个带 usage 的正常 turn", "分别通过 faux provider 触发真实取消与错误路径并观察 Pi agent_end", "触发 session_shutdown 兜底", "启动新 turn", "核对 Footer Session 累计、timer、网络和存储 spy"],
+      "expected": ["正常、取消和错误路径均由真实 agent_end 清理旧 turn usage 与 timer", "shutdown 重复清理保持幂等", "新 turn 从 Token — 开始", "Footer 继续使用 Session 累计且 Thinking 区不变", "没有新增 timer、网络、模型、存储或诊断调用"],
+      "cleanup": ["释放测试 scheduler 中的 timer"]
+    },
+    {
+      "id": "TC-005",
+      "origin": "generated",
+      "kind": "browser",
+      "blocking": true,
+      "acIds": ["AC-004", "AC-010"],
+      "taskIds": ["T-003"],
+      "title": "80 列真实 TUI 同时展示阶段耗时与当前回合 Token",
+      "preconditions": ["已构建 BYZ", "80x24 tmux", "隔离 HOME", "faux provider 可返回固定 usage"],
+      "steps": ["启动交互会话并提交一个跨模型响应和工具阶段的任务", "响应前后分别抓取 working message", "等待完成摘要", "运行 --version 与 workflow 管理命令"],
+      "expected": ["首次抓取显示阶段时间和 Token —", "usage 到达后显示固定输入与输出值", "完成摘要显示输入、输出和缓存口径", "非交互 stdout、stderr 与退出码保持原行为"],
+      "cleanup": ["关闭 tmux 并删除隔离 HOME"]
+    }
+  ]
+}

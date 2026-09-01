@@ -286,6 +286,103 @@ function formatTokens(count) {
 	return `${Math.round(count / 1000000)}M`;
 }
 
+const TURN_USAGE_FIELDS = ["input", "output", "cacheRead", "cacheWrite"];
+
+function normalizeObservedUsage(value) {
+	if (!value || typeof value !== "object") return undefined;
+	const usage = {};
+	for (const field of TURN_USAGE_FIELDS) {
+		const count = value[field];
+		if (Number.isSafeInteger(count) && count >= 0) usage[field] = count;
+	}
+	return Object.keys(usage).length > 0 ? usage : undefined;
+}
+
+function addObservedUsage(target, source, invalidFields) {
+	if (!source) return;
+	for (const field of TURN_USAGE_FIELDS) {
+		if (invalidFields.has(field) || source[field] === undefined) continue;
+		const total = (target[field] ?? 0) + source[field];
+		if (!Number.isSafeInteger(total)) {
+			delete target[field];
+			invalidFields.add(field);
+		} else {
+			target[field] = total;
+		}
+	}
+}
+
+function usageSignature(usage) {
+	return TURN_USAGE_FIELDS.map((field) => `${field}:${usage?.[field] ?? "-"}`).join("|");
+}
+
+function createTurnUsage() {
+	let committed = {};
+	let invalidFields = new Set();
+	let current;
+
+	function snapshot() {
+		const usage = { ...committed };
+		addObservedUsage(usage, current, new Set(invalidFields));
+		return Object.keys(usage).length > 0 ? Object.freeze(usage) : undefined;
+	}
+
+	function changedAfter(update) {
+		const before = usageSignature(snapshot());
+		update();
+		return before !== usageSignature(snapshot());
+	}
+
+	return Object.freeze({
+		update(value) {
+			const usage = normalizeObservedUsage(value);
+			if (!usage) return false;
+			return changedAfter(() => {
+				current = usage;
+			});
+		},
+		commit(role, value) {
+			if (role !== "assistant" && role !== "toolResult") return false;
+			return changedAfter(() => {
+				const usage = normalizeObservedUsage(value) ?? (role === "assistant" ? current : undefined);
+				addObservedUsage(committed, usage, invalidFields);
+				if (role === "assistant") current = undefined;
+			});
+		},
+		override(value) {
+			const usage = normalizeObservedUsage(value);
+			if (!usage) return false;
+			return changedAfter(() => {
+				committed = usage;
+				invalidFields = new Set();
+				current = undefined;
+			});
+		},
+		snapshot,
+	});
+}
+
+function formatTurnUsageProgress(usage, language) {
+	const label = language === LANGUAGE_EN ? "Tokens" : "Token";
+	const parts = [];
+	if (usage?.input !== undefined) parts.push(`↑${formatTokens(usage.input)}`);
+	if (usage?.output !== undefined) parts.push(`↓${formatTokens(usage.output)}`);
+	return parts.length > 0 ? `${label} ${parts.join(" · ")}` : `${label} —`;
+}
+
+function formatTurnUsageSummary(usage, language) {
+	if (!usage) return language === LANGUAGE_EN ? "Tokens —" : "Token —";
+	const labels =
+		language === LANGUAGE_EN
+			? { input: "input", output: "output", cacheRead: "cache read", cacheWrite: "cache write" }
+			: { input: "输入", output: "输出", cacheRead: "缓存读取", cacheWrite: "缓存写入" };
+	const parts = TURN_USAGE_FIELDS.flatMap((field) =>
+		usage[field] === undefined ? [] : [`${labels[field]} ${formatTokens(usage[field])}`],
+	);
+	if (parts.length === 0) return language === LANGUAGE_EN ? "Tokens —" : "Token —";
+	return `${language === LANGUAGE_EN ? "Tokens: " : "Token："}${parts.join(language === LANGUAGE_EN ? "; " : "；")}`;
+}
+
 function truncateText(text, width) {
 	if (width <= 0) return "";
 	if (text.length <= width) return text;
@@ -473,16 +570,16 @@ function timingValues(state, snapshot) {
 	};
 }
 
-function renderInitialWorking(state, snapshot) {
+function renderInitialWorking(state, snapshot, usage) {
 	const copy = textFor(state.language);
 	const values = timingValues(state, snapshot);
-	return copy.timingWorking(values);
+	return `${copy.timingWorking(values)}\n${formatTurnUsageProgress(usage, state.language)}`;
 }
 
-function renderProgressCard(state, snapshot, options = {}) {
+function renderProgressCard(state, snapshot, usage, options = {}) {
 	const activity = getActivitySummary(state);
 	const copy = textFor(state.language);
-	const timing = copy.timingLines(timingValues(state, snapshot));
+	const timing = [...copy.timingLines(timingValues(state, snapshot)), formatTurnUsageProgress(usage, state.language)];
 	if (options.compact) {
 		const next = state.nextSteps.at(-1) ?? copy.defaultNext.at(-1);
 		const boundary = state.safeguards.at(-1) ?? copy.defaultSafeguards.at(-1);
@@ -491,7 +588,7 @@ function renderProgressCard(state, snapshot, options = {}) {
 	return [...copy.detailLines({ state, activity }), ...timing].join("\n");
 }
 
-function renderTimingSummary(state, snapshot) {
+function renderTimingSummary(state, snapshot, usage) {
 	const copy = textFor(state.language);
 	const language = state.language;
 	const stages = snapshot.stages
@@ -500,12 +597,13 @@ function renderTimingSummary(state, snapshot) {
 				`${copy.stageLabels[stage] ?? copy.stageLabels.other} ${formatElapsed(milliseconds, language)}`,
 		)
 		.join("；");
-	return copy.timingSummary({
+	const timing = copy.timingSummary({
 		stages,
 		active: formatElapsed(snapshot.activeMs, language),
 		waiting: formatElapsed(snapshot.waitingMs, language),
 		total: formatElapsed(snapshot.totalMs, language),
 	});
+	return `${timing}\n${formatTurnUsageSummary(usage, language)}`;
 }
 
 function stageForTool(toolName) {
@@ -569,6 +667,7 @@ export function createConversationExtension(options = {}) {
 		let progressTimer;
 		let elapsedTimer;
 		let turnTiming;
+		let turnUsage;
 		let footerComponent;
 		let currentThinkingLevel = "off";
 		let progressState = createProgressState(currentLanguage);
@@ -587,9 +686,10 @@ export function createConversationExtension(options = {}) {
 		function publishWorking() {
 			if (!activeCtx || !turnTiming) return;
 			const snapshot = turnTiming.snapshot();
+			const usage = turnUsage?.snapshot();
 			const message = progressState.visible
-				? renderProgressCard(progressState, snapshot, { compact: !policy.isDetailEnabled() })
-				: renderInitialWorking(progressState, snapshot);
+				? renderProgressCard(progressState, snapshot, usage, { compact: !policy.isDetailEnabled() })
+				: renderInitialWorking(progressState, snapshot, usage);
 			activeCtx.ui.setWorkingMessage?.(message);
 		}
 
@@ -602,9 +702,12 @@ export function createConversationExtension(options = {}) {
 		function finishTurn(options = {}) {
 			clearProgressTimer();
 			clearElapsedTimer();
+			const usage = turnUsage?.snapshot();
+			turnUsage = undefined;
 			if (!turnTiming) return;
 			const snapshot = turnTiming.finish();
-			if (options.notify && activeCtx) activeCtx.ui.notify(renderTimingSummary(progressState, snapshot), "info");
+			if (options.notify && activeCtx)
+				activeCtx.ui.notify(renderTimingSummary(progressState, snapshot, usage), "info");
 			turnTiming = undefined;
 		}
 
@@ -652,6 +755,7 @@ export function createConversationExtension(options = {}) {
 			clearProgressTimer();
 			clearElapsedTimer();
 			turnTiming = createTurnTiming({ now });
+			turnUsage = createTurnUsage();
 			turnTiming.start(progressState.stageId);
 			publishWorking();
 			elapsedTimer = scheduleInterval(publishWorking, 1_000);
@@ -672,15 +776,20 @@ export function createConversationExtension(options = {}) {
 		ports.on("message_update", (event) => {
 			if (event.message?.role !== "assistant") return;
 			const copy = textFor(progressState.language);
+			const usageChanged = turnUsage?.update(event.message.usage) ?? false;
 			const stageChanged = progressState.stageId !== "reply";
 			if (stageChanged) {
 				setProgressStage(progressState, "reply");
 				turnTiming?.transition("reply");
 			}
 			pushUnique(progressState.nextSteps, copy.nextResult);
-			if (stageChanged) publishWorking();
+			if (stageChanged || usageChanged) publishWorking();
 		});
-		ports.on("agent_end", () => {
+		ports.on("message_end", (event) => {
+			if (turnUsage?.commit(event.message?.role, event.message?.usage)) publishWorking();
+		});
+		ports.on("agent_end", (event) => {
+			turnUsage?.override(event.usage);
 			finishTurn({ notify: true });
 			activeCtx?.ui.setWorkingMessage?.();
 			activeCtx = undefined;

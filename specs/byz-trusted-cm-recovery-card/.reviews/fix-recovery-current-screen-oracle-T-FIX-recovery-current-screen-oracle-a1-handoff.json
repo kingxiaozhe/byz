@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "task_id": "T-FIX-recovery-current-screen-oracle",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/coding-agent/CHANGELOG.md",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/test/interactive-mode-status.test.ts",
+    "scripts/byz-packed-runtime.test.mjs"
+  ],
+  "implementation_sha256": "c69bf96b0b473ba6fdc8bd497e26941937948e921d49e9ffb7c90e9c30673759",
+  "verification": [
+    {
+      "command": "node --test --test-name-pattern \"current-screen oracle\" scripts/byz-packed-runtime.test.mjs",
+      "status": "passed",
+      "evidence": "/tmp/recovery-current-screen-green.log: current-screen oracle 1 passed"
+    },
+    {
+      "command": "cd packages/coding-agent && node \"$(git rev-parse --show-toplevel)/node_modules/vitest/dist/cli.js\" --run test/interactive-mode-status.test.ts",
+      "status": "passed",
+      "evidence": "/tmp/recovery-current-screen-green.log: 34 passed"
+    },
+    {
+      "command": "node --test scripts/byz-packed-runtime.test.mjs",
+      "status": "passed",
+      "evidence": "/tmp/recovery-current-screen-green.log: packed suite 2 passed"
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "/tmp/recovery-current-screen-check.log"
+    }
+  ],
+  "evidence": [
+    "/tmp/recovery-current-screen-repro.log",
+    "/tmp/recovery-current-screen-guard-red.log",
+    "/tmp/recovery-current-screen-green.log",
+    "/tmp/recovery-current-screen-check.log",
+    "specs/byz-trusted-cm-recovery-card/fixes/20260901-recovery-startup-notification.md",
+    "specs/byz-trusted-cm-recovery-card/.reviews/fix-recovery-startup-notification-T-FIX-recovery-startup-notification-r2.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

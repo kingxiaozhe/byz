@@ -20,6 +20,7 @@
 
 ### Fixed
 
+- Fixed multiline extension info cards being replaced by subsequent single-line status notifications during interactive startup.
 - Fixed wrapper-managed resource precedence changing ordinary Pi skill and prompt collision order, and reject unsupported managed themes before applying sibling discovery resources.
 - Fixed hidden extension tool rows being rendered through assistant message updates and restored transcripts.
 - Fixed compaction summary text to describe the user-facing recovery behavior instead of exposing raw token-count jargon by default.

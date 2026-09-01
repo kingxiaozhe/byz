@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "task_id": "T-004",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/git-head.js",
+    "packages/byz/test/git-head.test.mjs"
+  ],
+  "implementation_sha256": "917cc28251db39b7bd438c92c0b19a1a5d87041778768a8ce0602f9033def835",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/git-head.test.mjs",
+      "status": "passed",
+      "evidence": "11 tests passed after environment isolation."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository static gates passed."
+    }
+  ],
+  "evidence": [
+    "Git child environment is reconstructed from only process-discovery keys plus GIT_OPTIONAL_LOCKS and GIT_TERMINAL_PROMPT.",
+    "Injected GIT_DIR is explicitly absent from spawn options.",
+    "Attempt-1 inert spawn, fixed argv, timeout/output bounds and allowlisted result tests remain passing."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

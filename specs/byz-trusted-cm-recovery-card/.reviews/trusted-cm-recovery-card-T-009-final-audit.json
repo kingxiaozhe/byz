@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "task": "T-009",
+  "result": "passed",
+  "artifact": {
+    "reused": true,
+    "generation": "generations/generation-xITgWu/package",
+    "sha256": "199f472892aa0751234e93a66e1ddfde7309a0e24a382fe6cb9bc3d04cdcb744",
+    "reason": "No packages/byz artifact input changed after the successful T-008 matrix; only CM review, task and run evidence changed."
+  },
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs packages/byz/test/recovery-reader.test.mjs packages/byz/test/git-head.test.mjs packages/byz/test/recovery-extension.test.mjs",
+      "result": "passed",
+      "passed": 42,
+      "skipped": 1
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "result": "passed",
+      "passed": 200,
+      "skipped": 1
+    },
+    {
+      "command": "npm run check",
+      "result": "passed"
+    },
+    {
+      "command": "./test.sh",
+      "result": "passed",
+      "coding_agent": { "files_passed": 239, "files_skipped": 6, "tests_passed": 1994, "tests_skipped": 50 },
+      "evals_tests_passed": 23,
+      "protocol_tests_passed": 147,
+      "server_tests_passed": 50,
+      "telemetry_tests_passed": 15,
+      "sqlite_tests_passed": 87
+    }
+  ],
+  "scope": [
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/cli.js",
+    "packages/byz/src/diagnostics/schema.js",
+    "packages/byz/src/recovery/**",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/diagnostics.test.mjs",
+    "packages/byz/test/git-head.test.mjs",
+    "packages/byz/test/recovery-extension.test.mjs",
+    "packages/byz/test/recovery-reader.test.mjs",
+    "packages/byz/test/recovery-state.test.mjs",
+    "scripts/byz-packed-runtime.test.mjs",
+    "prd/prd-byz-trusted-cm-recovery-card.md",
+    "specs/byz-trusted-cm-recovery-card/**"
+  ],
+  "dependency_changes": false,
+  "project_state_writes": false,
+  "committed": false,
+  "pushed": false
+}

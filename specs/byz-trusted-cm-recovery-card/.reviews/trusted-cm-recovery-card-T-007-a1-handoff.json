@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "task_id": "T-007",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/cli.js",
+    "packages/byz/src/diagnostics/schema.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/diagnostics.test.mjs"
+  ],
+  "implementation_sha256": "e1709b3bb5fe6c2d32a389fc316e4eed75a46d6b3a034c66d16f29c40bf29449",
+  "verification": [
+    {
+      "command": "node --test diagnostics and conversation tests",
+      "status": "passed",
+      "evidence": "28 tests passed."
+    },
+    {
+      "command": "node --test fast, prewalk and workflow tests",
+      "status": "passed",
+      "evidence": "56 tests passed."
+    },
+    {
+      "command": "temporary current-source architecture test",
+      "status": "passed",
+      "evidence": "16 tests passed."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository static gates passed."
+    }
+  ],
+  "evidence": [
+    "CLI mounts conversation before recovery, then existing workflow/Fast/Prewalk slices.",
+    "Recovery is mounted only in the existing interactive managed-extension branch; ordinary Pi and non-interactive paths are unchanged.",
+    "Recovery degradation records only component=recovery, a closed mapped reason, dropped bucket 1 and extension site.",
+    "Diagnostics reason mapping is low-cardinality and never persists raw reader reasons.",
+    "No dependency, watcher, hook, daemon or project write was added."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

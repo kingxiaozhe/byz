@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "task_id": "T-009",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "specs/byz-trusted-cm-recovery-card/.reviews/trusted-cm-recovery-card-T-009-final-audit.json"
+  ],
+  "implementation_sha256": "dfed74ca6d4088e41458f03387b4a75cb8a66336861ca518e667213c7789687b",
+  "verification": [
+    {
+      "command": "focused recovery tests",
+      "status": "passed",
+      "evidence": "42 passed, one explicit platform skip."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "200 passed, one explicit platform skip."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All static gates passed."
+    },
+    {
+      "command": "./test.sh",
+      "status": "passed",
+      "evidence": "Full non-E2E repository regression passed."
+    }
+  ],
+  "evidence": [
+    "T-008 artifact receipt reused without rerunning the packed matrix because no package artifact input changed afterward.",
+    "Final git status contains only approved recovery product, test, PRD and spec paths.",
+    "No dependency metadata, lockfile, shrinkwrap, project fact source, hook, watcher or daemon changed.",
+    "No commit or push was performed."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

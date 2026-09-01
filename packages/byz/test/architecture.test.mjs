@@ -81,13 +81,14 @@ test("Pi extension adapter exposes only feature-scoped capability facades", asyn
 	};
 	const ports = createPiExtensionPorts(pi);
 
-	assert.deepEqual(Object.keys(ports), ["diagnostics", "workflow", "fast", "prewalk", "conversation"]);
+	assert.deepEqual(Object.keys(ports), ["diagnostics", "recovery", "workflow", "fast", "prewalk", "conversation"]);
 	for (const featurePorts of Object.values(ports)) {
 		assert.equal("secretPiCapability" in featurePorts, false);
 		assert.equal("raw" in featurePorts, false);
 		assert.equal("api" in featurePorts, false);
 	}
 	assert.deepEqual(Object.keys(ports.diagnostics), ["on"]);
+	assert.deepEqual(Object.keys(ports.recovery), ["on", "registerCommand"]);
 	assert.deepEqual(Object.keys(ports.workflow), ["on", "registerCommand"]);
 	assert.deepEqual(Object.keys(ports.fast), [
 		"on",
@@ -164,6 +165,90 @@ test("Pi extension adapter exposes only feature-scoped capability facades", asyn
 	);
 	assert.deepEqual(projectedToolEnd.args, { path: "proof.txt" });
 	assert.notEqual(projectedToolEnd.args, rawArgs);
+
+	let projectedMessageUpdate;
+	ports.conversation.on("message_update", (event) => {
+		projectedMessageUpdate = event;
+	});
+	await handlers.get("message_update")(
+		{
+			type: "message_update",
+			message: { role: "assistant", usage: { input: 0, output: 0, secret: "drop" }, content: "drop" },
+			assistantMessageEvent: { type: "text_delta" },
+		},
+		rawContext,
+	);
+	assert.deepEqual(projectedMessageUpdate, {
+		type: "message_update",
+		message: { role: "assistant", usage: undefined },
+	});
+	await handlers.get("message_update")(
+		{
+			type: "message_update",
+			message: { role: "assistant", usage: { input: 2, output: 1, cacheWrite: 0, secret: "drop" } },
+			assistantMessageEvent: { type: "text_end" },
+		},
+		rawContext,
+	);
+	assert.deepEqual(projectedMessageUpdate, {
+		type: "message_update",
+		message: { role: "assistant", usage: { input: 2, output: 1, cacheWrite: 0 } },
+	});
+
+	let projectedMessageEnd;
+	ports.conversation.on("message_end", (event) => {
+		projectedMessageEnd = event;
+	});
+	await handlers.get("message_end")(
+		{
+			type: "message_end",
+			message: { role: "assistant", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } },
+		},
+		rawContext,
+	);
+	assert.deepEqual(projectedMessageEnd, {
+		type: "message_end",
+		message: { role: "assistant", usage: undefined },
+	});
+	await handlers.get("message_end")(
+		{ type: "message_end", message: { role: "assistant", usage: { output: 3, input: -1, secret: "drop" } } },
+		rawContext,
+	);
+	assert.deepEqual(projectedMessageEnd, {
+		type: "message_end",
+		message: { role: "assistant", usage: { output: 3 } },
+	});
+
+	let projectedConversationEnd;
+	ports.conversation.on("agent_end", (event) => {
+		projectedConversationEnd = event;
+	});
+	await handlers.get("agent_end")(
+		{
+			type: "agent_end",
+			messages: [{ role: "assistant", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }],
+		},
+		rawContext,
+	);
+	assert.deepEqual(projectedConversationEnd, { type: "agent_end", usage: undefined });
+	const rawEndMessages = [
+		{ role: "assistant", content: "drop", usage: { input: Number.MAX_SAFE_INTEGER, output: 2 } },
+		{ role: "assistant", usage: { input: 1, output: 3 } },
+		{ role: "toolResult", content: "drop", usage: { cacheWrite: 0 } },
+		{ role: "user", usage: { cacheRead: 99 } },
+	];
+	await handlers.get("agent_end")({ type: "agent_end", messages: rawEndMessages }, rawContext);
+	assert.deepEqual(projectedConversationEnd, { type: "agent_end", usage: { output: 5, cacheWrite: 0 } });
+	assert.equal("messages" in projectedConversationEnd, false);
+
+	let projectedDiagnosticEnd;
+	ports.diagnostics.on("agent_end", (event) => {
+		projectedDiagnosticEnd = event;
+	});
+	await handlers.get("agent_end")({ type: "agent_end", messages: rawEndMessages }, rawContext);
+	assert.equal("usage" in projectedDiagnosticEnd, false);
+	assert.deepEqual(projectedDiagnosticEnd.messages[0], { role: "assistant", stopReason: undefined });
+
 	ports.conversation.on("session_start", (_event, context) => {
 		conversationContext = context;
 	});
@@ -202,6 +287,132 @@ test("Pi extension adapter exposes only feature-scoped capability facades", asyn
 		"getGitBranch",
 		"getExtensionStatuses",
 	]);
+});
+
+for (const reason of ["startup", "reload", "new", "resume", "fork"]) {
+	test(`Recovery facade projects the ${reason} session_start reason through a minimal context`, async () => {
+		let rawHandler;
+		let recoveryEvent;
+		let recoveryContext;
+		let getEntriesCalls = 0;
+		const ports = createPiExtensionPorts({
+			on(name, handler) {
+				assert.equal(name, "session_start");
+				rawHandler = handler;
+			},
+			registerCommand() {},
+			getAllTools: () => [],
+			getThinkingLevel: () => "high",
+			setThinkingLevel() {},
+			setModel: async () => true,
+		});
+		ports.recovery.on("session_start", (event, context) => {
+			recoveryEvent = event;
+			recoveryContext = context;
+		});
+		const rawContext = {
+			cwd: "/trusted-project",
+			isProjectTrusted: () => true,
+			sessionManager: {
+				getEntries() {
+					getEntriesCalls += 1;
+					return [{ type: "message", secret: "must-not-leak" }];
+				},
+			},
+			ui: { notify() {}, secretUiCapability() {} },
+		};
+
+		await rawHandler({ type: "session_start", reason, previousSessionFile: "/private/session.jsonl" }, rawContext);
+
+		assert.deepEqual(recoveryEvent, { type: "session_start", reason });
+		assert.deepEqual(Object.keys(recoveryContext), ["cwd", "reason", "ui", "isProjectTrusted", "readSessionSummary"]);
+		assert.equal(Object.getPrototypeOf(recoveryContext), Object.prototype);
+		assert.equal(Object.isFrozen(recoveryContext), true);
+		assert.equal(Object.isFrozen(recoveryContext.ui), true);
+		assert.deepEqual(Object.keys(recoveryContext.ui), ["notify"]);
+		assert.equal(getEntriesCalls, 0);
+		assert.deepEqual(recoveryContext.readSessionSummary(), { hasHistory: true });
+		assert.equal(getEntriesCalls, 1);
+		for (const key of ["raw", "api", "pi", "context", "sessionManager", "filesystem", "replaceManagedResources"]) {
+			assert.equal(key in recoveryContext, false);
+		}
+	});
+}
+
+test("Recovery facade trust-gates dispatch and each lazy session summary read", async () => {
+	const handlers = new Map();
+	const commands = new Map();
+	let trusted = false;
+	let eventDispatches = 0;
+	let commandDispatches = 0;
+	let getEntriesCalls = 0;
+	const ports = createPiExtensionPorts({
+		on(name, handler) {
+			handlers.set(name, handler);
+		},
+		registerCommand(name, command) {
+			commands.set(name, command);
+		},
+		getAllTools: () => [],
+		getThinkingLevel: () => "high",
+		setThinkingLevel() {},
+		setModel: async () => true,
+	});
+	ports.recovery.on("session_start", () => {
+		eventDispatches += 1;
+	});
+	ports.recovery.registerCommand("project", {
+		handler: async () => {
+			commandDispatches += 1;
+		},
+	});
+	const rawContext = {
+		cwd: "/project",
+		isProjectTrusted: () => trusted,
+		sessionManager: {
+			getEntries() {
+				getEntriesCalls += 1;
+				return [];
+			},
+		},
+	};
+
+	await handlers.get("session_start")({ type: "session_start", reason: "startup" }, rawContext);
+	await commands.get("project").handler("status", rawContext);
+	assert.equal(eventDispatches, 0);
+	assert.equal(commandDispatches, 0);
+	assert.equal(getEntriesCalls, 0);
+
+	trusted = true;
+	let recoveryContext;
+	ports.recovery.on("session_shutdown", (_event, context) => {
+		recoveryContext = context;
+	});
+	await handlers.get("session_shutdown")({ type: "session_shutdown" }, rawContext);
+	trusted = false;
+	assert.equal(recoveryContext.isProjectTrusted(), false);
+	assert.equal(recoveryContext.readSessionSummary(), undefined);
+	assert.equal(getEntriesCalls, 0);
+});
+
+test("Recovery facade registers no Pi behavior until a recovery factory uses it", () => {
+	const registeredEvents = [];
+	const registeredCommands = [];
+	const ports = createPiExtensionPorts({
+		on: (name) => registeredEvents.push(name),
+		registerCommand: (name) => registeredCommands.push(name),
+		getAllTools: () => [],
+		getThinkingLevel: () => "high",
+		setThinkingLevel() {},
+		setModel: async () => true,
+	});
+
+	assert.equal(Object.isFrozen(ports.recovery), true);
+	assert.equal(Object.getPrototypeOf(ports.recovery), Object.prototype);
+	assert.throws(() => ports.recovery.on("agent_start", () => {}), /does not allow event/);
+	assert.throws(() => ports.recovery.registerCommand("status", { handler: async () => {} }), /does not allow command/);
+	assert.deepEqual(registeredEvents, []);
+	assert.deepEqual(registeredCommands, []);
 });
 
 test("all BYZ extension factories mount through their assigned feature ports", () => {
@@ -267,6 +478,10 @@ test("BYZ composition root injects one feature slice into each extension", async
 	assert.doesNotMatch(cli, /createPiExtensionAdapter/);
 	assert.match(cli, /diagnosticsFeature\(createPiExtensionPorts\(pi\)\.diagnostics\)/);
 	assert.match(cli, /conversationExtension\(ports\.conversation\)/);
+	assert.match(cli, /recoveryExtension\(ports\.recovery\)/);
+	assert.ok(
+		cli.indexOf("conversationExtension(ports.conversation)") < cli.indexOf("recoveryExtension(ports.recovery)"),
+	);
 	assert.match(cli, /workflowExtension\(ports\.workflow\)/);
 	assert.match(cli, /fastController\.extension\(ports\.fast\)/);
 	assert.match(cli, /prewalkExtension\(ports\.prewalk\)/);

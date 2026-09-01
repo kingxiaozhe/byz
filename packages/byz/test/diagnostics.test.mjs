@@ -23,6 +23,7 @@ import {
 	bucketDuration,
 	mapHttpStatus,
 	mapProvider,
+	mapRecoveryDegradeReason,
 	mapTool,
 	validateDiagnosticEvent,
 	validatePersistedDiagnosticEvent,
@@ -76,6 +77,21 @@ test("diagnostic schema accepts only closed low-cardinality projections", () => 
 	assert.equal(mapProvider("company-private-provider"), "other");
 	assert.equal(mapHttpStatus(503), "5xx");
 	assert.equal(bucketDuration(30_000), ">=30s");
+	assert.equal(mapRecoveryDegradeReason("unsafe_path"), "permission");
+	assert.equal(mapRecoveryDegradeReason("invalid_record"), "invalid_record");
+	assert.equal(mapRecoveryDegradeReason("source_changed"), "generation_changed");
+	assert.equal(mapRecoveryDegradeReason("size_limit"), "schema_mismatch");
+	assert.equal(mapRecoveryDegradeReason("io_error"), "corrupt_file");
+	assert.equal(mapRecoveryDegradeReason("raw secret reason"), "unknown");
+	assert.equal(
+		validateDiagnosticEvent("byz.diagnostics.degrade", {
+			component: "recovery",
+			reason: mapRecoveryDegradeReason("unsafe_path"),
+			dropped_bucket: "1",
+			error_site: "extension",
+		})?.attributes.component,
+		"recovery",
+	);
 });
 
 test("config is private, normalized, and keeps notice state separate", () =>

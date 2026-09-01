@@ -57,6 +57,15 @@ export interface PrewalkContext extends BaseFeatureContext {
 	isProjectTrusted(): boolean;
 }
 
+export type RecoverySessionStartReason = "startup" | "reload" | "new" | "resume" | "fork";
+
+export interface RecoveryContext extends BaseFeatureContext {
+	cwd: string;
+	reason: RecoverySessionStartReason | undefined;
+	isProjectTrusted(): boolean;
+	readSessionSummary(): { hasHistory: boolean } | undefined;
+}
+
 export interface ManagedResourcePort {
 	replace(resources: { promptPaths?: string[]; skillPaths?: string[] }): Promise<void>;
 }
@@ -97,6 +106,7 @@ export interface CommandRegistrationPort<TContext> {
 }
 
 export type DiagnosticsPort = EventPort<DiagnosticsContext>;
+export type RecoveryPort = EventPort<RecoveryContext> & CommandRegistrationPort<RecoveryContext>;
 export type WorkflowPort = EventPort<WorkflowContext> & CommandRegistrationPort<WorkflowContext>;
 export type ConversationPort = EventPort<ConversationContext> & CommandRegistrationPort<ConversationContext>;
 
@@ -112,6 +122,7 @@ export interface PrewalkPort extends EventPort<PrewalkContext>, CommandRegistrat
 
 export interface PiFeaturePorts {
 	diagnostics: DiagnosticsPort;
+	recovery: RecoveryPort;
 	workflow: WorkflowPort;
 	fast: FastPort;
 	prewalk: PrewalkPort;

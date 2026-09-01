@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "task_id": "T-001",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "specs/byz-trusted-cm-recovery-card/.reviews/trusted-cm-recovery-card-T-001-baseline.md"
+  ],
+  "implementation_sha256": "2c3cd995874eff91eafc1cc5b8c4ac60ac58c2ab21a1b6b59386d1cd3fd3b29c",
+  "verification": [
+    {
+      "command": "./test.sh",
+      "status": "passed",
+      "evidence": "The complete non-E2E workspace command passed on rerun; its initial isolated footer debounce timeout was reproduced as passing in focused and full reruns and retained in the baseline report."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "151 of 151 BYZ tests passed."
+    },
+    {
+      "command": "node --test packages/byz/test/architecture.test.mjs packages/byz/test/conversation.test.mjs packages/byz/test/workflow-switch.test.mjs",
+      "status": "passed",
+      "evidence": "37 of 37 targeted BYZ tests passed."
+    },
+    {
+      "command": "coding-agent focused trust and extension Vitest command",
+      "status": "passed",
+      "evidence": "44 of 44 tests passed."
+    },
+    {
+      "command": "node --test scripts/byz-packed-runtime.test.mjs",
+      "status": "passed",
+      "evidence": "Packed-runtime smoke passed outside the repository."
+    }
+  ],
+  "evidence": [
+    "specs/byz-trusted-cm-recovery-card/.reviews/trusted-cm-recovery-card-T-001-baseline.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

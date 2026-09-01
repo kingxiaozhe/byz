@@ -5,9 +5,10 @@ import { createConversationExtension } from "./conversation/conversation-extensi
 import { handleDiagnosticsCommand } from "./diagnostics/commands.js";
 import { createDiagnosticsExtension } from "./diagnostics/diagnostics-extension.js";
 import { createDiagnosticsRecorder } from "./diagnostics/recorder.js";
-import { bucketDuration, mapMode } from "./diagnostics/schema.js";
+import { bucketDuration, mapMode, mapRecoveryDegradeReason } from "./diagnostics/schema.js";
 import { createFastSessionController, prepareFastRuntimeArgs, selectFastRuntimeArgs } from "./fast.js";
 import { createPrewalkExtension } from "./prewalk.js";
+import { createRecoveryExtension } from "./recovery/recovery-extension.js";
 import { main, VERSION } from "./runtime/bundle/index.js";
 import { handleByzUpdate } from "./update.js";
 import { createWorkflowSwitchExtension, shouldEnableWorkflowSwitch, shouldLoadWorkflow } from "./workflow-switch.js";
@@ -72,9 +73,20 @@ try {
 			});
 			const prewalkExtension = createPrewalkExtension({ fastController });
 			const conversationExtension = createConversationExtension();
+			const recoveryExtension = createRecoveryExtension({
+				onDegrade(reason) {
+					diagnostics.record("byz.diagnostics.degrade", {
+						component: "recovery",
+						reason: mapRecoveryDegradeReason(reason),
+						dropped_bucket: "1",
+						error_site: "extension",
+					});
+				},
+			});
 			const byzExtension = (pi) => {
 				const ports = createPiExtensionPorts(pi);
 				conversationExtension(ports.conversation);
+				recoveryExtension(ports.recovery);
 				workflowExtension(ports.workflow);
 				fastController.extension(ports.fast);
 				prewalkExtension(ports.prewalk);

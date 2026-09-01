@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "task_id": "T-006",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/recovery-extension.js",
+    "packages/byz/test/recovery-extension.test.mjs"
+  ],
+  "implementation_sha256": "2ed3e8b71b1726a18d1b81c8e1c4c5913c47d02152b369d8235a8f0603aba8ae",
+  "verification": [
+    {
+      "command": "node --test recovery state/reader/git/extension focused files",
+      "status": "passed",
+      "evidence": "41 passed, one explicit platform junction skip, zero failures."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository static gates passed."
+    }
+  ],
+  "evidence": [
+    "Startup is microtask-scheduled after trust and performs zero Git; status/dismiss also perform zero Git.",
+    "Details rereads CM and rechecks trust immediately before one lazy Git read.",
+    "Generation invalidates stale, shutdown and trust-revoked results.",
+    "Session reason persists across fresh command contexts; reload/dismiss/new semantics are covered.",
+    "Renderers sanitize bounded fields, reject forged Git and non-relative evidence, and tolerate decision-only projections.",
+    "Reader/renderer/Git/diagnostics/notify failures do not escape; warnings are once per session."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

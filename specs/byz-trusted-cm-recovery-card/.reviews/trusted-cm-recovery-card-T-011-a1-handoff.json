@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "T-011",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/recovery-state.js",
+    "packages/byz/test/recovery-state.test.mjs"
+  ],
+  "implementation_sha256": "58ba27bac48e7bcae401e759f8274038ff5b0a898f2322ec37aeae269569b9a8",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs",
+      "status": "passed",
+      "evidence": "6 of 6 focused tests passed, including the three T-011 counterexamples."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency checks, architecture gate, tsgo and browser smoke passed."
+    }
+  ],
+  "evidence": [
+    "YAML explicit-key marker lines beginning with ? or : invalidate the whole review frontmatter.",
+    "Any valid review whose task differs from the selected current task yields needs-reconciliation.",
+    "Any task-shaped checkbox line that is not fully canonical invalidates the whole task source.",
+    "No YAML parser, log projection, runtime dependency or new recovery state was introduced."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

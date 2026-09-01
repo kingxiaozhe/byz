@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "task_id": "T-008",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "scripts/byz-packed-runtime.test.mjs",
+    "specs/byz-trusted-cm-recovery-card/.reviews/trusted-cm-recovery-card-T-008-artifact-receipt.json"
+  ],
+  "implementation_sha256": "3e1147d6fcd8fe5484aa09dc49e42e1ed3a55e2c8f786913d996b83d1b1a21c3",
+  "verification": [
+    {
+      "command": "BYZ_RECOVERY_ARTIFACT_RECEIPT=... node --test scripts/byz-packed-runtime.test.mjs",
+      "status": "passed",
+      "evidence": "Complete repository-external matrix passed after actual installed CLI recovery-card startup."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Repository static gates passed before the final matrix."
+    }
+  ],
+  "evidence": [
+    "Installed BYZ entry point starts in a real pseudo-terminal outside the repository and emits Project recovery with Task T-008.",
+    "Packed module checks still prove untrusted zero-read and startup zero-Git with counters.",
+    "CM fixture content hashes are identical before and after actual startup; no project .git/hooks path is created.",
+    "Installed package has no npm lifecycle scripts, watcher/daemon/test/generated-output paths, undeclared dependency drift, project specs, CM state, secret marker or temporary absolute root.",
+    "Receipt remains privacy-safe and identifies artifact 199f472892aa0751234e93a66e1ddfde7309a0e24a382fe6cb9bc3d04cdcb744 in generation generations/generation-xITgWu/package."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

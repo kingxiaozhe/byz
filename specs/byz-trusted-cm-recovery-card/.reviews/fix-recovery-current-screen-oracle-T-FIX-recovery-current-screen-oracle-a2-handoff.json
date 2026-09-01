@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "task_id": "T-FIX-recovery-current-screen-oracle",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/coding-agent/CHANGELOG.md",
+    "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
+    "packages/coding-agent/test/interactive-mode-status.test.ts",
+    "packages/tui/test/virtual-terminal.ts",
+    "scripts/byz-packed-runtime.test.mjs"
+  ],
+  "implementation_sha256": "e5703b2d57b9cf9bd5521380f1b281df0cd5f454397b29f057380effe59d9aa4",
+  "verification": [
+    {
+      "command": "node --test --test-name-pattern \"current-screen oracle\" scripts/byz-packed-runtime.test.mjs",
+      "status": "passed",
+      "evidence": "/tmp/recovery-current-screen-green-a2.log: erased-history and fragmented UTF-8 cases passed"
+    },
+    {
+      "command": "cd packages/coding-agent && node \"$(git rev-parse --show-toplevel)/node_modules/vitest/dist/cli.js\" --run test/interactive-mode-status.test.ts",
+      "status": "passed",
+      "evidence": "/tmp/recovery-current-screen-green-a2.log: 34 passed"
+    },
+    {
+      "command": "cd packages/tui && node --test test/tui-render.test.ts",
+      "status": "passed",
+      "evidence": "/tmp/recovery-current-screen-green-a2.log: 25 passed"
+    },
+    {
+      "command": "node --test scripts/byz-packed-runtime.test.mjs",
+      "status": "passed",
+      "evidence": "/tmp/recovery-current-screen-green-a2.log: packed suite 2 passed"
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "/tmp/recovery-current-screen-check-a2.log"
+    }
+  ],
+  "evidence": [
+    "/tmp/recovery-current-screen-guard-red.log",
+    "/tmp/recovery-current-screen-utf8-red.log",
+    "/tmp/recovery-current-screen-green-a2.log",
+    "/tmp/recovery-current-screen-check-a2.log",
+    "specs/byz-trusted-cm-recovery-card/.reviews/fix-recovery-current-screen-oracle-T-FIX-recovery-current-screen-oracle-r1.md",
+    "specs/byz-trusted-cm-recovery-card/fixes/20260901-recovery-startup-notification.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

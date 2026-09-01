@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "task_id": "T-008",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "scripts/byz-packed-runtime.test.mjs",
+    "specs/byz-trusted-cm-recovery-card/.reviews/trusted-cm-recovery-card-T-008-artifact-receipt.json"
+  ],
+  "implementation_sha256": "497bb81bea5dc2f60c53330791e102c07d3aade38e9758320b2ee0dd54ce9508",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Current immutable BYZ package image generated before the successful matrix."
+    },
+    {
+      "command": "BYZ_RECOVERY_ARTIFACT_RECEIPT=... node --test scripts/byz-packed-runtime.test.mjs",
+      "status": "passed",
+      "evidence": "One complete final matrix passed and wrote the content-addressed artifact receipt."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Repository static gates passed before the successful matrix."
+    }
+  ],
+  "evidence": [
+    "Artifact 199f472892aa0751234e93a66e1ddfde7309a0e24a382fe6cb9bc3d04cdcb744 from immutable generation generations/generation-xITgWu/package passed.",
+    "Repository-external install and isolated HOME exercise trusted recovery, untrusted zero-read, package privacy, dependency parity, resource precedence and HTML export.",
+    "Package file and bounded text scans reject project specs, CM runtime state, the isolated HOME secret marker and temporary absolute root.",
+    "Two preflight invocations aborted before a complete matrix: first identified a stale generation; second identified insufficient async fixture wait. Neither produced a receipt. The post-fix matrix completed once."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

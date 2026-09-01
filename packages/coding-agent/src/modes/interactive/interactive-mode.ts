@@ -3616,15 +3616,16 @@ export class InteractiveMode {
 	/**
 	 * Show a status message in the chat.
 	 *
-	 * If multiple status messages are emitted back-to-back (without anything else being added to the chat),
-	 * we update the previous status line instead of appending new ones to avoid log spam.
+	 * If multiple single-line status messages are emitted back-to-back (without anything else being added to the chat),
+	 * we update the previous status line instead of appending new ones to avoid log spam. Multiline status cards persist.
 	 */
 	private showStatus(message: string): void {
 		const children = this.chatContainer.children;
 		const last = children.length > 0 ? children[children.length - 1] : undefined;
 		const secondLast = children.length > 1 ? children[children.length - 2] : undefined;
+		const isMultiline = message.includes("\n");
 
-		if (last && secondLast && last === this.lastStatusText && secondLast === this.lastStatusSpacer) {
+		if (!isMultiline && last && secondLast && last === this.lastStatusText && secondLast === this.lastStatusSpacer) {
 			this.lastStatusText.setText(theme.fg("dim", message));
 			this.ui.requestRender();
 			return;
@@ -3634,8 +3635,8 @@ export class InteractiveMode {
 		const text = new Text(theme.fg("dim", message), 1, 0);
 		this.chatContainer.addChild(spacer);
 		this.chatContainer.addChild(text);
-		this.lastStatusSpacer = spacer;
-		this.lastStatusText = text;
+		this.lastStatusSpacer = isMultiline ? undefined : spacer;
+		this.lastStatusText = isMultiline ? undefined : text;
 		this.ui.requestRender();
 	}
 

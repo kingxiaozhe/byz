@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task_id": "T-002",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/recovery-state.js",
+    "packages/byz/test/recovery-state.test.mjs"
+  ],
+  "implementation_sha256": "daf05be142476948f90d93f441a0eca97b806b7d22c4e82586cc851afbc7bdff",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs",
+      "status": "passed",
+      "evidence": "6 of 6 focused tests passed, including unknown nested records, duplicate authority keys, stale blocked reviews and conflict precedence."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository checks passed."
+    }
+  ],
+  "evidence": [
+    "Round-1 findings are covered by adversarial regression inputs in recovery-state.test.mjs.",
+    "TC-005 is covered for T-002. TC-007 is covered only for T-002 sanitizer behavior; exact renderer/ui.notify evidence remains assigned to T-006."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

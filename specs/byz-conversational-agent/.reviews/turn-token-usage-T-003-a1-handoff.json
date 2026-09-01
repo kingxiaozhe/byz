@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "task_id": "T-003",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/test/conversation.test.mjs",
+    "scripts/byz-packed-runtime.test.mjs",
+    "specs/byz-conversational-agent/.reviews/turn-token-usage-T-003-qa.md"
+  ],
+  "implementation_sha256": "07b53df8b87be882fdf668f98e0b9749c3956640a2b23566bc3de3bebc745b45",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "204 passed and one explicit platform skip."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository static gates passed after the final test-harness change."
+    },
+    {
+      "command": "node --test scripts/byz-packed-runtime.test.mjs",
+      "status": "passed",
+      "evidence": "Installed-tarball matrix passed after making the isolated trusted-project fixture explicit."
+    },
+    {
+      "command": "./test.sh",
+      "status": "passed",
+      "evidence": "Full non-E2E workspace regression passed."
+    },
+    {
+      "command": "80x24 tmux with local OpenAI-compatible faux provider",
+      "status": "passed",
+      "evidence": "Observed Tokens unknown, 80/8 during a tool phase, final 180/12/cache 90/0, Session Footer totals, and unchanged non-interactive commands."
+    },
+    {
+      "command": "usage initialization behavior mutant",
+      "status": "passed",
+      "evidence": "Removing per-turn usage initialization made the focused suite red; exact source bytes were restored and hash-checked."
+    }
+  ],
+  "evidence": [
+    "Actual AgentSession faux-provider normal, error, abort and post-abort turns each emitted agent_end and proved reset/cleanup.",
+    "TC-001 through TC-005 are recorded PASS in .reviews/turn-token-usage-T-003-qa.md.",
+    "Packed-runtime's trust-gated recovery smoke now declares defaultProjectTrust=always instead of silently expecting an untrusted project read.",
+    "All temporary resources were released and no real provider, API credential or paid token was used."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -96,6 +96,24 @@ describe("InteractiveMode.showStatus", () => {
 		expect(renderLastLine(fakeThis.chatContainer)).not.toContain("STATUS_ONE");
 	});
 
+	test("preserves multiline status cards when a later status arrives", () => {
+		const fakeThis = {
+			chatContainer: new Container(),
+			ui: { requestRender: vi.fn() },
+			lastStatusSpacer: undefined,
+			lastStatusText: undefined,
+		};
+		const showStatus = Reflect.get(InteractiveMode.prototype, "showStatus");
+		if (typeof showStatus !== "function") throw new Error("InteractiveMode.showStatus is unavailable");
+
+		Reflect.apply(showStatus, fakeThis, ["Project recovery\nTask: T-008"]);
+		Reflect.apply(showStatus, fakeThis, ["Diagnostics enabled"]);
+
+		const rendered = renderAll(fakeThis.chatContainer);
+		expect(rendered).toContain("Project recovery");
+		expect(rendered).toContain("Diagnostics enabled");
+	});
+
 	test("appends a new status line if something else was added in between", () => {
 		const fakeThis: any = {
 			chatContainer: new Container(),

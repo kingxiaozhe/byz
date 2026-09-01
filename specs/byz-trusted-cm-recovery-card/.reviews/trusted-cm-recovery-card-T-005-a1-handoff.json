@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "task_id": "T-005",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/test/architecture.test.mjs"
+  ],
+  "implementation_sha256": "0c2b04883522eaaf4de3c4d9a3b345759cada14b7ddbc1f8ab1442e097dd72f1",
+  "verification": [
+    {
+      "command": "temporary tsgo output + node --test architecture.test.mjs",
+      "status": "passed",
+      "evidence": "16 architecture tests passed against current source bytes."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, architecture, tsgo and repository static gates passed."
+    }
+  ],
+  "evidence": [
+    "Frozen plain RecoveryPort exposes only on and registerCommand.",
+    "Only session_start/session_shutdown and project are accepted.",
+    "All five session reasons are parameterized through real adapter handlers.",
+    "Trust gates dispatch and each lazy summary read; untrusted getEntries count remains zero.",
+    "Recovery context and UI enumerate no raw Pi, SessionManager, filesystem or managed-resource handles."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

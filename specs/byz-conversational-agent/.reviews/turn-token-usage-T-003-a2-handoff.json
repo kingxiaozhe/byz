@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "task_id": "T-003",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/test/conversation.test.mjs",
+    "scripts/byz-packed-runtime.test.mjs",
+    "specs/byz-conversational-agent/.reviews/turn-token-usage-T-003-qa.md"
+  ],
+  "implementation_sha256": "ea170b0528709513c2de60ffd229b80aebbd6e6cd147aea7112fa466f9c625b3",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "/tmp/turn-token-t003-final-focused.log: 18 passed, including observed-usage normal/error/abort/post-abort lifecycle"
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "/tmp/turn-token-t003-final-focused.log: 204 passed and one explicit platform skip"
+    },
+    {
+      "command": "node --test scripts/byz-packed-runtime.test.mjs",
+      "status": "passed",
+      "evidence": "/tmp/recovery-current-screen-green-a2.log: current-screen oracle and installed packed runtime 2 passed"
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "/tmp/recovery-current-screen-check-a2.log"
+    },
+    {
+      "command": "./test.sh",
+      "status": "passed",
+      "evidence": "/tmp/recovery-current-screen-full-regression.log: full non-E2E workspace regression passed"
+    },
+    {
+      "command": "80x24 tmux with local OpenAI-compatible faux provider",
+      "status": "passed",
+      "evidence": "Observed Tokens unknown, 80/8 during a tool phase, final 180/12/cache 90/0, independent Session Footer totals, and unchanged non-interactive commands"
+    },
+    {
+      "command": "finishTurn cleanup mutation probe",
+      "status": "passed",
+      "evidence": "Removing clearElapsedTimer made the cleanup probe fail; exact source bytes were restored and hash-checked"
+    }
+  ],
+  "evidence": [
+    "Actual AgentSession normal, error-after-observed, abort-after-observed and post-abort runs emitted agent_end and proved timer, working-message and turn-usage cleanup.",
+    "Four runs created and cleared exactly four intervals, made five expected faux calls, zero network calls, and no agent-directory writes.",
+    "TC-001 through TC-005 are recorded PASS in .reviews/turn-token-usage-T-003-qa.md.",
+    "The Recovery Card packed-runtime dependency was superseded by approved content-bound review at specs/byz-trusted-cm-recovery-card/.reviews/fix-recovery-current-screen-oracle-T-FIX-recovery-current-screen-oracle-r2.md.",
+    "No real provider, API credential or paid token was used."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

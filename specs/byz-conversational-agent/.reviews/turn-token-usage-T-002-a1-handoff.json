@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "task_id": "T-002",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "6d51237dac2edcd3796cffdbd5133352102a80e467b05e908ab9e49cd964221f",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "17 of 17 Conversation tests passed, including T-001 red regressions and partial/overflow/lifecycle cases."
+    },
+    {
+      "command": "npm --prefix packages/byz run build && node --test packages/byz/test/architecture.test.mjs",
+      "status": "passed",
+      "evidence": "BYZ image built and 16 of 16 architecture tests passed."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency, architecture, tsgo and browser-smoke gates passed with no remaining fixes."
+    }
+  ],
+  "evidence": [
+    "Conversation events expose only safe-integer input/output/cache counts; non-terminal message updates keep usage unavailable and agent_end exposes an aggregate instead of messages.",
+    "Turn accumulator preserves field presence, replaces streaming snapshots, commits each response once, fails closed on cumulative overflow, and accepts agent_end as final authority.",
+    "Working and completion messages display current-turn usage in Chinese and English while Footer remains Session cumulative.",
+    "No new dependency, timer, network, storage or diagnostics path was added.",
+    "Task-only prestate excludes existing Recovery Card bytes in the two dirty-overlap files."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

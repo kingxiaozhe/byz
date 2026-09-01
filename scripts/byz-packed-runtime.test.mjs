@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { VirtualTerminal } from "../packages/tui/test/virtual-terminal.ts";
 
 const packageDir = fileURLToPath(new URL("../packages/byz/", import.meta.url));
 
@@ -17,36 +19,135 @@ function run(command, args, options = {}) {
 	});
 }
 
-function waitForTuiStartup(command, cwd, env) {
+async function listFiles(root, relativeRoot = "") {
+	const files = [];
+	for (const entry of await readdir(join(root, relativeRoot), { withFileTypes: true })) {
+		const relativePath = relativeRoot ? join(relativeRoot, entry.name) : entry.name;
+		if (entry.isDirectory()) files.push(...(await listFiles(root, relativePath)));
+		else if (entry.isFile()) files.push(relativePath.replaceAll("\\", "/"));
+	}
+	return files;
+}
+
+async function snapshotFiles(root) {
+	const entries = [];
+	for (const relativePath of await listFiles(root)) {
+		entries.push([relativePath, createHash("sha256").update(await readFile(join(root, relativePath))).digest("hex")]);
+	}
+	return entries;
+}
+
+function hasStableRecovery(output) {
+	return (
+		output.includes("Project recovery") &&
+		output.includes("Task: T-008") &&
+		output.includes("BYZ 本地诊断已开启")
+	);
+}
+
+function createCurrentScreenOracle(columns = 100, rows = 30) {
+	const terminal = new VirtualTerminal(columns, rows);
+	let pending = Promise.resolve("");
+	return Object.freeze({
+		push(chunk) {
+			pending = pending.then(async () => {
+				terminal.write(chunk);
+				return (await terminal.flushAndGetViewport()).join("\n");
+			});
+			return pending;
+		},
+	});
+}
+
+function pushPtyChunk(screen, chunk) {
+	return screen.push(chunk);
+}
+
+test("current-screen oracle rejects recovery markers erased before diagnostics", async () => {
+	const overwritten = createCurrentScreenOracle();
+	assert.equal(hasStableRecovery(await overwritten.push("\u001b[2J\u001b[HProject recovery\r\nTask: T-008")), false);
+	assert.equal(hasStableRecovery(await overwritten.push("\u001b[2J\u001b[HBYZ 本地诊断已开启")), false);
+
+	const visible = createCurrentScreenOracle();
+	assert.equal(
+		hasStableRecovery(
+			await visible.push("\u001b[2J\u001b[HProject recovery\r\nTask: T-008\r\nBYZ 本地诊断已开启"),
+		),
+		true,
+	);
+
+	const fragmented = createCurrentScreenOracle();
+	const bytes = Buffer.from("\u001b[2J\u001b[HProject recovery\r\nTask: T-008\r\nBYZ 本地诊断已开启");
+	const split = bytes.indexOf(Buffer.from("本")) + 1;
+	assert.equal(hasStableRecovery(await pushPtyChunk(fragmented, bytes.subarray(0, split))), false);
+	assert.equal(hasStableRecovery(await pushPtyChunk(fragmented, bytes.subarray(split))), true);
+});
+
+async function waitForTuiRecovery(command, cwd, env) {
+	if (process.platform === "darwin") {
+		const session = `byz-packed-${process.pid}-${Date.now()}`;
+		let output = "";
+		try {
+			run("tmux", ["new-session", "-d", "-s", session, "-x", "100", "-y", "30", command], { cwd, env });
+			for (let attempt = 0; attempt < 150; attempt += 1) {
+				output = run("tmux", ["capture-pane", "-t", session, "-p"], { cwd, env });
+				if (hasStableRecovery(output)) return;
+				await new Promise((resolve) => setTimeout(resolve, 100));
+			}
+			throw new Error(`Timed out waiting for packed BYZ recovery card. Output:\n${output}`);
+		} finally {
+			try {
+				run("tmux", ["send-keys", "-t", session, "C-c", "C-c"], { cwd, env });
+				run("tmux", ["kill-session", "-t", session], { cwd, env });
+			} catch {}
+		}
+	}
 	return new Promise((resolve, reject) => {
-		const child = spawn("script", ["-qec", command, "/dev/null"], { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
+		const shellCommand = `stty cols 100 rows 30; exec ${JSON.stringify(command)}`;
+		const child = spawn("script", ["-qec", shellCommand, "/dev/null"], {
+			cwd,
+			env,
+			stdio: ["pipe", "pipe", "pipe"],
+		});
+		const screen = createCurrentScreenOracle();
 		let output = "";
 		let started = false;
-		const timeout = setTimeout(() => {
+		let settled = false;
+		const fail = (error) => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timeout);
 			child.kill("SIGTERM");
-			reject(new Error(`Timed out waiting for packed BYZ TUI startup. Output:\n${output}`));
+			reject(error);
+		};
+		const timeout = setTimeout(() => {
+			fail(new Error(`Timed out waiting for packed BYZ TUI startup. Output:\n${output}`));
 		}, 15_000);
 
 		const collect = (chunk) => {
-			output += chunk.toString();
-			if (!started && output.includes("No models available")) {
-				started = true;
-				child.stdin.write("\u0003\u0003");
-			}
+			const text = chunk.toString();
+			output += text;
+			if (settled || started) return;
+			void pushPtyChunk(screen, chunk)
+				.then((viewport) => {
+					if (settled || started || !hasStableRecovery(viewport)) return;
+					started = true;
+					child.stdin.write("\u0003\u0003");
+				})
+				.catch(fail);
 		};
 		child.stdout.on("data", collect);
 		child.stderr.on("data", collect);
-		child.on("error", (error) => {
-			clearTimeout(timeout);
-			reject(error);
-		});
+		child.on("error", fail);
 		child.on("close", (code) => {
+			if (settled) return;
+			settled = true;
 			clearTimeout(timeout);
 			if (started) {
 				resolve();
 				return;
 			}
-			reject(new Error(`Packed BYZ TUI exited with code ${code} before startup. Output:\n${output}`));
+			reject(new Error(`Packed BYZ TUI exited with code ${code} before the recovery card. Output:\n${output}`));
 		});
 	});
 }
@@ -63,6 +164,8 @@ test("packed BYZ initializes its theme and exports HTML outside the repository",
 		mkdir(installDir, { recursive: true }),
 		mkdir(homeDir, { recursive: true }),
 	]);
+	const secretMarker = "PACKED-RECOVERY-SECRET-MUST-NOT-SHIP";
+	await writeFile(join(homeDir, "private-marker.txt"), secretMarker);
 
 	const packOutput = run(process.execPath, [join(packageDir, "scripts", "pack.mjs"), "--pack-destination", tarballDir], {
 		cwd: packageDir,
@@ -99,6 +202,97 @@ test("packed BYZ initializes its theme and exports HTML outside the repository",
 	}
 
 	const byzPackageRoot = join(installDir, "node_modules", "@aibyzero", "byz");
+	const fixture = join(root, "specs", "trusted-recovery");
+	const feature = join(fixture, "1.recovery");
+	await mkdir(feature, { recursive: true });
+	await Promise.all([
+		writeFile(join(fixture, ".cm-specs-status"), JSON.stringify({ status: "approved", features: ["1.recovery"] })),
+		writeFile(
+			join(fixture, ".cm-status.json"),
+			JSON.stringify({ node: "N3", feature: "1.recovery", task: "T-008", state: "running" }),
+		),
+		writeFile(
+			join(fixture, ".cm-run.json"),
+			JSON.stringify({ schema_version: 1, run_id: "packed-recovery", workflow: "cm-ai", status: "running" }),
+		),
+		writeFile(join(feature, "tasks.md"), "- [ ] T-008: packed recovery fixture\n"),
+	]);
+	const inspectRecovery = join(installDir, "inspect-packed-recovery.mjs");
+	await writeFile(
+		inspectRecovery,
+		`import { createRecoveryExtension } from ${JSON.stringify(new URL(`file://${join(byzPackageRoot, "dist", "recovery", "recovery-extension.js")}`).href)};
+function mount(options = {}) {
+  const handlers = new Map();
+  const commands = new Map();
+  createRecoveryExtension(options)({
+    on(name, handler) { handlers.set(name, handler); return Object.freeze({ dispose() {} }); },
+    registerCommand(name, command) { commands.set(name, command); },
+  });
+  return { handlers, commands };
+}
+const notifications = [];
+let gitReads = 0;
+const trusted = mount({ readGitHead: async () => { gitReads += 1; return "0123456789ab"; } });
+trusted.handlers.get("session_start")({}, {
+  cwd: ${JSON.stringify(root)},
+  reason: "startup",
+  isProjectTrusted: () => true,
+  readSessionSummary: () => ({ hasHistory: true }),
+  ui: { notify(message, level) { notifications.push({ message, level }); } },
+});
+for (let attempt = 0; attempt < 100 && notifications.length === 0; attempt += 1) {
+  await new Promise((resolve) => setTimeout(resolve, 20));
+}
+let untrustedReads = 0;
+const untrusted = mount({ readEvidence: async () => { untrustedReads += 1; return { state: "absent" }; } });
+untrusted.handlers.get("session_start")({}, {
+  cwd: ${JSON.stringify(root)},
+  reason: "startup",
+  isProjectTrusted: () => false,
+  readSessionSummary: () => { throw new Error("must not read session"); },
+  ui: { notify() { throw new Error("must not notify"); } },
+});
+await new Promise((resolve) => setImmediate(resolve));
+process.stdout.write(JSON.stringify({ notifications, gitReads, untrustedReads }));
+`,
+	);
+	const recovery = JSON.parse(run(process.execPath, [inspectRecovery], { cwd: installDir, env: isolatedEnv }));
+	assert.equal(recovery.notifications.length, 1);
+	assert.match(recovery.notifications[0].message, /^Project recovery/m);
+	assert.match(recovery.notifications[0].message, /Task: T-008/);
+	assert.match(recovery.notifications[0].message, /Status: resumable/);
+	assert.match(recovery.notifications[0].message, /Session: startup \/ history/);
+	assert.equal(recovery.gitReads, 0);
+	assert.equal(recovery.untrustedReads, 0);
+
+	const packageFiles = await listFiles(byzPackageRoot);
+	assert.equal(packageFiles.some((path) => path.split("/").includes("specs")), false);
+	assert.equal(packageFiles.some((path) => path.endsWith("运行日志.jsonl") || /\/(?:\.cm-status|\.cm-run)/u.test(path)), false);
+	for (const relativePath of packageFiles) {
+		const path = join(byzPackageRoot, relativePath);
+		if ((await stat(path)).size > 2_000_000) continue;
+		const bytes = await readFile(path);
+		if (bytes.includes(0)) continue;
+		const text = bytes.toString("utf8");
+		assert.doesNotMatch(text, new RegExp(secretMarker, "u"));
+		assert.equal(text.includes(root), false, relativePath);
+	}
+	const installedPackageJson = JSON.parse(await readFile(join(byzPackageRoot, "package.json"), "utf8"));
+	const sourcePackageJson = JSON.parse(await readFile(join(packageDir, "package.json"), "utf8"));
+	assert.deepEqual(installedPackageJson.dependencies, sourcePackageJson.dependencies);
+	for (const lifecycle of ["preinstall", "install", "postinstall", "prepare"]) {
+		assert.equal(installedPackageJson.scripts?.[lifecycle], undefined);
+	}
+	assert.equal(
+		packageFiles.some((path) =>
+			path
+				.toLowerCase()
+				.split("/")
+				.some((segment) => ["watcher", "watchers", "daemon", "daemons", "test", ".byz-output"].includes(segment)),
+		),
+		false,
+	);
+
 	const agentDir = join(homeDir, ".byz", "agent");
 	const hostSkillDir = join(agentDir, "skills", "cm-ai");
 	const unrelatedSkillDir = join(agentDir, "skills", "custom-skill");
@@ -160,16 +354,23 @@ process.stdout.write(JSON.stringify({
 	assert.ok(resources.promptCollision.winnerPath.startsWith(byzPackageRoot));
 	assert.equal(resources.promptCollision.loserPath, join(hostPromptDir, "cm-ai.md"));
 
+	await Promise.all([
+		writeFile(join(agentDir, "settings.json"), `${JSON.stringify({ defaultProjectTrust: "always" })}\n`),
+		writeFile(join(agentDir, "trust.json"), `${JSON.stringify({ [await realpath(root)]: true })}\n`),
+	]);
 	const tuiRunner = join(root, "start-byz-tui");
 	await writeFile(tuiRunner, `#!/bin/sh\nexec ${JSON.stringify(byzBin)} --offline\n`);
 	await chmod(tuiRunner, 0o755);
-	if (process.platform === "linux") {
-		await waitForTuiStartup(tuiRunner, root, isolatedEnv);
+	const fixtureBeforeStartup = await snapshotFiles(fixture);
+	if (["darwin", "linux"].includes(process.platform)) {
+		await waitForTuiRecovery(tuiRunner, root, isolatedEnv);
 	} else {
 		assert.ok(
 			(await stat(join(installDir, "node_modules", "@aibyzero", "byz", "dist", "modes", "interactive", "theme", "dark.json"))).isFile(),
 		);
 	}
+	assert.deepEqual(await snapshotFiles(fixture), fixtureBeforeStartup);
+	await assert.rejects(stat(join(root, ".git", "hooks")));
 
 	const sessionPath = join(root, "session.jsonl");
 	const htmlPath = join(root, "session.html");
@@ -200,4 +401,31 @@ process.stdout.write(JSON.stringify({
 	const html = await readFile(htmlPath, "utf8");
 	assert.match(html, /<!DOCTYPE html>/i);
 	assert.match(html, /--exportPageBg:/);
+
+	if (process.env.BYZ_RECOVERY_ARTIFACT_RECEIPT) {
+		await writeFile(
+			process.env.BYZ_RECOVERY_ARTIFACT_RECEIPT,
+			`${JSON.stringify(
+				{
+					schema_version: 1,
+					task: "T-008",
+					package_version: installedPackageJson.version,
+					generation: packed.generationIdentity,
+					artifact_sha256: packed.sha256,
+					matrix: [
+						"isolated-install",
+						"trusted-recovery-card",
+						"untrusted-zero-read",
+						"package-content-privacy",
+						"runtime-dependency-parity",
+						"workflow-resource-precedence",
+						"html-export",
+					],
+					result: "passed",
+				},
+				null,
+				2,
+			)}\n`,
+		);
+	}
 });

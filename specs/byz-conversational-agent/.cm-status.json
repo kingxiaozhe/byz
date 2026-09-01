@@ -1,1 +1,1 @@
-{"node":"N8","feature":"1.conversation-shell","task":"T-016","detail":"Footer Thinking 展示、热更新、独立审查和 QA 全部完成，以 diff 交付","state":"completed","at":"02:10:00"}
+{"node":"N8","feature":"3.turn-token-usage","task":null,"detail":"当前回合 Token usage 已完成最终验收与文档同步","state":"run_done","at":"13:51:00"}

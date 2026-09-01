@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "T-010",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/recovery-state.js",
+    "packages/byz/test/recovery-state.test.mjs"
+  ],
+  "implementation_sha256": "6046106df6a8caa309252d61f17416163dc7a38b603d06988cd34a0088868a17",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs",
+      "status": "passed",
+      "evidence": "6 of 6 focused tests passed, including all three round-1 counterexamples."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency checks, architecture gate, tsgo and browser smoke passed."
+    }
+  ],
+  "evidence": [
+    "Non-array tasks/reviews now invalidate the source projection.",
+    "All quoted or escaped frontmatter scalar keys are rejected before authority projection.",
+    "Multiple incomplete tasks without an explicit current task and run/status lifecycle contradictions reconcile instead of resuming.",
+    "TC-005 is covered by executable regressions; TC-007 remains covered for T-010 sanitizer behavior only."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

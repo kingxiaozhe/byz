@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "task_id": "T-012",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/cm-evidence-reader.js",
+    "packages/byz/src/recovery/safe-read.js",
+    "packages/byz/test/recovery-reader.test.mjs"
+  ],
+  "implementation_sha256": "6acfbf67a524c7d526dce07d3cf3eeadc6c2c14b251ec43423ab12b4b7fd8e1b",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs packages/byz/test/recovery-reader.test.mjs",
+      "status": "passed",
+      "evidence": "16 passed and one platform-explicit junction test skipped on non-Windows."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository static gates passed."
+    }
+  ],
+  "evidence": [
+    "Lifecycle matrix covers running, done+awaiting_review, done+paused, done+blocked and done-resolved.",
+    "Project, specs and leaf identity replacements are independently injected and rejected.",
+    "Non-regular leaf is rejected before open.",
+    "A real Windows junction test is declared with an explicit unsupported-platform skip reason on macOS.",
+    "No product logic changed in T-012."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

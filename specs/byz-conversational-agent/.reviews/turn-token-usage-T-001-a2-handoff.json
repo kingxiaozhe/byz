@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task_id": "T-001",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "1654ee429cf46d86822c7f10e2ad4b598de0321e014ece7f1c6c4e9154a87ed9",
+  "verification": [
+    {
+      "command": "expected-red wrapper around node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "Both usage regressions remain red against existing behavior after adding the requested tool-retention and third-stream-snapshot assertions."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository static gates passed."
+    }
+  ],
+  "evidence": [
+    "TC-001 now ends the first response, enters a tool_execution_start event, and asserts the confirmed 120/8 usage remains visible.",
+    "TC-002 now sends three increasing current-response snapshots before message_end, matching the approved contract.",
+    "No product implementation was added in this tests-only task."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

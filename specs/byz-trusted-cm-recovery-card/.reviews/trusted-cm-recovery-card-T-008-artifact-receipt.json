@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "task": "T-008",
+  "package_version": "0.1.11",
+  "generation": "generations/generation-xITgWu/package",
+  "artifact_sha256": "199f472892aa0751234e93a66e1ddfde7309a0e24a382fe6cb9bc3d04cdcb744",
+  "matrix": [
+    "isolated-install",
+    "trusted-recovery-card",
+    "untrusted-zero-read",
+    "package-content-privacy",
+    "runtime-dependency-parity",
+    "workflow-resource-precedence",
+    "html-export"
+  ],
+  "result": "passed"
+}

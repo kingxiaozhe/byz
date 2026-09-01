@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "task_id": "T-002",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "06fa51cd0986324faf9674d146059e2616b69f85d864ad2e4e0207a880935b1e",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "17 of 17 Conversation tests passed after round-1 fixes."
+    },
+    {
+      "command": "npm --prefix packages/byz run build && node --test packages/byz/test/architecture.test.mjs",
+      "status": "passed",
+      "evidence": "BYZ image built and 16 of 16 architecture tests passed after round-1 fixes."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository static gates passed; focused tests were rerun after formatting."
+    }
+  ],
+  "evidence": [
+    "A normalized all-zero Pi usage record is now unavailable; an observed positive sibling field preserves explicit zero cache fields.",
+    "Reachable non-terminal message_update events can project a positive usage snapshot, while initialized all-zero partials remain unavailable.",
+    "message_end and agent_end regressions cover all-zero missing usage, partial fields, explicit zero, cumulative overflow and no raw message escape.",
+    "TC-004 runtime cancellation/error evidence remains assigned to T-003; T-002 covers extension agent_end and shutdown cleanup units."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

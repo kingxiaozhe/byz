@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "task_id": "T-003",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/cm-evidence-reader.js",
+    "packages/byz/src/recovery/safe-read.js",
+    "packages/byz/test/recovery-reader.test.mjs"
+  ],
+  "implementation_sha256": "bee7fcd8329354f8983f85a8d0ba2a1301eda0b79264ce8e177a66d7cd5279e4",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs packages/byz/test/recovery-reader.test.mjs",
+      "status": "passed",
+      "evidence": "13 focused tests passed after the header-only fix."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository static gates passed."
+    }
+  ],
+  "evidence": [
+    "Review files retain the 512 KiB file cap but only a 32 KiB bounded prefix is physically read.",
+    "Only bytes through the first frontmatter closing delimiter are returned and hashed in the receipt.",
+    "A 100 KiB private review body regression proves the receipt is header-sized and physical reads stop at 32 KiB.",
+    "Attempt-1 containment, identity and all four independent size/count limits remain covered."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}
