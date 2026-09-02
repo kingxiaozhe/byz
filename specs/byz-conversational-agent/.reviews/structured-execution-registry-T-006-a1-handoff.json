@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "task_id": "T-006",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/conversation.test.mjs",
+    "packages/byz/test/execution-extension.test.mjs",
+    "packages/byz/test/execution-registry.test.mjs"
+  ],
+  "implementation_sha256": "d7197a4106ddd84966c8caba7bdbef6d3d6264559260a0a752c6c5d5945f39a9",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs packages/byz/test/architecture.test.mjs",
+      "status": "passed",
+      "evidence": "Inherited pre-change baseline: 40 passed, 0 failed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "Inherited pre-change baseline: 216 passed, 0 failed, 1 skipped."
+    },
+    {
+      "command": "node --test packages/byz/test/execution-registry.test.mjs packages/byz/test/execution-extension.test.mjs packages/byz/test/conversation.test.mjs packages/byz/test/architecture.test.mjs",
+      "status": "passed",
+      "evidence": "Red objective passed: 6 expected failures while the new contracts cover unsupported schema, invalid/illegal replay, in-flight finish rejection, start-time tool binding, generic success and failed check provenance."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository checks passed after replacement-task edits."
+    }
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-001-baseline.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-001-r2.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task_id": "T-002",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/execution/execution-registry.js",
+    "packages/byz/src/execution/execution-schema.js",
+    "packages/byz/test/execution-registry.test.mjs"
+  ],
+  "implementation_sha256": "1d04e262897c8725daf35b8e5630afde66bdab346b5faeb16e53c05bc6bf176e",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/execution-registry.test.mjs",
+      "status": "passed",
+      "evidence": "17 focused tests passed, including observed append failure retry and bounded hostile replay payloads."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository checks passed after round-1 fixes."
+    }
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-002-r1.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

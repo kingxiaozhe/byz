@@ -1,0 +1,20 @@
+
+ BYZ
+
+ 你想让我帮你做什么？
+
+ Warning: tmux extended-keys is off. Modified Enter keys may not work. Add `set
+ -g extended-keys on` to ~/.tmux.conf and restart tmux.
+
+ Warning: Project recovery is unavailable for this session.
+
+
+ execute the structured plan
+
+
+ ⠧ Preparing reply · Step 64/64 · 0m 05s · Tokens 10k
+
+────────────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────────────
+pi  cm/structured-execution-registry--993b2de7  left 9…  execution  thinking off

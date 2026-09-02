@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "task_id": "T-003",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/adapters/pi/pi-execution-adapter.ts",
+    "packages/byz/src/adapters/pi/pi-execution-schema.ts",
+    "packages/byz/src/execution/execution-extension.js",
+    "packages/byz/test/execution-extension.test.mjs",
+    "packages/byz/test/architecture.test.mjs"
+  ],
+  "implementation_sha256": "a8c801d1977e8380ac491480261277b1240666fc7670a99306a1f774ba6c32fb",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/execution-extension.test.mjs packages/byz/test/execution-registry.test.mjs",
+      "status": "passed",
+      "evidence": "29 tests passed, including in-flight cleanup for normal end, cancellation, error, compaction, reload and shutdown."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository checks passed after the lifecycle fix."
+    }
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-003-r1.md",
+    "packages/coding-agent/src/core/agent-session.ts:650-757"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

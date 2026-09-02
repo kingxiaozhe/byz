@@ -1,0 +1,74 @@
+import { createFauxCore, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+
+function findPlanId(value: unknown, depth = 0): string | undefined {
+	if (depth > 8) return undefined;
+	if (typeof value === "string") {
+		try {
+			return findPlanId(JSON.parse(value), depth + 1);
+		} catch {
+			return undefined;
+		}
+	}
+	if (!value || typeof value !== "object") return undefined;
+	if ("planId" in value && typeof value.planId === "string") return value.planId;
+	for (const nested of Object.values(value)) {
+		const planId = findPlanId(nested, depth + 1);
+		if (planId) return planId;
+	}
+	return undefined;
+}
+
+export default function (pi: {
+	registerProvider: (name: string, config: object) => void;
+}) {
+	const faux = createFauxCore({
+		provider: "faux",
+		models: [{ id: "execution", name: "Execution" }],
+		tokensPerSecond: 60,
+	});
+	const model = faux.getModel("execution");
+	if (!model) throw new Error("missing faux model");
+	pi.registerProvider(model.provider, {
+		baseUrl: model.baseUrl,
+		apiKey: "faux-key",
+		api: faux.api,
+		streamSimple: faux.streamSimple,
+		models: faux.models.map((candidate) => ({
+			id: candidate.id,
+			name: candidate.name,
+			api: candidate.api,
+			reasoning: candidate.reasoning,
+			input: candidate.input,
+			cost: candidate.cost,
+			contextWindow: candidate.contextWindow,
+			maxTokens: candidate.maxTokens,
+			baseUrl: candidate.baseUrl,
+		})),
+	});
+
+	const longReply = "x".repeat(2400);
+	if (process.env.BYZ_T009_MODE === "no-plan") {
+		faux.setResponses([fauxAssistantMessage(longReply)]);
+		return;
+	}
+	const tasks = Array.from({ length: 64 }, (_, index) => ({ id: `task-${index + 1}` }));
+	faux.setResponses([
+		fauxAssistantMessage(fauxToolCall("byz_execution", { action: "plan_open", tasks }), { stopReason: "toolUse" }),
+		(context) => {
+			const planId = findPlanId(context);
+			if (!planId) throw new Error("missing plan id after plan_open");
+			return fauxAssistantMessage(fauxToolCall("byz_execution", { action: "plan_seal", planId }), {
+				stopReason: "toolUse",
+			});
+		},
+		(context) => {
+			const planId = findPlanId(context);
+			if (!planId) throw new Error("missing plan id after plan_seal");
+			return fauxAssistantMessage(
+				fauxToolCall("byz_execution", { action: "task_start", planId, taskId: "task-64" }),
+				{ stopReason: "toolUse" },
+			);
+		},
+		fauxAssistantMessage(longReply),
+	]);
+}

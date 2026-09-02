@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "T-004",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/src/cli.js",
+    "packages/byz/scripts/check-architecture.mjs",
+    "packages/byz/test/conversation.test.mjs",
+    "packages/byz/test/architecture.test.mjs"
+  ],
+  "implementation_sha256": "d6a8ba1afa9066137be0413322779450d8c8162a081f72b2c474bc9923e88182",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "29 Conversation tests passed, including bilingual 80-column Step 64/64 with maximum safe Token headline and 64 running tools."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository checks passed after the width-budget fix."
+    }
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-004-r1.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

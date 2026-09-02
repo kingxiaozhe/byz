@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "task_id": "T-002",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/execution/execution-registry.js",
+    "packages/byz/src/execution/execution-schema.js",
+    "packages/byz/test/execution-registry.test.mjs"
+  ],
+  "implementation_sha256": "64fe9ad61414eafcf65b3747c61780eb932f8ba8ff88e85625acbb3ed7adc5e6",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/execution-registry.test.mjs",
+      "status": "passed",
+      "evidence": "15 focused registry tests passed, including append failure, replay recovery, 64-task and 128-receipt boundaries."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency/import/shrinkwrap checks, BYZ architecture, tsgo and browser smoke passed."
+    }
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/4.structured-execution-registry/test-cases.json",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-007-r2.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

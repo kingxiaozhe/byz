@@ -81,7 +81,15 @@ test("Pi extension adapter exposes only feature-scoped capability facades", asyn
 	};
 	const ports = createPiExtensionPorts(pi);
 
-	assert.deepEqual(Object.keys(ports), ["diagnostics", "recovery", "workflow", "fast", "prewalk", "conversation"]);
+	assert.deepEqual(Object.keys(ports), [
+		"diagnostics",
+		"recovery",
+		"workflow",
+		"fast",
+		"prewalk",
+		"conversation",
+		"execution",
+	]);
 	for (const featurePorts of Object.values(ports)) {
 		assert.equal("secretPiCapability" in featurePorts, false);
 		assert.equal("raw" in featurePorts, false);
@@ -99,6 +107,7 @@ test("Pi extension adapter exposes only feature-scoped capability facades", asyn
 	]);
 	assert.deepEqual(Object.keys(ports.prewalk), ["on", "registerCommand", "getAllTools"]);
 	assert.deepEqual(Object.keys(ports.conversation), ["on", "registerCommand"]);
+	assert.deepEqual(Object.keys(ports.execution), ["on", "registerTool", "appendEntry"]);
 	assert.throws(() => ports.diagnostics.on("project_trust", () => {}), /does not allow event/);
 
 	let diagnosticContext;
@@ -289,6 +298,166 @@ test("Pi extension adapter exposes only feature-scoped capability facades", asyn
 	]);
 });
 
+test("Execution facade fixes the tool, event, and Session entry boundaries", async () => {
+	const appended = [];
+	const handlers = new Map();
+	const tools = [];
+	const ports = createPiExtensionPorts({
+		on(name, handler) {
+			handlers.set(name, handler);
+		},
+		registerCommand() {},
+		registerTool(tool) {
+			tools.push(tool);
+		},
+		appendEntry(customType, data) {
+			appended.push({ customType, data });
+		},
+		getAllTools: () => [],
+		getThinkingLevel: () => "high",
+		setThinkingLevel() {},
+		setModel: async () => true,
+	});
+	const startEvents = [];
+	let endEvent;
+	let executionContext;
+	ports.execution.on("tool_execution_start", (event) => {
+		startEvents.push(event);
+	});
+	ports.execution.on("tool_execution_end", (event) => {
+		endEvent = event;
+	});
+	ports.execution.on("session_start", (_event, context) => {
+		executionContext = context;
+	});
+	ports.execution.registerTool(async (input) => ({ accepted: input.action === "plan_open", planId: "plan-1" }));
+	ports.execution.appendEntry({ schemaVersion: 1, sequence: 1, generation: 1, action: "plan_open" });
+
+	assert.equal(tools.length, 1);
+	assert.equal(tools[0].name, "byz_execution");
+	assert.equal(tools[0].parameters.additionalProperties, false);
+	assert.equal(tools[0].parameters.oneOf.length, 6);
+	assert.deepEqual(await tools[0].execute("managed-1", { action: "plan_open" }), {
+		content: [{ type: "text", text: '{"accepted":true,"planId":"plan-1"}' }],
+		details: { accepted: true, planId: "plan-1" },
+	});
+	assert.deepEqual(appended, [
+		{
+			customType: "byz.execution.v1",
+			data: { schemaVersion: 1, sequence: 1, generation: 1, action: "plan_open" },
+		},
+	]);
+	const rawContext = {
+		sessionManager: {
+			getEntries: () => [
+				{ type: "message", message: { role: "user", content: "private" } },
+				{ type: "custom", customType: "other", data: { secret: "drop" } },
+				{
+					type: "custom",
+					customType: "byz.execution.v1",
+					data: { schemaVersion: 1, sequence: 1, generation: 1, action: "plan_open" },
+				},
+			],
+		},
+	};
+	await handlers.get("session_start")({ type: "session_start", reason: "resume" }, rawContext);
+	assert.deepEqual(executionContext.readEntries(), [
+		{ schemaVersion: 1, sequence: 1, generation: 1, action: "plan_open" },
+	]);
+	assert.equal(Object.isFrozen(executionContext.readEntries()[0]), true);
+	await handlers.get("tool_execution_start")(
+		{
+			type: "tool_execution_start",
+			toolCallId: "call-1",
+			toolName: "bash",
+			args: { command: "node --test test/example.test.mjs", secret: "drop" },
+		},
+		rawContext,
+	);
+	for (const [toolCallId, toolName, args] of [
+		["call-2", "bash", { command: "npm run check" }],
+		["call-3", "bash", { command: "npm run build:byz" }],
+		["call-4", "bash", { command: "git status --short" }],
+		["call-5", "bash", { command: "echo ok" }],
+		["call-6", "read", { path: "/private/file" }],
+		["call-7", "write", { path: "/private/file" }],
+	]) {
+		await handlers.get("tool_execution_start")(
+			{ type: "tool_execution_start", toolCallId, toolName, args },
+			rawContext,
+		);
+	}
+	await handlers.get("tool_execution_end")(
+		{
+			type: "tool_execution_end",
+			toolCallId: "call-1",
+			toolName: "bash",
+			result: "private result",
+			isError: false,
+		},
+		rawContext,
+	);
+	await handlers.get("tool_execution_start")(
+		{
+			type: "tool_execution_start",
+			toolCallId: "managed-1",
+			toolName: "byz_execution",
+			args: { action: "task_finish", secret: "drop" },
+		},
+		rawContext,
+	);
+	await handlers.get("tool_execution_end")(
+		{
+			type: "tool_execution_end",
+			toolCallId: "managed-1",
+			toolName: "byz_execution",
+			result: "private result",
+			isError: false,
+		},
+		rawContext,
+	);
+	assert.deepEqual(startEvents, [
+		{
+			type: "tool_execution_start",
+			toolCallId: "call-1",
+			toolCategory: "command",
+			commandCategory: "test",
+		},
+		{
+			type: "tool_execution_start",
+			toolCallId: "call-2",
+			toolCategory: "command",
+			commandCategory: "check",
+		},
+		{
+			type: "tool_execution_start",
+			toolCallId: "call-3",
+			toolCategory: "command",
+			commandCategory: "build",
+		},
+		{
+			type: "tool_execution_start",
+			toolCallId: "call-4",
+			toolCategory: "command",
+			commandCategory: "git",
+		},
+		{
+			type: "tool_execution_start",
+			toolCallId: "call-5",
+			toolCategory: "command",
+			commandCategory: "generic",
+		},
+		{ type: "tool_execution_start", toolCallId: "call-6", toolCategory: "inspect" },
+		{ type: "tool_execution_start", toolCallId: "call-7", toolCategory: "mutation" },
+	]);
+	assert.deepEqual(endEvent, {
+		type: "tool_execution_end",
+		toolCallId: "call-1",
+		outcome: "success",
+	});
+	assert.throws(() => ports.execution.on("message_update", () => {}), /does not allow event/);
+});
+
 for (const reason of ["startup", "reload", "new", "resume", "fork"]) {
 	test(`Recovery facade projects the ${reason} session_start reason through a minimal context`, async () => {
 		let rawHandler;
@@ -477,8 +646,15 @@ test("BYZ composition root injects one feature slice into each extension", async
 	const cli = await readFile(new URL("../src/cli.js", import.meta.url), "utf8");
 	assert.doesNotMatch(cli, /createPiExtensionAdapter/);
 	assert.match(cli, /diagnosticsFeature\(createPiExtensionPorts\(pi\)\.diagnostics\)/);
+	assert.match(cli, /createExecutionRegistry\(\{/);
+	assert.match(cli, /ports\.execution\.appendEntry\(receipt\)/);
+	assert.match(cli, /executionRegistry: executionRegistry\.consumer/);
+	assert.match(cli, /executionExtension\(ports\.execution\)/);
 	assert.match(cli, /conversationExtension\(ports\.conversation\)/);
 	assert.match(cli, /recoveryExtension\(ports\.recovery\)/);
+	assert.ok(
+		cli.indexOf("executionExtension(ports.execution)") < cli.indexOf("conversationExtension(ports.conversation)"),
+	);
 	assert.ok(
 		cli.indexOf("conversationExtension(ports.conversation)") < cli.indexOf("recoveryExtension(ports.recovery)"),
 	);
@@ -561,6 +737,7 @@ test("rejects raw Pi injection at the BYZ composition root", () =>
 			[
 				"diagnosticsFeature(createPiExtensionPorts(pi).diagnostics);",
 				"conversationExtension(pi);",
+				"executionExtension(ports.execution);",
 				"workflowExtension(ports.workflow);",
 				"fastController.extension(ports.fast);",
 				"prewalkExtension(ports.prewalk);",

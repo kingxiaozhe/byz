@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "task_id": "T-009",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/adapters/pi/pi-execution-adapter.ts",
+    "packages/byz/src/execution/execution-extension.js",
+    "packages/byz/src/execution/execution-registry.js",
+    "packages/byz/test/execution-extension.test.mjs",
+    "packages/byz/test/execution-registry.test.mjs",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-r1.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-r2.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-009-command-evidence.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-009-evidence-script.sh.txt",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-009-faux-extension.ts.txt",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-009-qa.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-009-tui-no-plan.txt",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-009-tui-plan.txt",
+    "specs/byz-conversational-agent/4.structured-execution-registry/requirements.md",
+    "specs/byz-conversational-agent/4.structured-execution-registry/tasks.md",
+    "specs/byz-conversational-agent/4.structured-execution-registry/test-cases.json"
+  ],
+  "implementation_sha256": "b6b9d5022aa76f14185a2e537bac8b95a19c402bb61672b7fe7ec5554c1132f8",
+  "verification": [
+    {
+      "command": "bash specs/byz-conversational-agent/.reviews/structured-execution-registry-T-009-evidence-script.sh.txt",
+      "status": "passed",
+      "evidence": "Persisted exact script produced 13 recorded exit_code=0 results and removed all isolated resources."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "254 passed, 0 failed, 1 platform-specific skip."
+    },
+    {
+      "command": "focused Feature 4 tests",
+      "status": "passed",
+      "evidence": "78 passed, 0 failed."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "No fixes; exit 0."
+    },
+    {
+      "command": "real BYZ TUI in isolated 80x24 tmux",
+      "status": "passed",
+      "evidence": "No-plan pane omitted progress; managed 64-task pane contained exactly one single-line Step 64/64; both captures were at most 80 Unicode code points."
+    }
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-r1.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-r2.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-009-command-evidence.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-009-evidence-script.sh.txt",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-009-faux-extension.ts.txt",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-009-tui-no-plan.txt",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-009-tui-plan.txt",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-009-qa.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -17,6 +17,7 @@ import type {
 	ToolDescriptor,
 	WorkflowContext,
 } from "../../application/ports/runtime.ts";
+import { createPiExecutionPort } from "./pi-execution-adapter.ts";
 
 type ProductProfileOptions = { productProfile?: RuntimeProductProfile };
 type PiHandler = (event: unknown, context: PiContextLike) => unknown | Promise<unknown>;
@@ -117,7 +118,6 @@ const CONVERSATION_EVENTS = new Set([
 	"before_agent_start",
 ]);
 const MODEL_REFERENCE_IDENTITIES = new WeakMap<ModelReference, { provider: string; id: string }>();
-
 function asRecord(value: unknown): Record<string, unknown> {
 	return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }
@@ -663,8 +663,9 @@ export function createPiExtensionPorts(pi: PiExtensionApiLike): PiFeaturePorts {
 			registerCommand(pi, "conversation", new Set(["details", "language"]), name, command, conversationContext);
 		},
 	});
+	const execution = createPiExecutionPort(pi);
 
-	return Object.freeze({ diagnostics, recovery, workflow, fast, prewalk, conversation });
+	return Object.freeze({ diagnostics, recovery, workflow, fast, prewalk, conversation, execution });
 }
 
 export function createPiRuntimeAdapter<TOptions extends ProductProfileOptions>(

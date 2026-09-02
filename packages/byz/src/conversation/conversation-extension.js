@@ -27,6 +27,12 @@ const EXECUTION_TEXT = {
 			waiting: "等待确认",
 		},
 		runningTools: (count) => `${count} 个工具运行`,
+		step: (ordinal, total) => `步骤 ${ordinal}/${total}`,
+		completed: (completed, total) => `完成 ${completed}/${total}`,
+		blocked: (count) => `阻塞 ${count}`,
+		verified: (count) => `已验证 ${count}`,
+		planDetails: (parts) => `执行计划：${parts.join("；")}`,
+		planUnavailable: "执行计划：不可用（invalid_record）",
 		completion: "完成",
 		modelActive: (elapsed) => `BYZ 思考了 ${elapsed}`,
 		toolSummary: (calls, failures) => `工具 ${calls} 次${failures > 0 ? `（${failures} 次失败）` : ""}`,
@@ -44,6 +50,12 @@ const EXECUTION_TEXT = {
 			waiting: "Waiting for confirmation",
 		},
 		runningTools: (count) => `${count} ${count === 1 ? "tool" : "tools"} running`,
+		step: (ordinal, total) => `Step ${ordinal}/${total}`,
+		completed: (completed, total) => `completed ${completed}/${total}`,
+		blocked: (count) => `${count} blocked`,
+		verified: (count) => `${count} verified`,
+		planDetails: (parts) => `Execution plan: ${parts.join("; ")}`,
+		planUnavailable: "Execution plan: unavailable (invalid_record)",
 		completion: "Done",
 		modelActive: (elapsed) => `BYZ thought for ${elapsed}`,
 		toolSummary: (calls, failures) =>
@@ -491,6 +503,58 @@ function formatTurnUsageSummary(usage, language) {
 	return `${language === LANGUAGE_EN ? "Tokens: " : "Token："}${parts.join(language === LANGUAGE_EN ? "; " : "；")}`;
 }
 
+function isSafeCount(value, maximum = Number.MAX_SAFE_INTEGER) {
+	return Number.isSafeInteger(value) && value >= 0 && value <= maximum;
+}
+
+function readExecutionFacts(executionRegistry) {
+	if (!executionRegistry?.snapshot) return undefined;
+	try {
+		const snapshot = executionRegistry.snapshot();
+		if (snapshot?.availability === "empty") return undefined;
+		if (snapshot?.availability === "unavailable") return { availability: "unavailable" };
+		const plan = snapshot?.availability === "available" ? snapshot.plan : undefined;
+		if (plan?.state === "drafting") return undefined;
+		if (!["sealed", "terminal"].includes(plan?.state)) return { availability: "unavailable" };
+		if (!isSafeCount(plan.total, 64) || plan.total < 1) return { availability: "unavailable" };
+		const counts = plan.counts;
+		if (
+			!isSafeCount(counts?.completed, plan.total) ||
+			!isSafeCount(counts?.blocked, plan.total) ||
+			!isSafeCount(counts?.cancelled, plan.total) ||
+			!isSafeCount(counts?.verifiedEvidence, 128) ||
+			counts.completed + counts.blocked + counts.cancelled > plan.total
+		) {
+			return { availability: "unavailable" };
+		}
+		const active =
+			plan.state === "sealed" && isSafeCount(plan.active?.ordinal, plan.total) && plan.active.ordinal >= 1
+				? { ordinal: plan.active.ordinal }
+				: undefined;
+		return {
+			availability: "available",
+			total: plan.total,
+			active,
+			completed: counts.completed,
+			blocked: counts.blocked,
+			verified: counts.verifiedEvidence,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+function executionFactParts(facts, language, includeStep = true) {
+	if (facts?.availability !== "available") return [];
+	const copy = EXECUTION_TEXT[language];
+	const parts = [];
+	if (includeStep && facts.active) parts.push(copy.step(facts.active.ordinal, facts.total));
+	parts.push(copy.completed(facts.completed, facts.total));
+	if (facts.blocked > 0) parts.push(copy.blocked(facts.blocked));
+	if (facts.verified > 0) parts.push(copy.verified(facts.verified));
+	return parts;
+}
+
 function truncateText(text, width) {
 	if (width <= 0) return "";
 	if (text.length <= width) return text;
@@ -678,25 +742,43 @@ function timingValues(state, snapshot) {
 	};
 }
 
-function renderProgressCard(state, snapshot, usage, execution, options = {}) {
+function joinCompactStatus(requiredParts, optionalPart) {
+	const withOptional = optionalPart
+		? [...requiredParts.slice(0, -2), optionalPart, ...requiredParts.slice(-2)]
+		: requiredParts;
+	const candidate = withOptional.join(" · ");
+	return candidate.length <= 80 ? candidate : requiredParts.join(" · ");
+}
+
+function renderProgressCard(state, snapshot, usage, execution, executionFacts, options = {}) {
 	const copy = textFor(state.language);
+	const executionCopy = EXECUTION_TEXT[state.language];
 	if (options.compact) {
-		const executionCopy = EXECUTION_TEXT[state.language];
 		const stage = snapshot.waiting ? "waiting" : execution.selectedStage;
 		const parts = [executionCopy.status[stage] ?? executionCopy.status.think];
-		if (execution.inFlightCount > 0) parts.push(executionCopy.runningTools(execution.inFlightCount));
+		if (executionFacts?.availability === "available" && executionFacts.active) {
+			parts.push(executionCopy.step(executionFacts.active.ordinal, executionFacts.total));
+		}
 		parts.push(formatElapsed(snapshot.totalMs, state.language), formatTurnUsageHeadline(usage, state.language));
-		return parts.join(" · ");
+		return joinCompactStatus(
+			parts,
+			execution.inFlightCount > 0 ? executionCopy.runningTools(execution.inFlightCount) : undefined,
+		);
 	}
-	const activity = getActivitySummary(state);
+	const lines = [...copy.detailLines({ state, activity: getActivitySummary(state) })];
+	if (executionFacts?.availability === "available") {
+		lines.push(executionCopy.planDetails(executionFactParts(executionFacts, state.language)));
+	} else if (executionFacts?.availability === "unavailable") {
+		lines.push(executionCopy.planUnavailable);
+	}
 	return [
-		...copy.detailLines({ state, activity }),
+		...lines,
 		...copy.timingLines(timingValues(state, snapshot)),
 		formatTurnUsageSummary(usage, state.language),
 	].join("\n");
 }
 
-function renderTimingSummary(state, snapshot, usage, execution) {
+function renderTimingSummary(state, snapshot, usage, execution, executionFacts) {
 	const language = state.language;
 	const executionCopy = EXECUTION_TEXT[language];
 	const modelActiveMs = snapshot.stages.reduce(
@@ -712,7 +794,10 @@ function renderTimingSummary(state, snapshot, usage, execution) {
 	if (execution.toolCalls > 0) secondLine.push(executionCopy.toolSummary(execution.toolCalls, execution.toolFailures));
 	if (snapshot.waitingMs > 0)
 		secondLine.push(executionCopy.waitingSummary(formatElapsed(snapshot.waitingMs, language)));
-	return `${firstLine}\n${secondLine.join(" · ")}`;
+	const lines = [firstLine, secondLine.join(" · ")];
+	const facts = executionFactParts(executionFacts, language, false);
+	if (facts.length > 0) lines.push(facts.join(" · "));
+	return lines.join("\n");
 }
 
 function stageForTool(toolName) {
@@ -762,6 +847,9 @@ export function createConversationExtension(options = {}) {
 	const now = options.now ?? (() => performance.now());
 	const scheduleInterval = options.setInterval ?? setInterval;
 	const cancelInterval = options.clearInterval ?? clearInterval;
+	const scheduleTimeout = options.setTimeout ?? setTimeout;
+	const cancelTimeout = options.clearTimeout ?? clearTimeout;
+	const executionRegistry = options.executionRegistry;
 	let savedDetailMode = getSavedDetailMode();
 	let savedLanguage = getSavedLanguage();
 	let currentLanguage = detectLanguage("", savedLanguage);
@@ -777,9 +865,10 @@ export function createConversationExtension(options = {}) {
 		let currentThinkingLevel = "off";
 		let progressState = createProgressState(currentLanguage);
 		let activeCtx;
+		executionRegistry?.subscribe?.(() => publishWorking());
 
 		function clearProgressTimer() {
-			if (progressTimer !== undefined) clearTimeout(progressTimer);
+			if (progressTimer !== undefined) cancelTimeout(progressTimer);
 			progressTimer = undefined;
 		}
 
@@ -800,9 +889,14 @@ export function createConversationExtension(options = {}) {
 		function publishWorking() {
 			if (!activeCtx || !turnTiming || !turnExecution || !progressState.visible) return;
 			activeCtx.ui.setWorkingMessage?.(
-				renderProgressCard(progressState, turnTiming.snapshot(), turnUsage?.snapshot(), turnExecution.snapshot(), {
-					compact: !policy.isDetailEnabled(),
-				}),
+				renderProgressCard(
+					progressState,
+					turnTiming.snapshot(),
+					turnUsage?.snapshot(),
+					turnExecution.snapshot(),
+					readExecutionFacts(executionRegistry),
+					{ compact: !policy.isDetailEnabled() },
+				),
 			);
 		}
 
@@ -826,8 +920,12 @@ export function createConversationExtension(options = {}) {
 				return;
 			}
 			const snapshot = turnTiming.finish();
-			if (options.notify && activeCtx)
-				activeCtx.ui.notify(renderTimingSummary(progressState, snapshot, usage, execution), "info");
+			if (options.notify && activeCtx) {
+				activeCtx.ui.notify(
+					renderTimingSummary(progressState, snapshot, usage, execution, readExecutionFacts(executionRegistry)),
+					"info",
+				);
+			}
 			turnTiming = undefined;
 		}
 
@@ -887,7 +985,7 @@ export function createConversationExtension(options = {}) {
 			elapsedTimer = scheduleInterval(() => {
 				if (generation === turnGeneration) publishWorking();
 			}, 1_000);
-			progressTimer = setTimeout(() => {
+			progressTimer = scheduleTimeout(() => {
 				if (generation !== turnGeneration) return;
 				publishProgress();
 			}, progressCardDelayMs);

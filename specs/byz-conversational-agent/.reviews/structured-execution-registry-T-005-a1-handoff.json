@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "task_id": "T-005",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/test/execution-extension.test.mjs",
+    "specs/byz-conversational-agent/4.structured-execution-registry/requirements.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-qa.md"
+  ],
+  "implementation_sha256": "c68b19a9e59292fac006ef8b0c10918dbe080124af95557f82b5df229b05f757",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "252 passed, 0 failed, 1 platform-specific skip."
+    },
+    {
+      "command": "node --test packages/byz/test/execution-extension.test.mjs packages/byz/test/execution-registry.test.mjs packages/byz/test/conversation.test.mjs packages/byz/test/architecture.test.mjs",
+      "status": "passed",
+      "evidence": "76 focused tests passed, including real AgentSession/faux 64-task plan and 80-column output."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository checks passed."
+    },
+    {
+      "command": "80x24 isolated tmux plus built CLI noninteractive smoke",
+      "status": "passed",
+      "evidence": "No-plan interactive startup omitted Step/Tasks and stayed within 80 Unicode columns; --version and --workflow none --version returned 0.1.12."
+    }
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-qa.md",
+    "specs/byz-conversational-agent/4.structured-execution-registry/test-cases.json"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}
