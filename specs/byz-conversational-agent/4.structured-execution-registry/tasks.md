@@ -46,7 +46,7 @@
 
 ### Managed tool 与 runtime evidence
 
-- [ ] T-003: [NEW] 扩展 BYZ application port 与 Pi Adapter，注册 closed `byz_execution` managed tool，投影专用 Session custom entries 和 bounded tool lifecycle；实现 active-task 绑定、并行/乱序 receipt、ephemeral command classifier（仅 categorized observed）及 formal runtime/trusted workflow verified receipt 边界 ~1h
+- [x] T-003: [NEW] 扩展 BYZ application port 与 Pi Adapter，注册 closed `byz_execution` managed tool，投影专用 Session custom entries 和 bounded tool lifecycle；实现 active-task 绑定、并行/乱序 receipt、ephemeral command classifier（仅 categorized observed）及 formal runtime/trusted workflow verified receipt 边界 ~1h
   - 模块: `packages/byz/src/application/ports/runtime.ts`、`packages/byz/src/adapters/pi/pi-runtime-adapter.ts`、registry extension/tests；如现有 Pi extension API 不足，仅补最小 product-neutral runtime API
   - 依赖: T-008
   - 覆盖: AC-005 至 AC-009、AC-012、AC-013

@@ -359,7 +359,7 @@ test("stores no raw command, arguments, result, path, or error text in observed 
 	});
 	const receipt = harness.entries.at(-1);
 	assert.deepEqual(Object.keys(receipt.payload).sort(), ["category", "outcome", "taskId", "toolCallId"]);
-	assert.doesNotMatch(JSON.stringify(receipt), /cat|private|result|error|command|args/);
+	assert.doesNotMatch(JSON.stringify(receipt), /cat \/private|private|result|error|command|args/);
 });
 
 test("replays only projected execution entries on Session start", async () => {
@@ -381,12 +381,58 @@ test("replays only projected execution entries on Session start", async () => {
 	assert.deepEqual(restored.entries, []);
 });
 
-test("agent and Session lifecycle never complete active or pending tasks", async () => {
-	const harness = createHarness();
-	await createActivePlan(harness);
-	const before = harness.registry.snapshot();
-	for (const name of ["agent_end", "session_shutdown"]) {
-		await harness.handlers.get(name)({ type: name }, { readEntries: () => [] });
+test("agent, cancellation, error, compaction, reload, and shutdown only clear in-flight bindings", async () => {
+	for (const scenario of [
+		{ event: "agent_end", reason: "normal" },
+		{ event: "agent_end", reason: "cancelled" },
+		{ event: "agent_end", reason: "error" },
+		{ event: "session_before_compact", reason: "overflow" },
+		{ event: "session_shutdown", reason: "shutdown" },
+	]) {
+		const harness = createHarness();
+		const planId = await createActivePlan(harness);
+		await harness.handlers.get("tool_execution_start")({
+			toolCallId: `in-flight-${scenario.reason}`,
+			toolCategory: "inspect",
+			commandCategory: "generic",
+		});
+		const before = harness.registry.snapshot();
+		await harness.handlers.get(scenario.event)({ type: scenario.event, reason: scenario.reason });
 		assert.deepEqual(harness.registry.snapshot(), before);
+		assert.equal(
+			(
+				await harness.getTool()({
+					action: "task_finish",
+					planId,
+					taskId: "A",
+					outcome: "completed",
+				})
+			).accepted,
+			true,
+		);
 	}
+	const reloaded = createHarness();
+	const planId = await createActivePlan(reloaded);
+	await reloaded.handlers.get("tool_execution_start")({
+		toolCallId: "in-flight-reload",
+		toolCategory: "inspect",
+		commandCategory: "generic",
+	});
+	const beforeReload = reloaded.registry.snapshot();
+	await reloaded.handlers.get("session_start")(
+		{ type: "session_start", reason: "reload" },
+		{ readEntries: () => reloaded.entries.map((entry) => structuredClone(entry)) },
+	);
+	assert.deepEqual(reloaded.registry.snapshot(), beforeReload);
+	assert.equal(
+		(
+			await reloaded.getTool()({
+				action: "task_finish",
+				planId,
+				taskId: "A",
+				outcome: "completed",
+			})
+		).accepted,
+		true,
+	);
 });

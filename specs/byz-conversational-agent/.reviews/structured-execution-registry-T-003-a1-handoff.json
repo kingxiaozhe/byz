@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "task_id": "T-003",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/adapters/pi/pi-execution-adapter.ts",
+    "packages/byz/src/adapters/pi/pi-execution-schema.ts",
+    "packages/byz/src/execution/execution-extension.js",
+    "packages/byz/test/execution-extension.test.mjs",
+    "packages/byz/test/architecture.test.mjs"
+  ],
+  "implementation_sha256": "741b81034a5532f700f1d3666c0065414d7a651c07ea82574a3151b398db2804",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/execution-extension.test.mjs packages/byz/test/execution-registry.test.mjs",
+      "status": "passed",
+      "evidence": "29 managed tool, provenance, replay, atomicity and registry tests passed."
+    },
+    {
+      "command": "node --experimental-strip-types --test /tmp/byz-source-architecture.test.mjs",
+      "status": "passed",
+      "evidence": "17 architecture cases passed against the source TypeScript adapter through an ephemeral import rewrite; no generated package image was rebuilt."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, pinned dependency/import/shrinkwrap checks, BYZ architecture, tsgo and browser smoke passed."
+    }
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/4.structured-execution-registry/test-cases.json",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-008-r1.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -336,6 +336,11 @@ test("Execution facade fixes the tool, event, and Session entry boundaries", asy
 	assert.equal(tools.length, 1);
 	assert.equal(tools[0].name, "byz_execution");
 	assert.equal(tools[0].parameters.additionalProperties, false);
+	assert.equal(tools[0].parameters.oneOf.length, 6);
+	assert.deepEqual(await tools[0].execute("managed-1", { action: "plan_open" }), {
+		content: [{ type: "text", text: '{"accepted":true,"planId":"plan-1"}' }],
+		details: { accepted: true, planId: "plan-1" },
+	});
 	assert.deepEqual(appended, [
 		{
 			customType: "byz.execution.v1",
@@ -387,6 +392,25 @@ test("Execution facade fixes the tool, event, and Session entry boundaries", asy
 			type: "tool_execution_end",
 			toolCallId: "call-1",
 			toolName: "bash",
+			result: "private result",
+			isError: false,
+		},
+		rawContext,
+	);
+	await handlers.get("tool_execution_start")(
+		{
+			type: "tool_execution_start",
+			toolCallId: "managed-1",
+			toolName: "byz_execution",
+			args: { action: "task_finish", secret: "drop" },
+		},
+		rawContext,
+	);
+	await handlers.get("tool_execution_end")(
+		{
+			type: "tool_execution_end",
+			toolCallId: "managed-1",
+			toolName: "byz_execution",
 			result: "private result",
 			isError: false,
 		},

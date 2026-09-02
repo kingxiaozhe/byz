@@ -110,6 +110,22 @@ export type RecoveryPort = EventPort<RecoveryContext> & CommandRegistrationPort<
 export type WorkflowPort = EventPort<WorkflowContext> & CommandRegistrationPort<WorkflowContext>;
 export type ConversationPort = EventPort<ConversationContext> & CommandRegistrationPort<ConversationContext>;
 
+export interface ExecutionContext {
+	readEntries(): readonly unknown[];
+}
+
+export interface ExecutionToolResult {
+	accepted: boolean;
+	errorCode?: string;
+	planId?: string;
+	counts?: Readonly<Record<string, number>>;
+}
+
+export interface ExecutionPort extends EventPort<ExecutionContext> {
+	registerTool(execute: (input: unknown) => ExecutionToolResult | Promise<ExecutionToolResult>): void;
+	appendEntry(entry: unknown): void;
+}
+
 export interface FastPort extends EventPort<FastContext>, CommandRegistrationPort<FastContext> {
 	getThinkingLevel(): ThinkingLevel;
 	setModel(model: ModelReference): Promise<boolean>;
@@ -127,6 +143,7 @@ export interface PiFeaturePorts {
 	fast: FastPort;
 	prewalk: PrewalkPort;
 	conversation: ConversationPort;
+	execution: ExecutionPort;
 }
 
 export interface RuntimeProductProfile {
