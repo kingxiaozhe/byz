@@ -79,6 +79,22 @@ Completion uses two lines: total elapsed time and Token headline, followed by cl
 
 The interactive footer shows the current effective Thinking level next to the model. Shift+Tab, `/thinking`, Fast, and model capability changes update it immediately without `/reload`.
 
+## Structured execution registry
+
+BYZ can track a long turn through the managed, closed-schema `byz_execution` tool. A plan becomes visible only after the runtime has atomically accepted 1–64 unique tasks and explicitly sealed the plan. When one task is active, the compact status can append a real position:
+
+```text
+Preparing reply · Step 64/64 · 0m 05s · Tokens 10k
+```
+
+BYZ never derives tasks, evidence, or progress from prompts, assistant prose, CM specification task counts, tool output, or guessed percentages. Invalid, stale, oversized, or damaged transitions fail closed and do not expose a total or ordinal.
+
+Task transitions and bounded evidence receipts are appended to existing Session custom entries before they become visible in memory. Reloading or resuming the same Session replays those entries; BYZ does not create a project task database or global memory. Lifecycle boundaries such as cancellation, errors, compaction, reload, and shutdown close in-flight tool observations without marking tasks complete.
+
+Evidence remains separated into model-declared, runtime-observed, and formally verified facts. A successful command classification is still only observed evidence; it does not become “tests passed” without a fully bound trusted receipt. Stored observations never include commands, arguments, paths, results, prompts, responses, or free-form errors.
+
+Conversation and future pause/delivery features receive only the same deeply frozen plain-data snapshot. They cannot mutate registry state or bypass its transition rules.
+
 ## Project recovery
 
 For a trusted project with valid CM state, BYZ shows a read-only recovery card at interactive startup. The card summarizes the current feature, task, CM node/state, Session history, and next CM entry without creating a second task or memory store.

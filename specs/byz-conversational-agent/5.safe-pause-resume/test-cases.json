@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "1.0",
+  "feature": "safe-pause-resume",
+  "cases": [
+    {
+      "id": "TC-001",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-001", "AC-004", "AC-005", "AC-006"],
+      "taskIds": ["T-001", "T-004"],
+      "title": "Pause 命令状态机不占用 Pi resume 入口",
+      "preconditions": ["Agent idle/running 状态可控", "Pi 历史 Session selector 可观察"],
+      "steps": ["idle 执行 /pause", "running 执行 /pause 和重复 /pause", "执行 /pause status、/pause resume 两次", "执行 /resume"],
+      "expected": ["idle 不 arm 下一回合", "running 只建立一个 request", "status 区分 running/requested/paused 且重复 resume 安全", "/resume 仍打开历史 Session selector"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-002",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-002", "AC-008", "AC-013"],
+      "taskIds": ["T-001", "T-002", "T-003"],
+      "title": "所有 Provider 路径在统一 model request gate 暂停",
+      "preconditions": ["faux provider 可触发 normal、retry、compaction、summarization 及 retry"],
+      "steps": ["在当前 stream 中请求 pause", "分别触发下一 Agent request、auto retry、auto/manual compaction、branch/session summarization", "暂停后观察 provider call count", "resume"],
+      "expected": ["当前 stream 不被中断", "每条路径下一真实 Provider 请求前都进入同一 payload-free gate", "paused 期间 call count 不增加", "resume 后恰好继续一次"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-003",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-003", "AC-004", "AC-008"],
+      "taskIds": ["T-001", "T-003", "T-004"],
+      "title": "Admitted 与 in-flight 工具批次收口后才真正暂停",
+      "preconditions": ["工具 A 已通过 tool_call 尚未 start", "工具 B 已 start", "工具 C 尚未到达 hook"],
+      "steps": ["请求 pause", "让 C 到达 tool_call", "乱序完成 A/B", "观察 paused", "resume"],
+      "expected": ["A/B 允许安全完成", "C 不被放行", "admitted 与 in-flight 都清空后才显示 paused", "resume 后 C 最多执行一次"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-004",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-007", "AC-008", "AC-009"],
+      "taskIds": ["T-001", "T-003"],
+      "title": "Typed gate 取消不会误授权旧 action 或 continuation",
+      "preconditions": ["tool/model gate 已 paused", "可触发 retry agent_end、agent_settled、abort、reload、shutdown"],
+      "steps": ["先触发带 continuation 的 agent_end", "分别以 abort、agent_settled、reload、shutdown 取消 gate", "启动新 generation", "调用旧 resume continuation"],
+      "expected": ["普通 agent_end 不丢 pause request", "cancelled outcome 阻止旧 tool/provider action", "Session 可退出无 hanging promise", "旧 continuation 不污染新 generation"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-005",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-007", "AC-010"],
+      "taskIds": ["T-001", "T-003", "T-004"],
+      "title": "Confirmation lease 阻止嵌套 pause 并保留原确认",
+      "preconditions": ["Conversation confirmation modal 正在等待"],
+      "steps": ["在 modal 输入 /pause", "读取 pause status", "输入无效选择后再输入确认", "结束 turn"],
+      "expected": ["显示确认期间不可暂停", "不建立 pause gate", "/pause 不触发 fallback confirm 且 modal 继续", "confirmation timing 正常收口"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-006",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-005", "AC-007", "AC-009", "AC-011", "AC-012", "AC-013"],
+      "taskIds": ["T-003", "T-004"],
+      "title": "Paused 边界冻结完整 registry 事实且 receipt 失败不产生隐式 request",
+      "preconditions": ["Registry 在 request 后、paused 前可新增 evidence", "Session append 可失败"],
+      "steps": ["请求 pause 后让已 admitted 工具完成并增加 evidence", "进入 paused 并读取 snapshot", "模拟 audit append 失败", "resume 并重启 Session"],
+      "expected": ["paused snapshot 含边界时最新 task/evidence 事实", "pause 不修改 registry counts", "append 失败只产生 warning且命令状态明确", "重启后历史 paused 为 stale而非可 resume"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-007",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-007", "AC-011", "AC-012"],
+      "taskIds": ["T-001", "T-003", "T-004"],
+      "title": "Model、tool、pause 与 confirmation 时间独立分账",
+      "preconditions": ["monotonic clock 可控"],
+      "steps": ["推进 10 秒 model、5 秒 tool、8 秒 pause、4 秒 confirmation", "完成 turn", "读取 compact/details/completion"],
+      "expected": ["四类区间分别计入对应 bucket", "BYZ 模型活跃时间不含 tool/pause/confirmation", "pause 与 confirmation 分别显示", "输出不含 raw command/path/payload"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-008",
+      "origin": "generated",
+      "kind": "browser",
+      "blocking": true,
+      "acIds": ["AC-002", "AC-003", "AC-004", "AC-012", "AC-013", "AC-014"],
+      "taskIds": ["T-005"],
+      "title": "80 列真实 TUI 验证 requested、paused、resume、abort 和隔离",
+      "preconditions": ["80x24 tmux", "隔离 HOME", "faux provider 和 delayed parallel tools"],
+      "steps": ["长 turn 中请求 pause", "观察 requested 和 paused", "resume 后再次 pause 并 abort", "运行 --version 和 workflow 命令"],
+      "expected": ["requested 不冒充 paused", "paused 无新 provider/tool", "resume/abort 无旧回调污染", "状态保持可读且无 raw fields", "非交互输出不变"],
+      "cleanup": ["关闭 tmux、释放 gate、删除隔离 HOME"]
+    }
+  ]
+}

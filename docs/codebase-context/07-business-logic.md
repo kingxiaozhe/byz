@@ -26,13 +26,27 @@
 
 **关键规则**：
 
-- Compact status starts only after two seconds and refreshes at most once per second. Short turns do not flash custom status; no runtime Tasks registry or percentage is invented.
+- Compact status starts only after two seconds and refreshes at most once per second. Short turns do not flash custom status; without a sealed execution-registry plan, no Tasks, total, ordinal, or percentage is invented.
 - Tool starts/ends pair only by stable `toolCallId`; duplicate, unknown, missing, parallel, and out-of-order events cannot produce negative or repeated counts. Assistant updates cannot overwrite an active tool or prematurely clear a parallel failure.
 - The headline is safe observed current-turn `input + output`; cache remains a details-only breakdown and Footer usage remains Session-cumulative. Unknown, all-zero placeholders, invalid fields, and overflow fail closed.
 - Client-observed model-active time sums only `think`, `recover`, and `reply`; tool stages and confirmation waiting are excluded. It is not hidden chain-of-thought.
 - Timeout, interval, and asynchronous confirmation continuations capture a turn generation before reading shared state, so callbacks from an ended turn cannot reveal, redraw, or resume a newer turn.
 - Default compact rendering never consumes Prompt/response text, tool names, arguments, paths, results, or commands. Explicit details retain the existing cleaned activity card and usage breakdown.
 - The Footer reads the effective Thinking level at session start and consumes `thinking_level_select` only as a notification, preserving model/Fast ownership of the real setting.
+
+## BYZ structured execution registry
+
+**线路**：managed `byz_execution` call → closed action/schema validation → pure registry proposal → existing Session custom-entry append → in-memory commit/publication → frozen Conversation/Pause/Delivery consumer snapshot.
+
+**关键规则**：
+
+- `plan_open` atomically accepts 1–64 unique bounded task IDs; only explicit `plan_seal` makes total and ordinal displayable. Task states follow the closed pending/active/completed|blocked|cancelled reducer.
+- Session append is the transition linearization point. Append failure leaves snapshot, subscriber state, sequence, and in-flight binding unchanged; accepted receipts replay only within the same Session.
+- Replay validates schema, safe sequence/generation, identities, limits and legal transitions. Hostile or damaged generations become unavailable and cannot be repaired by later completion claims; an explicit new generation resumes from the last accepted baseline.
+- Tool observations bind stable `toolCallId` to the active task at start and pair once at end. Parallel, out-of-order, duplicate, unknown and lifecycle-closed observations stay bounded and never persist raw arguments, commands, paths, results or free-form errors.
+- Provenance remains `declared`, categorized `observed`, or fully bound `verified`. Natural language and successful command classification cannot grant verified status.
+- Lifecycle end, cancellation, errors, compaction, reload and shutdown persist bounded failure closure receipts for in-flight work without completing tasks. Session append failure keeps the binding retryable.
+- Consumers receive deeply frozen plain data only. The registry does not create project/global state, parse model prose, authorize tools, or implement Feature 5/6 behavior.
 
 ## BYZ local diagnostics
 
