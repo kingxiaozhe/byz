@@ -66,7 +66,7 @@
 	},
 	"devDependencies": {
 		"@aibyzero/cm-plugin-workflow": "github:kingxiaozhe/cm-plugin-workflow#d9158aa5c6e143b6a39bfba415cb1d8a2a4051b1",
-		"@aibyzero/cm-workflow": "github:kingxiaozhe/cm-workflow#f181e3169a8deb3adf431860c30214fd49c249d7",
+		"@aibyzero/cm-workflow": "github:kingxiaozhe/cm-workflow#558a6cc7651c55f37945c1a18cf50f0a033064a9",
 		"typescript": "5.9.3"
 	}
 }
