@@ -20,3 +20,5 @@
 | T-008 | 4.structured-execution-registry | 1 | 0（主执行者额外覆盖恶意 generation） | 合并至 Feature QA | 0 |
 | T-003 | 4.structured-execution-registry | 2 | 1：补齐取消、异常、压缩、重载与关闭时的 in-flight 收口 | 合并至 Feature QA | 0 |
 | T-004 | 4.structured-execution-registry | 2 | 1：补齐八十列极限状态行预算 | 合并至 Feature QA | 0 |
+| T-005 | 4.structured-execution-registry | 2 | 5：补齐真实终端、生命周期收口、共享消费者及精确命令凭证 | BLOCKED，由 T-009 替代 | 1：批准替代任务 T-009 |
+| T-009 | 4.structured-execution-registry | 1 | 0 | PASS（8/8、真实 80×24 双场景、13/13 命令组） | 0 |

@@ -86,7 +86,7 @@
       "kind": "browser",
       "blocking": true,
       "acIds": ["AC-011", "AC-012", "AC-014"],
-      "taskIds": ["T-005"],
+      "taskIds": ["T-009"],
       "title": "80 列真实 TUI 只在可靠计划中显示单行步骤",
       "preconditions": ["80x24 tmux", "隔离 HOME", "faux provider", "可建立 64-task sealed plan"],
       "steps": ["运行无 plan 长 turn", "建立 64-task plan 并激活最后任务", "观察运行状态与完成摘要", "运行 --version 和 workflow 命令"],

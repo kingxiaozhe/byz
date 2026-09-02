@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+ROOT=$(git rev-parse --show-toplevel)
+cd "$ROOT"
+REVIEWS=specs/byz-conversational-agent/.reviews
+EVIDENCE="$REVIEWS/structured-execution-registry-T-009-command-evidence.md"
+EXT_SOURCE="$REVIEWS/structured-execution-registry-T-009-faux-extension.ts.txt"
+EXT_RUNTIME=packages/byz/.byz-output/t009-faux-extension.ts
+CLI=packages/byz/.byz-output/current/dist/cli.js
+HOME_DIR=$(mktemp -d "${TMPDIR:-/tmp}/byz-feature4-t009-home.XXXXXX")
+AGENT_DIR="$HOME_DIR/.byz/agent"
+HELPER=$(mktemp "${TMPDIR:-/tmp}/byz-feature4-t009-tmux.XXXXXX.py")
+NO_PLAN_SESSION=byz-feature4-t009-no-plan
+PLAN_SESSION=byz-feature4-t009-plan
+NO_PLAN_CAPTURE="$REVIEWS/structured-execution-registry-T-009-tui-no-plan.txt"
+PLAN_CAPTURE="$REVIEWS/structured-execution-registry-T-009-tui-plan.txt"
+
+cleanup_on_exit() {
+	tmux kill-session -t "$NO_PLAN_SESSION" 2>/dev/null || true
+	tmux kill-session -t "$PLAN_SESSION" 2>/dev/null || true
+	rm -rf "$HOME_DIR" "$HELPER" "$EXT_RUNTIME"
+}
+trap cleanup_on_exit EXIT
+
+: > "$EVIDENCE"
+{
+	printf '# T-009 reproducible command evidence\n\n'
+	printf 'Every path below is defined by this persisted script; there are no placeholder commands.\n\n'
+	printf '```text\n'
+	printf 'HEAD=%s\n' "$(git rev-parse HEAD)"
+	printf 'branch=%s\n' "$(git branch --show-current)"
+	printf 'script_sha256=%s\n' "$(shasum -a 256 "$REVIEWS/structured-execution-registry-T-009-evidence-script.sh.txt" | awk '{print $1}')"
+	printf 'extension_sha256=%s\n' "$(shasum -a 256 "$EXT_SOURCE" | awk '{print $1}')"
+	printf 'working_diff_sha256=%s\n' "$(git diff -- packages/byz/src packages/byz/test packages/byz/scripts | shasum -a 256 | awk '{print $1}')"
+	printf '```\n'
+} >> "$EVIDENCE"
+
+run_command() {
+	local label=$1
+	local command=$2
+	local raw
+	raw=$(mktemp "${TMPDIR:-/tmp}/byz-feature4-t009-command.XXXXXX")
+	{
+		printf '\n## %s\n\n```text\n' "$label"
+		printf '$ %s\n' "$command"
+	} >> "$EVIDENCE"
+	bash -o pipefail -c "$command" 2>&1 | tee "$raw"
+	local status=${PIPESTATUS[0]}
+	cat "$raw" >> "$EVIDENCE"
+	printf 'exit_code=%s\n```\n' "$status" >> "$EVIDENCE"
+	rm -f "$raw"
+	return "$status"
+}
+
+cat > "$HELPER" <<'PY'
+import argparse
+import pathlib
+import subprocess
+import time
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--session", required=True)
+parser.add_argument("--mode", choices=("no-plan", "plan"), required=True)
+parser.add_argument("--capture", required=True)
+parser.add_argument("--home", required=True)
+parser.add_argument("--agent-dir", required=True)
+parser.add_argument("--cli", required=True)
+parser.add_argument("--extension", required=True)
+args = parser.parse_args()
+
+subprocess.run(
+    (
+        "tmux",
+        "new-session",
+        "-d",
+        "-s",
+        args.session,
+        "-x",
+        "80",
+        "-y",
+        "24",
+        "env",
+        f"HOME={args.home}",
+        f"BYZ_CODING_AGENT_DIR={args.agent_dir}",
+        f"BYZ_T009_MODE={args.mode}",
+        "node",
+        args.cli,
+        "--workflow",
+        "none",
+        "--model",
+        "faux/execution",
+        "-e",
+        args.extension,
+    ),
+    check=True,
+)
+
+def capture() -> str:
+    return subprocess.run(
+        ("tmux", "capture-pane", "-t", args.session, "-p"), check=True, text=True, capture_output=True
+    ).stdout
+
+def wait_for(predicate, timeout: float, description: str) -> str:
+    deadline = time.monotonic() + timeout
+    last = ""
+    while time.monotonic() < deadline:
+        last = capture()
+        if predicate(last):
+            return last
+        time.sleep(0.1)
+    raise AssertionError(f"timed out waiting for {description}\n{last}")
+
+startup = wait_for(lambda text: "thinking" in text.lower(), 15, "interactive footer")
+if "Trust (this session only)" in startup:
+    raise AssertionError("isolated trust store was not applied")
+subprocess.run(("tmux", "send-keys", "-t", args.session, "execute the structured plan", "Enter"), check=True)
+if args.mode == "plan":
+    pane = wait_for(lambda text: "Step 64/64" in text, 30, "Step 64/64")
+    assert sum("Step 64/64" in line for line in pane.splitlines()) == 1
+    step_line = next(line for line in pane.splitlines() if "Step 64/64" in line)
+    assert "Tokens" in step_line
+else:
+    pane = wait_for(lambda text: "Preparing reply" in text and "Tokens" in text, 30, "no-plan status")
+    assert "Step " not in pane
+    assert "Tasks" not in pane
+    assert "%" not in pane
+assert max((len(line) for line in pane.splitlines()), default=0) <= 80
+pathlib.Path(args.capture).write_text(pane.rstrip() + "\n", encoding="utf-8")
+print(f"mode={args.mode}")
+print(f"max_unicode_columns={max((len(line) for line in pane.splitlines()), default=0)}")
+print(f"step_64_lines={sum('Step 64/64' in line for line in pane.splitlines())}")
+print(f"capture={args.capture}")
+PY
+
+run_command "Build exact package image" "npm --prefix packages/byz run build" || exit $?
+run_command "Create isolated configuration and exact faux extension" "mkdir -p '$AGENT_DIR' && printf '%s\\n' '{\"faux\":{\"type\":\"api_key\",\"key\":\"faux-key\"}}' > '$AGENT_DIR/auth.json' && node -e 'const fs=require(\"node:fs\"); fs.writeFileSync(process.argv[1], JSON.stringify({[process.cwd()]:true})+\"\\n\")' '$AGENT_DIR/trust.json' && cp '$EXT_SOURCE' '$EXT_RUNTIME'" || exit $?
+run_command "Built CLI version" "HOME='$HOME_DIR' BYZ_CODING_AGENT_DIR='$AGENT_DIR' node '$CLI' --version" || exit $?
+run_command "Built CLI workflow-isolated version" "HOME='$HOME_DIR' BYZ_CODING_AGENT_DIR='$AGENT_DIR' node '$CLI' --workflow none --version" || exit $?
+run_command "No-plan real 80x24 tmux" "python3 '$HELPER' --session '$NO_PLAN_SESSION' --mode no-plan --capture '$NO_PLAN_CAPTURE' --home '$HOME_DIR' --agent-dir '$AGENT_DIR' --cli '$CLI' --extension '$EXT_RUNTIME'" || exit $?
+run_command "No-plan tmux cleanup" "tmux kill-session -t '$NO_PLAN_SESSION' && ! tmux has-session -t '$NO_PLAN_SESSION' 2>/dev/null" || exit $?
+run_command "64-task real 80x24 tmux" "python3 '$HELPER' --session '$PLAN_SESSION' --mode plan --capture '$PLAN_CAPTURE' --home '$HOME_DIR' --agent-dir '$AGENT_DIR' --cli '$CLI' --extension '$EXT_RUNTIME'" || exit $?
+run_command "64-task tmux cleanup" "tmux kill-session -t '$PLAN_SESSION' && ! tmux has-session -t '$PLAN_SESSION' 2>/dev/null" || exit $?
+run_command "Complete BYZ package tests" "npm --prefix packages/byz test" || exit $?
+run_command "Focused Feature 4 tests" "node --test packages/byz/test/execution-extension.test.mjs packages/byz/test/execution-registry.test.mjs packages/byz/test/conversation.test.mjs packages/byz/test/architecture.test.mjs" || exit $?
+run_command "Repository checks" "npm run check" || exit $?
+run_command "Diff whitespace check" "git diff --check" || exit $?
+run_command "Isolated resource cleanup" "rm -rf '$HOME_DIR' '$HELPER' '$EXT_RUNTIME' && test ! -e '$HOME_DIR' && test ! -e '$HELPER' && test ! -e '$EXT_RUNTIME'" || exit $?
+trap - EXIT

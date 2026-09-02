@@ -55,21 +55,21 @@
 
 ## 验收标准
 
-- [ ] [AC-001] 没有 plan 或 plan 未 seal 时，现有单行状态不出现 `步骤`、Tasks、total 或百分比。
-- [ ] [AC-002] 建立 4 个唯一任务并 seal 后，第二个任务成为唯一 active 时显示 `步骤 2/4`；完成摘要显示准确 completed/total，不显示任务标题。
-- [ ] [AC-003] total 为 0、超过 64、重复 taskId、seal 后追加任务或同时激活两个任务均被拒绝或使候选 unavailable，界面不显示伪造 ordinal。
-- [ ] [AC-004] 合法迁移按固定状态机生效；重复 transition 幂等，未知 plan/task、非法倒退和 stale generation 不改变 snapshot。
-- [ ] [AC-005] 两个并行工具按 toolCallId 绑定到开始时的 active task，乱序结束只形成两条 observed receipt；重复/未知 end 不重复计数。
-- [ ] [AC-006] tool receipt 和 Session custom entry 不含命令、参数、路径、result、Prompt、响应正文或自由错误文本。
-- [ ] [AC-007] 模型声明 `tests passed` 但没有可信 receipt 时保持 declared；固定 classifier 观察到成功测试命令后只产生 categorized observed evidence，不能显示“测试通过”；只有绑定测试合同的 runtime/workflow receipt 可 verified，失败命令不能产生 pass。
-- [ ] [AC-008] append Session entry 失败时 transition 和 snapshot 都不变化；append 成功后同一 Session reload/resume 重放得到相同 sealed plan、task states 和 evidence counts，且不触发模型、网络或项目文件读写。
-- [ ] [AC-009] 重放包含未知 schema、断裂 sequence、非法迁移或越界数组时失败关闭并显示安全 unavailable 状态；开始新 plan 后才能恢复。
-- [ ] [AC-010] 正常完成、取消、异常、compaction 与 shutdown 只收口运行时 receipt，不自动把 active/pending task 标成 completed。
-- [ ] [AC-011] 没有 registry 数据时，现有 2 秒延迟、工具计数、Token、Footer、details、中英文和非交互输出回归通过。
-- [ ] [AC-012] compact renderer 只读取 bounded snapshot；恶意 label、路径和命令不能进入默认单行、完成摘要或 diagnostics。
-- [ ] [AC-013] registry 数据只进入现有 Session custom entries，不新建项目/全局存储，不进入模型上下文，也不写入 BYZ diagnostics。
-- [ ] [AC-014] 80×24 TUI 中 `步骤 64/64` 与现有状态、耗时、Token 保持单行；无可靠 total 时字段完整省略。
-- [ ] [AC-015] Conversation、Pause、Delivery 消费的是冻结只读 snapshot，外部对象修改不能改变 registry 内部状态。
+- [x] [AC-001] 没有 plan 或 plan 未 seal 时，现有单行状态不出现 `步骤`、Tasks、total 或百分比。
+- [x] [AC-002] 建立 4 个唯一任务并 seal 后，第二个任务成为唯一 active 时显示 `步骤 2/4`；完成摘要显示准确 completed/total，不显示任务标题。
+- [x] [AC-003] total 为 0、超过 64、重复 taskId、seal 后追加任务或同时激活两个任务均被拒绝或使候选 unavailable，界面不显示伪造 ordinal。
+- [x] [AC-004] 合法迁移按固定状态机生效；重复 transition 幂等，未知 plan/task、非法倒退和 stale generation 不改变 snapshot。
+- [x] [AC-005] 两个并行工具按 toolCallId 绑定到开始时的 active task，乱序结束只形成两条 observed receipt；重复/未知 end 不重复计数。
+- [x] [AC-006] tool receipt 和 Session custom entry 不含命令、参数、路径、result、Prompt、响应正文或自由错误文本。
+- [x] [AC-007] 模型声明 `tests passed` 但没有可信 receipt 时保持 declared；固定 classifier 观察到成功测试命令后只产生 categorized observed evidence，不能显示“测试通过”；只有绑定测试合同的 runtime/workflow receipt 可 verified，失败命令不能产生 pass。
+- [x] [AC-008] append Session entry 失败时 transition 和 snapshot 都不变化；append 成功后同一 Session reload/resume 重放得到相同 sealed plan、task states 和 evidence counts，且不触发模型、网络或项目文件读写。
+- [x] [AC-009] 重放包含未知 schema、断裂 sequence、非法迁移或越界数组时失败关闭并显示安全 unavailable 状态；开始新 plan 后才能恢复。
+- [x] [AC-010] 正常完成、取消、异常、compaction 与 shutdown 只收口运行时 receipt，不自动把 active/pending task 标成 completed。
+- [x] [AC-011] 没有 registry 数据时，现有 2 秒延迟、工具计数、Token、Footer、details、中英文和非交互输出回归通过。
+- [x] [AC-012] compact renderer 只读取 bounded snapshot；恶意 label、路径和命令不能进入默认单行、完成摘要或 diagnostics。
+- [x] [AC-013] registry 数据只进入现有 Session custom entries，不新建项目/全局存储，不进入模型上下文，也不写入 BYZ diagnostics。
+- [x] [AC-014] 80×24 TUI 中 `步骤 64/64` 与现有状态、耗时、Token 保持单行；无可靠 total 时字段完整省略。
+- [x] [AC-015] Conversation、Pause、Delivery 消费的是冻结只读 snapshot，外部对象修改不能改变 registry 内部状态。
 
 ## 依赖
 

@@ -461,6 +461,17 @@ export function createExecutionRegistry(options = {}) {
 		return result.accepted;
 	}
 
+	function closeInFlight() {
+		for (const toolCallId of [...state.inFlight.keys()]) {
+			try {
+				if (!recordToolEnd({ toolCallId, outcome: "failure" })) return false;
+			} catch {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	function recordVerifiedEvidence(receipt) {
 		if (!hasExactKeys(receipt, ["source", "generation", "planId", "taskId", "testCaseId", "outcome"])) {
 			return reject("unverified_receipt");
@@ -513,6 +524,7 @@ export function createExecutionRegistry(options = {}) {
 		replay,
 		recordToolStart,
 		recordToolEnd,
+		closeInFlight,
 		recordVerifiedEvidence,
 		clearInFlight() {
 			state.inFlight.clear();

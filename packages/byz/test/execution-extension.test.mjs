@@ -1,5 +1,17 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { createFauxCore, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { createPiExtensionPorts } from "../.byz-output/current/dist/adapters/pi/pi-runtime-adapter.js";
+import {
+	createAgentSessionFromServices,
+	createAgentSessionServices,
+	SessionManager,
+	SettingsManager,
+} from "../.byz-output/current/dist/runtime/bundle/index.js";
+import { createConversationExtension } from "../src/conversation/conversation-extension.js";
 import { createExecutionExtension } from "../src/execution/execution-extension.js";
 import { createExecutionRegistry } from "../src/execution/execution-registry.js";
 
@@ -21,7 +33,7 @@ function createHarness(options = {}) {
 		},
 	};
 	const registry = createExecutionRegistry({
-		appendReceipt: (receipt) => ports.appendEntry(receipt),
+		appendReceipt: options.appendReceipt ?? ((receipt) => ports.appendEntry(receipt)),
 		createPlanId: () => `plan-${++planNumber}`,
 		verifyReceipt: options.verifyReceipt,
 	});
@@ -381,24 +393,163 @@ test("replays only projected execution entries on Session start", async () => {
 	assert.deepEqual(restored.entries, []);
 });
 
-test("agent, cancellation, error, compaction, reload, and shutdown only clear in-flight bindings", async () => {
+test("real AgentSession and faux provider execute a 64-task managed plan without network access", async (t) => {
+	const root = await mkdtemp(join(tmpdir(), "byz-execution-runtime-"));
+	const agentDir = join(root, "agent");
+	const faux = createFauxCore({ models: [{ id: "execution", name: "Execution" }], tokensPerSecond: 1000 });
+	const workingMessages = [];
+	const notifications = [];
+	const sessionManager = SessionManager.inMemory();
+	let session;
+	let registry;
+	let networkCalls = 0;
+	const originalFetch = globalThis.fetch;
+	globalThis.fetch = async () => {
+		networkCalls += 1;
+		throw new Error("unexpected network call");
+	};
+	t.after(async () => {
+		globalThis.fetch = originalFetch;
+		session?.dispose();
+		await rm(root, { force: true, recursive: true });
+	});
+	await mkdir(agentDir, { recursive: true });
+	await writeFile(join(agentDir, "auth.json"), JSON.stringify({ faux: { type: "api_key", key: "faux-key" } }));
+	const model = faux.getModel("execution");
+	const settingsManager = SettingsManager.inMemory();
+	settingsManager.applyOverrides({ retry: { enabled: false } });
+	const services = await createAgentSessionServices({
+		agentDir,
+		cwd: root,
+		settingsManager,
+		resourceLoaderOptions: {
+			extensionFactories: [
+				{
+					name: "byz-execution-under-test",
+					factory: (pi) => {
+						pi.registerProvider(model.provider, {
+							baseUrl: model.baseUrl,
+							apiKey: "faux-key",
+							api: faux.api,
+							streamSimple: faux.streamSimple,
+							models: faux.models.map((candidate) => ({
+								id: candidate.id,
+								name: candidate.name,
+								api: candidate.api,
+								reasoning: candidate.reasoning,
+								input: candidate.input,
+								cost: candidate.cost,
+								contextWindow: candidate.contextWindow,
+								maxTokens: candidate.maxTokens,
+								baseUrl: candidate.baseUrl,
+							})),
+						});
+						const ports = createPiExtensionPorts(pi);
+						registry = createExecutionRegistry({
+							appendReceipt: (receipt) => ports.execution.appendEntry(receipt),
+							createPlanId: () => "plan-1",
+						});
+						createExecutionExtension({ registry })(ports.execution);
+						createConversationExtension({
+							executionRegistry: registry.consumer,
+							progressCardDelayMs: 0,
+							setTimeout(handler) {
+								queueMicrotask(handler);
+								return 1;
+							},
+							clearTimeout() {},
+							setInterval: () => 1,
+							clearInterval() {},
+						})(ports.conversation);
+					},
+				},
+			],
+			noPromptTemplates: true,
+			noSkills: true,
+			noThemes: true,
+		},
+	});
+	({ session } = await createAgentSessionFromServices({ services, sessionManager, model }));
+	await session.bindExtensions({
+		mode: "tui",
+		uiContext: {
+			select: async () => undefined,
+			confirm: async () => false,
+			input: async () => undefined,
+			notify: (message) => notifications.push(message),
+			onTerminalInput: () => () => {},
+			setStatus() {},
+			setWorkingMessage: (message) => workingMessages.push(message),
+			setWorkingVisible() {},
+			setWorkingIndicator() {},
+			setHiddenThinkingLabel() {},
+			setWidget() {},
+			setFooter() {},
+			setHeader() {},
+			setTitle() {},
+			setMessagePresenter() {},
+			setToolExecutionVisible() {},
+			setConfirmationPresenter() {},
+			custom: async () => undefined,
+		},
+	});
+	const tasks = Array.from({ length: 64 }, (_, index) => ({ id: `task-${index + 1}` }));
+	faux.setResponses([
+		fauxAssistantMessage(fauxToolCall("byz_execution", { action: "plan_open", tasks }), { stopReason: "toolUse" }),
+		fauxAssistantMessage(fauxToolCall("byz_execution", { action: "plan_seal", planId: "plan-1" }), {
+			stopReason: "toolUse",
+		}),
+		fauxAssistantMessage(
+			fauxToolCall("byz_execution", { action: "task_start", planId: "plan-1", taskId: "task-64" }),
+			{ stopReason: "toolUse" },
+		),
+		fauxAssistantMessage("done"),
+	]);
+	await session.prompt("execute a private 64-step plan");
+	assert.equal(networkCalls, 0);
+	assert.equal(registry.snapshot().plan.active.ordinal, 64);
+	const stepLines = workingMessages.filter((message) => /Step 64\/64/.test(message ?? ""));
+	assert.ok(stepLines.length > 0);
+	assert.equal(
+		stepLines.every((message) => message.length <= 80 && !message.includes("\n")),
+		true,
+	);
+	assert.match(notifications.at(-1), /completed 0\/64/);
+	const receipts = sessionManager
+		.getEntries()
+		.filter((entry) => entry.type === "custom" && entry.customType === "byz.execution.v1");
+	assert.equal(receipts.length, 3);
+	assert.doesNotMatch(JSON.stringify(receipts), /private|execute a private|tool result|response/);
+});
+
+test("agent, cancellation, error, compaction, reload, and shutdown persist bounded in-flight closure", async () => {
 	for (const scenario of [
-		{ event: "agent_end", reason: "normal" },
-		{ event: "agent_end", reason: "cancelled" },
-		{ event: "agent_end", reason: "error" },
-		{ event: "session_before_compact", reason: "overflow" },
-		{ event: "session_shutdown", reason: "shutdown" },
+		{ event: "agent_end", reason: "normal", toolCallId: "lifecycle-1" },
+		{ event: "agent_end", reason: "cancelled", toolCallId: "lifecycle-2" },
+		{ event: "agent_end", reason: "error", toolCallId: "lifecycle-3" },
+		{ event: "session_before_compact", reason: "overflow", toolCallId: "lifecycle-4" },
+		{ event: "session_shutdown", reason: "shutdown", toolCallId: "lifecycle-5" },
 	]) {
 		const harness = createHarness();
 		const planId = await createActivePlan(harness);
+		const toolCallId = scenario.toolCallId;
 		await harness.handlers.get("tool_execution_start")({
-			toolCallId: `in-flight-${scenario.reason}`,
+			toolCallId,
 			toolCategory: "inspect",
 			commandCategory: "generic",
 		});
-		const before = harness.registry.snapshot();
 		await harness.handlers.get(scenario.event)({ type: scenario.event, reason: scenario.reason });
-		assert.deepEqual(harness.registry.snapshot(), before);
+		await harness.handlers.get(scenario.event)({ type: scenario.event, reason: scenario.reason });
+		assert.deepEqual(harness.registry.snapshot().plan.active, { id: "A", ordinal: 1 });
+		assert.equal(harness.registry.snapshot().plan.counts.completed, 0);
+		assert.equal(harness.registry.snapshot().plan.counts.observedEvidence, 1);
+		assert.deepEqual(harness.entries.at(-1).payload, {
+			taskId: "A",
+			toolCallId,
+			category: "inspect",
+			outcome: "failure",
+		});
+		assert.doesNotMatch(JSON.stringify(harness.entries.at(-1)), /normal|cancelled|overflow|shutdown|error/);
 		assert.equal(
 			(
 				await harness.getTool()({
@@ -418,12 +569,14 @@ test("agent, cancellation, error, compaction, reload, and shutdown only clear in
 		toolCategory: "inspect",
 		commandCategory: "generic",
 	});
+	await reloaded.handlers.get("session_before_switch")({ type: "session_before_switch", reason: "reload" });
 	const beforeReload = reloaded.registry.snapshot();
 	await reloaded.handlers.get("session_start")(
 		{ type: "session_start", reason: "reload" },
 		{ readEntries: () => reloaded.entries.map((entry) => structuredClone(entry)) },
 	);
 	assert.deepEqual(reloaded.registry.snapshot(), beforeReload);
+	assert.equal(beforeReload.plan.counts.observedEvidence, 1);
 	assert.equal(
 		(
 			await reloaded.getTool()({
@@ -433,6 +586,38 @@ test("agent, cancellation, error, compaction, reload, and shutdown only clear in
 				outcome: "completed",
 			})
 		).accepted,
+		true,
+	);
+});
+
+test("lifecycle closure preserves the binding when Session append fails and retries once", async () => {
+	let failObservedAppend = true;
+	const entries = [];
+	const harness = createHarness({
+		appendReceipt(receipt) {
+			if (receipt.action === "tool_observed" && failObservedAppend) throw new Error("append failed");
+			entries.push(structuredClone(receipt));
+		},
+	});
+	const planId = await createActivePlan(harness);
+	await harness.handlers.get("tool_execution_start")({
+		toolCallId: "in-flight-append",
+		toolCategory: "inspect",
+		commandCategory: "generic",
+	});
+	await harness.handlers.get("agent_end")({ type: "agent_end" });
+	assert.equal(harness.registry.snapshot().plan.counts.observedEvidence, 0);
+	assert.equal(
+		(await harness.getTool()({ action: "task_finish", planId, taskId: "A", outcome: "completed" })).accepted,
+		false,
+	);
+	failObservedAppend = false;
+	await harness.handlers.get("agent_end")({ type: "agent_end" });
+	await harness.handlers.get("agent_end")({ type: "agent_end" });
+	assert.equal(harness.registry.snapshot().plan.counts.observedEvidence, 1);
+	assert.equal(entries.filter((entry) => entry.action === "tool_observed").length, 1);
+	assert.equal(
+		(await harness.getTool()({ action: "task_finish", planId, taskId: "A", outcome: "completed" })).accepted,
 		true,
 	);
 });

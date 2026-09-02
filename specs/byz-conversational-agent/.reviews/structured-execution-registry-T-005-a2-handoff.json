@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "task_id": "T-005",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/execution/execution-registry.js",
+    "packages/byz/src/execution/execution-extension.js",
+    "packages/byz/src/adapters/pi/pi-execution-adapter.ts",
+    "packages/byz/test/execution-extension.test.mjs",
+    "packages/byz/test/execution-registry.test.mjs",
+    "specs/byz-conversational-agent/4.structured-execution-registry/requirements.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-qa.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-commands.log",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-tui-capture.txt",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-tui-evidence.md"
+  ],
+  "implementation_sha256": "3440794430078c37f52fe75d5e0c25097c094f39cad1a9fc04739d92229eab9b",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "254 passed, 0 failed, 1 platform-specific skip; complete output and exit 0 are attached."
+    },
+    {
+      "command": "focused Feature 4 tests",
+      "status": "passed",
+      "evidence": "78 passed, 0 failed; includes persisted lifecycle closure and shared-consumer isolation."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Complete output and exit 0 are attached."
+    },
+    {
+      "command": "isolated 80x24 tmux with local faux provider",
+      "status": "passed",
+      "evidence": "Real managed 64-task flow produced exactly one captured Step 64/64 line; all pane lines were at most 80 Unicode code points."
+    }
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-r1.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-commands.log",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-tui-capture.txt",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-tui-evidence.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-005-qa.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

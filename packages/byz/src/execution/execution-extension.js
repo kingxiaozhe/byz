@@ -22,8 +22,8 @@ export function createExecutionExtension({ registry }) {
 		ports.on("tool_execution_end", (event) => {
 			registry.recordToolEnd({ toolCallId: event.toolCallId, outcome: event.outcome });
 		});
-		for (const event of ["agent_end", "session_before_compact", "session_shutdown"]) {
-			ports.on(event, () => registry.clearInFlight());
+		for (const event of ["agent_end", "session_before_compact", "session_before_switch", "session_shutdown"]) {
+			ports.on(event, () => registry.closeInFlight());
 		}
 	};
 }

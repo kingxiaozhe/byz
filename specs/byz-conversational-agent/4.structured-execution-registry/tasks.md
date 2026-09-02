@@ -60,8 +60,14 @@
 
 ### 最终验证
 
-- [ ] T-005: [NEW] 运行 focused registry/Conversation/architecture、`npm --prefix packages/byz test` 与 `npm run check`；用真实 AgentSession/faux provider 和 80×24 tmux 验证 64/64 单行、无 plan 回归、取消/异常/reload、非交互隔离及 raw-field absence，并完成 Feature QA ~45min
+- [ ] T-005: [DROPPED] [NEW] 运行 focused registry/Conversation/architecture、`npm --prefix packages/byz test` 与 `npm run check`；用真实 AgentSession/faux provider 和 80×24 tmux 验证 64/64 单行、无 plan 回归、取消/异常/reload、非交互隔离及 raw-field absence，并完成 Feature QA ~45min
+  - 替代: 第二轮独立审查确认产品行为通过，但完整凭证未记录 build、隔离 HOME、faux extension、tmux/assertion/cleanup 和非交互命令的精确执行与退出码；由用户批准的 T-009 接管当前实现、测试与 QA 字节，不得创建 T-005 attempt 3
   - 模块: Feature 4 QA/TUI/范围审计
+  - 依赖: T-004
+  - 覆盖: AC-001 至 AC-015
+
+- [x] T-009: [NEW] 接管 T-005 attempt 2 的实现、测试与 QA 字节，以非忽略的持久凭证逐条记录 BYZ build、隔离 HOME、临时 faux extension、真实 80×24 tmux 启动/输入/捕获/Unicode 断言/清理、无 plan 与非交互命令、完整测试及 `npm run check` 的精确命令、关键输出和退出码；复核内容绑定后完成 Feature QA ~30min
+  - 模块: `packages/byz/src/execution/**`、Pi execution adapter、registry/Conversation tests、Feature 4 QA/TUI/review evidence
   - 依赖: T-004
   - 覆盖: AC-001 至 AC-015
 
@@ -71,7 +77,7 @@
 - T-002 已停止，由 T-008 接管当前实现；T-008 依赖 T-007。
 - T-003 依赖 T-008。
 - T-004 依赖 T-003。
-- T-005 依赖 T-004。
+- T-005 已停止，由 T-009 接管当前实现、测试与 QA 字节；T-009 依赖 T-004。
 
 ## 风险点
 

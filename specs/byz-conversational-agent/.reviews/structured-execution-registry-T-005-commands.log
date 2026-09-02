@@ -1,0 +1,418 @@
+Feature 4 durable QA evidence
+HEAD=6a580e78ef09b6862a96cc20a855c46d770ceea5
+branch=cm/structured-execution-registry--993b2de7
+built_image=generations/generation-sb9oAR/package
+working_diff_sha256=ddd15c3fbadb3510c394efb926e2463b3a882e022a836cd468b0776e5235426e
+
+$ npm --prefix packages/byz test
+
+> @aibyzero/byz@0.1.12 test
+> node --test test/*.test.mjs
+
+✔ Pi extension adapter exposes only feature-scoped capability facades (2.444292ms)
+✔ Execution facade fixes the tool, event, and Session entry boundaries (1.478708ms)
+✔ Recovery facade projects the startup session_start reason through a minimal context (0.287459ms)
+✔ Recovery facade projects the reload session_start reason through a minimal context (0.08125ms)
+✔ Recovery facade projects the new session_start reason through a minimal context (0.0895ms)
+✔ Recovery facade projects the resume session_start reason through a minimal context (0.067292ms)
+✔ Recovery facade projects the fork session_start reason through a minimal context (0.072458ms)
+✔ Recovery facade trust-gates dispatch and each lazy session summary read (0.216208ms)
+✔ Recovery facade registers no Pi behavior until a recovery factory uses it (0.179042ms)
+✔ all BYZ extension factories mount through their assigned feature ports (1.196833ms)
+✔ BYZ composition root injects one feature slice into each extension (7.101709ms)
+✔ Pi runtime adapter applies the BYZ product profile at the composition boundary (0.264125ms)
+✔ accepts domain and application code that depends only on local ports (13.627959ms)
+✔ rejects transparent or legacy Pi adapters (6.060042ms)
+✔ rejects public raw Pi escape properties from adapter facades (6.11825ms)
+✔ rejects raw Pi injection at the BYZ composition root (5.3865ms)
+✔ rejects Pi, adapter, filesystem, and SQLite imports from protected layers (3.732375ms)
+✔ rejects a symlink output root before writing or cleaning outside the package (12.880375ms)
+✔ rejects a symlink generations root before any generation write (5.594083ms)
+✔ rejects portable workflow aliases and ancestor overlap (9.914791ms)
+✔ uses one portable namespace for compiled output and reserved runtime paths (0.318125ms)
+✔ never takes a lock from the same live process identity (15.072ms)
+✔ recovers only after process absence or PID start-identity reuse (23.263166ms)
+✔ fails closed when process identity cannot be determined (10.07125ms)
+✔ fails closed when a competing owner becomes unknown after activation (12.444333ms)
+✔ ignores an interrupted candidate until complete owner metadata is atomically installed (5.251459ms)
+✔ detects output-directory replacement before later lock or publication writes (5.534167ms)
+✔ allows exactly one concurrent recovery after the old process is absent (40.911584ms)
+✔ fences publication when a stale complete owner becomes unknown (19.846416ms)
+✔ reports a completed pointer rename when the post-publication fence becomes unknown (25.435625ms)
+✔ prevents the dead owner's handle from publishing or releasing after recovery (25.239375ms)
+✔ atomically switches one current pointer between complete generations (80.862958ms)
+✔ serializes builds with a recoverable process-owned lock (70.457125ms)
+✔ production orchestration builds complete generations and preserves current through contention and failure (1092.032417ms)
+✔ rejects unsafe manifests and escaped current pointers (3.629417ms)
+✔ validates generated roots, package metadata, and runtime assets (3.210583ms)
+✔ maps structural conversation states to readable, low-noise output (1.474583ms)
+✔ recognizes natural language detail and decision choices (0.419416ms)
+✔ classifies common request shapes with deterministic local rules (0.4315ms)
+✔ parses session preference controls without discarding the user goal (0.47775ms)
+✔ routing policy keeps preferences in memory and resets to defaults (0.183625ms)
+✔ turn timing uses a monotonic clock and separates active stages from confirmation wait (0.331ms)
+✔ compact execution status waits two seconds and uses an observed turn token headline (3.005375ms)
+✔ parallel tools stay paired while assistant and malformed tool events interleave (5.8925ms)
+✔ BYZ model-active summary excludes tool execution and confirmation waiting (0.531584ms)
+✔ turn-local execution state is cleared across agent end and session shutdown (0.758959ms)
+✔ stale confirmation continuation cannot resume a newer turn (0.4175ms)
+✔ compact status is bilingual, single-line, and hides raw task and tool fields (13.612167ms)
+✔ conversation extension refreshes current stage timing and freezes one final summary (7.298042ms)
+✔ current turn usage starts unknown and does not inherit session totals (5.920208ms)
+✔ streaming usage snapshots and multiple responses are accumulated exactly once (6.838375ms)
+✔ partial, invalid, and cumulatively overflowing usage fail closed by field (6.752875ms)
+✔ actual AgentSession error and abort paths emit agent_end and clear turn usage (872.781417ms)
+✔ confirmation input and fallback time count only as waiting (0.489417ms)
+✔ session shutdown clears timing without rendering a completion summary (12.252041ms)
+✔ conversation extension shows a scoped progress card after a short wait (6.388542ms)
+✔ conversation extension expands progress card in details mode (5.155792ms)
+✔ details mode can be saved as the default for future sessions (1.215541ms)
+✔ language preference can be saved and reused across sessions (7.149083ms)
+✔ conversation extension welcomes without exposing advanced controls until requested (1.296542ms)
+✔ conversation status consumes only reliable frozen execution counts (0.5565ms)
+✔ registry publication redraws the visible turn without adding a timer (0.221875ms)
+✔ 80-column compact status preserves step, timing, and Token while dropping tool noise (0.876209ms)
+✔ details mode renders only localized registry facts and a fixed unavailable reason (0.567459ms)
+✔ drafting and unavailable execution snapshots do not leak progress or raw fields (0.364708ms)
+✔ diagnostic schema accepts only closed low-cardinality projections (1.804542ms)
+✔ config is private, normalized, and keeps notice state separate (6.565667ms)
+✔ first interactive notice is deferred past other startup notifications and shown once (248.652583ms)
+✔ recorder bounds in-flight work and never throws when the worker fails (0.64775ms)
+✔ real worker writes a private per-process shard without keeping the process contract (75.654084ms)
+✔ diagnostics commands persist state, reject unsafe arguments, and clear by generation (5.743916ms)
+✔ generation change stops an active old worker from recreating cleared data (39.483667ms)
+✔ retention applies across events, updates, and exports without following symlinks (7.975458ms)
+✔ summary tolerates malformed and incomplete rows without exposing their text (149.160708ms)
+✔ extension reads only safe event fields (0.919292ms)
+✔ export contains aggregates only and fails closed on malformed input (15.961416ms)
+✔ update health compares only events recorded after a successful update (34.830458ms)
+✔ BYZ CLI and complete source-tree build wire diagnostics without replacing workflow extensions (1.343916ms)
+✔ health comparison enforces samples, comparability, and correlation-only outcomes (0.193ms)
+✔ registers one closed execution tool and returns only bounded results (1.7945ms)
+✔ rejects unknown managed actions and extra fields on every transition (0.603625ms)
+✔ binds parallel observed tools to the active task and pairs them once (0.588459ms)
+✔ does not let categorized command success or model declarations become verified (0.372084ms)
+✔ accepts verified evidence only through a fully bound trusted verifier (0.35175ms)
+✔ rejects malformed tool-call identities before pairing or persistence (0.258292ms)
+✔ bounds observed receipts and rejects receipt 129 without changing counts (5.224667ms)
+✔ stores no raw command, arguments, result, path, or error text in observed receipts (0.259334ms)
+✔ replays only projected execution entries on Session start (0.471875ms)
+✔ real AgentSession and faux provider execute a 64-task managed plan without network access (427.697083ms)
+✔ agent, cancellation, error, compaction, reload, and shutdown persist bounded in-flight closure (1.047125ms)
+✔ lifecycle closure preserves the binding when Session append fails and retries once (0.229458ms)
+✔ starts empty and exposes ordinal only after an atomic plan is sealed (1.922041ms)
+✔ uses a distinct host identity for each explicit plan generation (1.194334ms)
+✔ accepts exact task and ID bounds (0.382375ms)
+✔ rejects empty, oversized, duplicate, malformed, and mutable sealed task sets (0.272667ms)
+✔ sanitizes bounded task labels before Session persistence (0.219333ms)
+✔ applies only legal task transitions and keeps duplicate transitions idempotent (0.255875ms)
+✔ rejects stale plan and task identities without changing the snapshot (0.157583ms)
+✔ publishes each accepted state change once and ignores duplicate or rejected transitions (0.162084ms)
+✔ does not publish or commit a transition when Session append fails (0.273458ms)
+✔ preserves an in-flight binding when observed-receipt append fails (0.453333ms)
+✔ replays accepted receipts exactly and treats identical duplicates as idempotent (0.683208ms)
+✔ fails a damaged replay generation closed until an explicit new plan (0.40825ms)
+✔ does not let a rejected maximum sequence permanently poison explicit recovery (0.693875ms)
+✔ does not adopt a rejected hostile generation as the recovery baseline (0.229042ms)
+✔ fails unsupported schema, invalid replayed tasks, and illegal replay transitions closed (0.865542ms)
+✔ fails cyclic, excessive, non-JSON, and unknown replay payloads closed without throwing (0.805959ms)
+✔ fails a replayed 129th evidence receipt closed (2.060541ms)
+✔ conflicting duplicates and forged later completion cannot repair replay (0.229417ms)
+✔ Conversation, Pause, and Delivery-style consumers share one frozen fact source (0.275208ms)
+✔ returns deeply frozen plain snapshots and does not expose mutable internals (0.148125ms)
+✔ session_start applies configured Fast defaults and keeps them reversible (1.209334ms)
+✔ session_start enables Fast while preserving explicit startup choices (0.234833ms)
+✔ Fast without BYZ_FAST_MODEL only lowers thinking and restores it (0.172208ms)
+✔ Fast without a selected model still lowers and restores thinking (0.17575ms)
+✔ Fast rejects a configured target when no original model can be restored (0.127417ms)
+✔ Fast switches to a configured target and restores the original session state (0.215792ms)
+✔ Fast restores an adapter-branded model snapshot after extension reload (0.822417ms)
+✔ Fast runs through a real AgentSession command without replacing the conversation (40.43425ms)
+✔ real AgentSession rejects an unauthenticated configured target without changing state (41.7305ms)
+▶ invalid, missing, and unauthenticated targets leave all state unchanged
+  ✔ invalid (0.206417ms)
+  ✔ missing (0.067541ms)
+  ✔ unauthenticated (0.054667ms)
+  ✔ same target without auth (0.054042ms)
+✔ invalid, missing, and unauthenticated targets leave all state unchanged (0.691ms)
+✔ status and duplicate commands do not repeat transitions (0.591459ms)
+✔ failed model restoration keeps Fast active and retains the snapshot for retry (0.124125ms)
+✔ explicit model or thinking selections exit Fast without restoring the snapshot (0.373125ms)
+✔ busy sessions reject on and off without changing Fast state (0.42925ms)
+✔ invalid command arguments report the supported contract (0.077417ms)
+✔ importing and constructing readers perform zero spawn (0.493ms)
+✔ returns a validated 12-character lower-case HEAD (0.517875ms)
+✔ uses only the fixed executable, argv, cwd, environment, and spawn options (2.253917ms)
+▶ maps missing Git and nonzero exit to allowlisted unavailable reasons
+  ✔ missing executable (0.220459ms)
+  ✔ nonzero exit (0.604917ms)
+✔ maps missing Git and nonzero exit to allowlisted unavailable reasons (1.353083ms)
+✔ rejects malformed or non-lower-case output without exposing it (1.011334ms)
+✔ terminates and degrades when the fixed timeout elapses (1001.4355ms)
+▶ terminates on stdout or stderr overflow
+  ✔ stdout (0.345667ms)
+  ✔ stderr (0.131ms)
+✔ terminates on stdout or stderr overflow (0.767292ms)
+✔ the CLI composes Prewalk and the build compiles the complete BYZ source tree (3.499583ms)
+▶ actual Prewalk and Fast composition hands the next request off after built-in writes
+  ✔ edit (65.398166ms)
+  ✔ write (31.738709ms)
+✔ actual Prewalk and Fast composition hands the next request off after built-in writes (97.637958ms)
+✔ prewalk commands arm, report, and cancel without changing session state (0.996292ms)
+▶ prewalk rejects busy, untrusted, Fast-active, and overridden-tool sessions
+  ✔ busy (0.091125ms)
+  ✔ untrusted (0.067167ms)
+  ✔ Fast active (0.290875ms)
+  ✔ edit override (0.114792ms)
+  ✔ write override (0.068334ms)
+✔ prewalk rejects busy, untrusted, Fast-active, and overridden-tool sessions (1.929542ms)
+▶ prewalk target validation fails closed without changing model or thinking
+  ✔ invalid (0.175291ms)
+  ✔ missing (0.087792ms)
+  ✔ unauthenticated (0.0885ms)
+  ✔ unauthenticated current model (0.061125ms)
+✔ prewalk target validation fails closed without changing model or thinking (2.541791ms)
+▶ only a successful built-in workspace edit or write consumes prewalk
+  ✔ edit (1.620291ms)
+  ✔ write (1.887084ms)
+✔ only a successful built-in workspace edit or write consumes prewalk (3.798333ms)
+✔ prewalk rejects symlink escapes and rechecks built-in tool identity before consuming (3.396584ms)
+✔ parallel candidates are serialized and only one valid write consumes prewalk (3.174292ms)
+✔ explicit model or thinking changes cancel prewalk and preserve the user selection (0.846708ms)
+✔ enabling Fast cancels an armed prewalk without changing Fast behavior (0.855666ms)
+✔ session_start returns before CM I/O and allows the welcome notification first (4.520542ms)
+✔ five session reasons project safely and reload never duplicates the automatic card (5.771875ms)
+✔ manual commands retain the current session reason from session_start context (0.987625ms)
+✔ dismiss is session-only, status remains manual, and a new session resets automatic state (1.731875ms)
+✔ unknown arguments show fixed usage without echoing or reading evidence (0.341208ms)
+✔ untrusted startup and commands perform zero CM, Session, and Git reads (1.811375ms)
+✔ trust revocation and newer generations make pending results inert (0.357ms)
+✔ shutdown invalidates an automatic read before its scheduled microtask starts (1.008458ms)
+✔ startup, status, and dismiss use zero Git; details uses a second pre-Git trust check and one Git read (0.713166ms)
+✔ details rechecks trust immediately before Git and skips Git when revoked (0.182958ms)
+✔ compact and details sanitize every rendered field and expose only relative receipts (1.493542ms)
+✔ injected renderers receive only bounded sanitized projection data (0.452833ms)
+✔ details rejects forged Git and absolute evidence while tolerating decision-only projections (0.263125ms)
+✔ manual details renders bounded unavailable diagnostics without Session or Git reads (2.144625ms)
+✔ no candidate is silent (0.522875ms)
+✔ reader, renderer, Git, callback, and notify failures never escape and warning is once per session (0.415625ms)
+✔ untrusted projects perform zero filesystem operations (1.006792ms)
+✔ trusted reader returns one bounded project-local snapshot without opening JSONL (17.492667ms)
+✔ multiple active project-local candidates are returned only as a decision count (12.895375ms)
+✔ running and each unresolved done lifecycle remain actionable while done-resolved is absent (32.637166ms)
+✔ known legacy terminal records normalize in memory and remain absent (5.66ms)
+✔ legacy terminal aliases cannot hide multiple unfinished tasks (4.985125ms)
+✔ candidate failures are bounded and cannot hide a potentially active record (26.725875ms)
+✔ non-direct canonical candidate rejection retains its requested relative path (3.76725ms)
+✔ candidate enumeration and pre-existing symlinks fail closed (3.300291ms)
+﹣ directory junctions are rejected before candidate reads (0.131625ms) # distinct directory junctions/reparse points cannot be constructed on this platform
+✔ matching non-regular review entries retain their project-relative issue path (4.884583ms)
+✔ review count, snapshot total and leaf symlink limits fail closed (25.056958ms)
+✔ non-regular leaf files are rejected before open (14.139375ms)
+✔ project and specs identity replacements independently discard the complete snapshot (9.679166ms)
+✔ leaf identity replacement discards the complete snapshot (4.170583ms)
+✔ oversized state files are rejected before any file bytes are read (5.1865ms)
+✔ terminal sanitizer removes closed and unterminated control channels and bounds code points (0.784667ms)
+✔ CM parsers reject lossy nested projections and malformed optional fields (1.130958ms)
+✔ review parser accepts only complete canonical authority fields (0.543791ms)
+✔ reducer applies decision, conflict, blocked and resumable precedence (0.910917ms)
+✔ unknown nested records fail closed without leaking forged display fields (0.127917ms)
+✔ free text and unknown workflows cannot grant authority or generate commands (0.14975ms)
+✔ reports the BYZ package version (242.982333ms)
+✔ uses an isolated BYZ configuration directory (0.113917ms)
+✔ uses the BYZ command identity in help (251.510875ms)
+✔ applies Fast defaults without removing workflow resources (12.682625ms)
+✔ defers Fast defaults to the extension only for interactive sessions (0.153292ms)
+✔ gives explicit model and thinking options priority over Fast defaults (0.122292ms)
+✔ preserves an explicit thinking suffix on the selected model (0.107583ms)
+✔ keeps the saved model when Fast resumes an existing session (0.109584ms)
+✔ ignores BYZ_FAST_MODEL outside Fast mode (0.14425ms)
+✔ preserves --fast after Pi's double-dash argument terminator (0.161875ms)
+✔ preserves --fast when Pi consumes it as a mode value (0.06525ms)
+✔ rejects duplicate or valued Fast options (0.415583ms)
+✔ does not reorder Pi-owned commands in Fast mode (226.548667ms)
+✔ ships the documentation paths referenced by the Pi runtime (1.89025ms)
+✔ ships runtime assets at the package-root paths expected by Pi (1.097625ms)
+✔ does not delegate updates to the Pi release channel (637.16425ms)
+✔ does not expose end-user workflow update or rollback commands (438.968333ms)
+✔ loads both bundled workflow packages without global installs (426.189792ms)
+✔ reports the effective workflow when status has no target (1246.898583ms)
+✔ reports an effective none workflow without validating unrelated roots (214.847167ms)
+✔ injects only the selected workflow resources (7.092792ms)
+✔ supports an explicit no-workflow mode (0.111417ms)
+✔ preserves Pi's double-dash argument terminator (5.891125ms)
+✔ preserves --workflow when Pi consumes it as a mode value (3.521375ms)
+✔ respects Pi resource disable flags (1.965667ms)
+✔ does not expose separate installation for bundled workflows (414.539167ms)
+✔ locks both bundled workflow sources to full commits (0.548375ms)
+✔ checks both workflow roots independently (436.661916ms)
+✔ does not fall back to the sibling workflow (215.634792ms)
+✔ rejects a shared workflow root (214.548667ms)
+✔ rejects nested workflow roots (217.248625ms)
+✔ rejects workflow directories without Pi-loadable resources (210.765166ms)
+✔ reads only the fixed BYZ npm registry endpoint (1.081958ms)
+✔ rejects registry identity substitution and malformed versions (0.346834ms)
+✔ plans upgrades without downgrading (0.221125ms)
+✔ updates only a writable global BYZ installation (0.398708ms)
+✔ diagnostics remain best effort and preserve update rejection identity (0.205875ms)
+✔ preserves a custom prefix in non-writable fallback guidance (0.147167ms)
+✔ refuses source checkouts and unsupported Pi update options (0.179875ms)
+✔ switches workflow resources in place without a model turn (1.098625ms)
+✔ switches resources without reloading unrelated extensions or changing the conversation (104.541583ms)
+✔ rejects managed themes during startup discovery before applying sibling resources (29.008667ms)
+✔ rolls back a real reload when managed discovery returns a theme (60.060166ms)
+✔ reports current workflow and treats the active target as a no-op (0.18975ms)
+✔ rejects a workflow switch while the agent is busy (0.084625ms)
+✔ keeps the active workflow when the scoped resource update fails (0.10325ms)
+✔ rejects a workflow switch if the agent becomes busy during validation (0.085291ms)
+✔ keeps the active workflow when target validation fails (0.101375ms)
+✔ rejects unknown workflow command arguments (0.088333ms)
+✔ enables workflow switching only for Pi interactive modes (0.309334ms)
+✔ uses Pi argument parsing when deciding whether workflow resources are needed (0.063708ms)
+✔ BYZ dynamic workflow resources win collisions without hiding unrelated host resources (48.134917ms)
+✔ scoped replacement separates owners that share the same display source (36.892ms)
+ℹ tests 255
+ℹ suites 0
+ℹ pass 254
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 1
+ℹ todo 0
+ℹ duration_ms 6071.769333
+exit_code=0
+
+$ node --test packages/byz/test/execution-extension.test.mjs packages/byz/test/execution-registry.test.mjs packages/byz/test/conversation.test.mjs packages/byz/test/architecture.test.mjs
+✔ Pi extension adapter exposes only feature-scoped capability facades (2.184709ms)
+✔ Execution facade fixes the tool, event, and Session entry boundaries (1.296084ms)
+✔ Recovery facade projects the startup session_start reason through a minimal context (0.244ms)
+✔ Recovery facade projects the reload session_start reason through a minimal context (0.071584ms)
+✔ Recovery facade projects the new session_start reason through a minimal context (0.072292ms)
+✔ Recovery facade projects the resume session_start reason through a minimal context (0.062ms)
+✔ Recovery facade projects the fork session_start reason through a minimal context (0.059584ms)
+✔ Recovery facade trust-gates dispatch and each lazy session summary read (0.17425ms)
+✔ Recovery facade registers no Pi behavior until a recovery factory uses it (0.132375ms)
+✔ all BYZ extension factories mount through their assigned feature ports (1.011875ms)
+✔ BYZ composition root injects one feature slice into each extension (5.017584ms)
+✔ Pi runtime adapter applies the BYZ product profile at the composition boundary (0.164042ms)
+✔ accepts domain and application code that depends only on local ports (8.706458ms)
+✔ rejects transparent or legacy Pi adapters (3.277041ms)
+✔ rejects public raw Pi escape properties from adapter facades (3.010875ms)
+✔ rejects raw Pi injection at the BYZ composition root (2.664833ms)
+✔ rejects Pi, adapter, filesystem, and SQLite imports from protected layers (2.497583ms)
+✔ maps structural conversation states to readable, low-noise output (1.191083ms)
+✔ recognizes natural language detail and decision choices (0.378625ms)
+✔ classifies common request shapes with deterministic local rules (0.587666ms)
+✔ parses session preference controls without discarding the user goal (0.361709ms)
+✔ routing policy keeps preferences in memory and resets to defaults (0.165541ms)
+✔ turn timing uses a monotonic clock and separates active stages from confirmation wait (0.33075ms)
+✔ compact execution status waits two seconds and uses an observed turn token headline (1.843584ms)
+✔ parallel tools stay paired while assistant and malformed tool events interleave (5.764667ms)
+✔ BYZ model-active summary excludes tool execution and confirmation waiting (0.490166ms)
+✔ turn-local execution state is cleared across agent end and session shutdown (0.613917ms)
+✔ stale confirmation continuation cannot resume a newer turn (0.274083ms)
+✔ compact status is bilingual, single-line, and hides raw task and tool fields (13.841834ms)
+✔ conversation extension refreshes current stage timing and freezes one final summary (5.476792ms)
+✔ current turn usage starts unknown and does not inherit session totals (6.445167ms)
+✔ streaming usage snapshots and multiple responses are accumulated exactly once (5.334708ms)
+✔ partial, invalid, and cumulatively overflowing usage fail closed by field (6.524708ms)
+✔ actual AgentSession error and abort paths emit agent_end and clear turn usage (882.933958ms)
+✔ confirmation input and fallback time count only as waiting (0.570792ms)
+✔ session shutdown clears timing without rendering a completion summary (12.431333ms)
+✔ conversation extension shows a scoped progress card after a short wait (5.415416ms)
+✔ conversation extension expands progress card in details mode (6.544417ms)
+✔ details mode can be saved as the default for future sessions (1.632167ms)
+✔ language preference can be saved and reused across sessions (7.272583ms)
+✔ conversation extension welcomes without exposing advanced controls until requested (1.446292ms)
+✔ conversation status consumes only reliable frozen execution counts (0.6035ms)
+✔ registry publication redraws the visible turn without adding a timer (0.232459ms)
+✔ 80-column compact status preserves step, timing, and Token while dropping tool noise (0.879709ms)
+✔ details mode renders only localized registry facts and a fixed unavailable reason (0.718375ms)
+✔ drafting and unavailable execution snapshots do not leak progress or raw fields (0.391333ms)
+✔ registers one closed execution tool and returns only bounded results (1.797583ms)
+✔ rejects unknown managed actions and extra fields on every transition (0.651375ms)
+✔ binds parallel observed tools to the active task and pairs them once (0.601042ms)
+✔ does not let categorized command success or model declarations become verified (0.331ms)
+✔ accepts verified evidence only through a fully bound trusted verifier (0.347625ms)
+✔ rejects malformed tool-call identities before pairing or persistence (0.277ms)
+✔ bounds observed receipts and rejects receipt 129 without changing counts (3.744709ms)
+✔ stores no raw command, arguments, result, path, or error text in observed receipts (0.251125ms)
+✔ replays only projected execution entries on Session start (0.512333ms)
+✔ real AgentSession and faux provider execute a 64-task managed plan without network access (405.179875ms)
+✔ agent, cancellation, error, compaction, reload, and shutdown persist bounded in-flight closure (2.084084ms)
+✔ lifecycle closure preserves the binding when Session append fails and retries once (0.405ms)
+✔ starts empty and exposes ordinal only after an atomic plan is sealed (2.159458ms)
+✔ uses a distinct host identity for each explicit plan generation (1.239542ms)
+✔ accepts exact task and ID bounds (0.362708ms)
+✔ rejects empty, oversized, duplicate, malformed, and mutable sealed task sets (0.291791ms)
+✔ sanitizes bounded task labels before Session persistence (0.234917ms)
+✔ applies only legal task transitions and keeps duplicate transitions idempotent (0.235708ms)
+✔ rejects stale plan and task identities without changing the snapshot (0.164375ms)
+✔ publishes each accepted state change once and ignores duplicate or rejected transitions (0.1795ms)
+✔ does not publish or commit a transition when Session append fails (0.417208ms)
+✔ preserves an in-flight binding when observed-receipt append fails (0.476375ms)
+✔ replays accepted receipts exactly and treats identical duplicates as idempotent (0.416333ms)
+✔ fails a damaged replay generation closed until an explicit new plan (0.279834ms)
+✔ does not let a rejected maximum sequence permanently poison explicit recovery (0.146791ms)
+✔ does not adopt a rejected hostile generation as the recovery baseline (0.132209ms)
+✔ fails unsupported schema, invalid replayed tasks, and illegal replay transitions closed (0.652667ms)
+✔ fails cyclic, excessive, non-JSON, and unknown replay payloads closed without throwing (0.444083ms)
+✔ fails a replayed 129th evidence receipt closed (1.703667ms)
+✔ conflicting duplicates and forged later completion cannot repair replay (0.286583ms)
+✔ Conversation, Pause, and Delivery-style consumers share one frozen fact source (0.295417ms)
+✔ returns deeply frozen plain snapshots and does not expose mutable internals (0.118125ms)
+ℹ tests 78
+ℹ suites 0
+ℹ pass 78
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1181.87325
+exit_code=0
+
+$ npm run check
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+> pi-monorepo@0.0.3 check
+> biome check --write --error-on-warnings . && npm run check:pinned-deps && npm run check:ts-imports && npm run check:shrinkwrap && npm run check:install-lock:coding-agent && npm --prefix packages/byz run check:architecture && tsgo --noEmit && npm run check:browser-smoke
+
+Checked 1161 files in 1660ms. Fixed 1 file.
+npm warn Unknown env config "min-release-age". This will stop working in the next major version of npm.
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+> pi-monorepo@0.0.3 check:pinned-deps
+> node scripts/check-pinned-deps.mjs
+
+npm warn Unknown env config "min-release-age". This will stop working in the next major version of npm.
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+> pi-monorepo@0.0.3 check:ts-imports
+> node scripts/check-ts-relative-imports.mjs
+
+npm warn Unknown env config "min-release-age". This will stop working in the next major version of npm.
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+> pi-monorepo@0.0.3 check:shrinkwrap
+> node scripts/generate-coding-agent-shrinkwrap.mjs --check
+
+packages/coding-agent/npm-shrinkwrap.json is up to date.
+npm warn Unknown env config "min-release-age". This will stop working in the next major version of npm.
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+> pi-monorepo@0.0.3 check:install-lock:coding-agent
+> node scripts/generate-coding-agent-install-lock.mjs --check
+
+packages/coding-agent/install-lock is up to date.
+npm warn Unknown env config "min-release-age". This will stop working in the next major version of npm.
+
+> @aibyzero/byz@0.1.12 check:architecture
+> node ./scripts/check-architecture.mjs
+
+BYZ architecture dependency check passed.
+npm warn Unknown env config "min-release-age". This will stop working in the next major version of npm.
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+> pi-monorepo@0.0.3 check:browser-smoke
+> node scripts/check-browser-smoke.mjs
+
+exit_code=0

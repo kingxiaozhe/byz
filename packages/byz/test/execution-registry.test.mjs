@@ -413,6 +413,42 @@ test("conflicting duplicates and forged later completion cannot repair replay", 
 	assert.equal(restored.registry.snapshot().availability, "unavailable");
 });
 
+test("Conversation, Pause, and Delivery-style consumers share one frozen fact source", () => {
+	const { registry } = createHarness();
+	const planId = sealAndStart(registry);
+	const consumers = [
+		{ name: "Conversation", read: (consumer) => consumer.snapshot() },
+		{ name: "Pause", read: (consumer) => consumer.snapshot() },
+		{ name: "Delivery", read: (consumer) => consumer.snapshot() },
+	];
+	const observed = consumers.map(({ name, read }) => {
+		const snapshot = read(registry.consumer);
+		assert.throws(
+			() => {
+				snapshot.plan.active.ordinal = 64;
+			},
+			TypeError,
+			name,
+		);
+		assert.throws(
+			() => {
+				snapshot.plan.counts.completed = 64;
+			},
+			TypeError,
+			name,
+		);
+		assert.equal("dispatch" in registry.consumer, false);
+		assert.equal("tasks" in snapshot.plan, false);
+		return snapshot;
+	});
+	assert.deepEqual(observed[0], observed[1]);
+	assert.deepEqual(observed[1], observed[2]);
+	assert.equal(registry.snapshot().plan.active.ordinal, 1);
+	assert.equal(registry.snapshot().plan.counts.completed, 0);
+	assert.equal(registry.dispatch({ action: "task_finish", planId, taskId: "A", outcome: "completed" }).accepted, true);
+	assert.equal(registry.snapshot().plan.counts.completed, 1);
+});
+
 test("returns deeply frozen plain snapshots and does not expose mutable internals", () => {
 	const { registry } = createHarness();
 	sealAndStart(registry);

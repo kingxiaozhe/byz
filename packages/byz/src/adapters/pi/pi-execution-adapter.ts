@@ -17,6 +17,7 @@ const ENTRY_TYPE = "byz.execution.v1";
 const EVENTS = new Set([
 	"session_start",
 	"session_before_compact",
+	"session_before_switch",
 	"tool_execution_start",
 	"tool_execution_end",
 	"agent_end",
