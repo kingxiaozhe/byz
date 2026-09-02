@@ -6,6 +6,8 @@ import { handleDiagnosticsCommand } from "./diagnostics/commands.js";
 import { createDiagnosticsExtension } from "./diagnostics/diagnostics-extension.js";
 import { createDiagnosticsRecorder } from "./diagnostics/recorder.js";
 import { bucketDuration, mapMode, mapRecoveryDegradeReason } from "./diagnostics/schema.js";
+import { createExecutionExtension } from "./execution/execution-extension.js";
+import { createExecutionRegistry } from "./execution/execution-registry.js";
 import { createFastSessionController, prepareFastRuntimeArgs, selectFastRuntimeArgs } from "./fast.js";
 import { createPrewalkExtension } from "./prewalk.js";
 import { createRecoveryExtension } from "./recovery/recovery-extension.js";
@@ -72,7 +74,6 @@ try {
 				initialUseLowThinking: fastRuntime.useLowThinking,
 			});
 			const prewalkExtension = createPrewalkExtension({ fastController });
-			const conversationExtension = createConversationExtension();
 			const recoveryExtension = createRecoveryExtension({
 				onDegrade(reason) {
 					diagnostics.record("byz.diagnostics.degrade", {
@@ -85,6 +86,14 @@ try {
 			});
 			const byzExtension = (pi) => {
 				const ports = createPiExtensionPorts(pi);
+				const executionRegistry = createExecutionRegistry({
+					appendReceipt: (receipt) => ports.execution.appendEntry(receipt),
+				});
+				const executionExtension = createExecutionExtension({ registry: executionRegistry });
+				const conversationExtension = createConversationExtension({
+					executionRegistry: executionRegistry.consumer,
+				});
+				executionExtension(ports.execution);
 				conversationExtension(ports.conversation);
 				recoveryExtension(ports.recovery);
 				workflowExtension(ports.workflow);

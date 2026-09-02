@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "task_id": "T-004",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/src/cli.js",
+    "packages/byz/scripts/check-architecture.mjs",
+    "packages/byz/test/conversation.test.mjs",
+    "packages/byz/test/architecture.test.mjs"
+  ],
+  "implementation_sha256": "9521eed237a163857d3891f761a7c554ede50b90574fef9c825d32d71c770001",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs packages/byz/test/execution-extension.test.mjs packages/byz/test/execution-registry.test.mjs",
+      "status": "passed",
+      "evidence": "57 tests passed for bilingual compact/details/completion output, subscription redraw, token compatibility, registry and managed tool behavior."
+    },
+    {
+      "command": "node --experimental-strip-types --test /tmp/byz-source-architecture.test.mjs",
+      "status": "passed",
+      "evidence": "17 source-adapter architecture cases passed through an ephemeral import rewrite without rebuilding generated artifacts."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository checks passed."
+    }
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/4.structured-execution-registry/test-cases.json",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-003-r2.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

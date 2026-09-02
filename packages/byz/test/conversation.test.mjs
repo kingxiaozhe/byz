@@ -1351,7 +1351,134 @@ test("conversation status consumes only reliable frozen execution counts", async
 		assert.match(harness.workingMessages.at(-1), expectation.status);
 		await harness.handlers.get("agent_end")({}, harness.ctx);
 		assert.match(harness.notifications.at(-1), expectation.completion);
-		assert.doesNotMatch(harness.notifications.at(-1), /declared|observed|plan-1|task|B|Tasks|Users|private|command/);
+		assert.doesNotMatch(
+			harness.notifications.at(-1),
+			/declared|observed|plan-1|task|\bB\b|Tasks|Users|private|command/,
+		);
+	}
+});
+
+test("registry publication redraws the visible turn without adding a timer", async () => {
+	let currentSnapshot = Object.freeze({ availability: "empty", generation: 0 });
+	let registryListener;
+	let revealProgress;
+	let intervalRegistrations = 0;
+	const executionRegistry = Object.freeze({
+		snapshot: () => currentSnapshot,
+		subscribe(listener) {
+			registryListener = listener;
+			return Object.freeze({ dispose() {} });
+		},
+	});
+	const harness = createConversationHarness({
+		executionRegistry,
+		progressCardDelayMs: 0,
+		setInterval() {
+			intervalRegistrations += 1;
+			return 1;
+		},
+		clearInterval() {},
+		setTimeout(handler) {
+			revealProgress = handler;
+			return 1;
+		},
+		clearTimeout() {},
+	});
+	await harness.handlers.get("session_start")({}, harness.ctx);
+	await harness.handlers.get("before_agent_start")({ prompt: "核对动态计划", systemPrompt: "base" }, harness.ctx);
+	await harness.handlers.get("agent_start")({}, harness.ctx);
+	revealProgress();
+	assert.doesNotMatch(harness.workingMessages.at(-1), /步骤|Step/);
+	currentSnapshot = Object.freeze({
+		availability: "available",
+		generation: 1,
+		plan: Object.freeze({
+			id: "plan-1",
+			state: "sealed",
+			total: 2,
+			active: Object.freeze({ id: "B", ordinal: 2 }),
+			counts: Object.freeze({
+				blocked: 0,
+				cancelled: 0,
+				completed: 1,
+				declaredEvidence: 0,
+				observedEvidence: 0,
+				verifiedEvidence: 0,
+			}),
+		}),
+	});
+	registryListener();
+	assert.match(harness.workingMessages.at(-1), /步骤 2\/2/);
+	assert.equal(intervalRegistrations, 1);
+});
+
+test("80-column compact status preserves step, timing, and Token while dropping tool noise", async () => {
+	for (const language of ["zh", "en"]) {
+		let now = 0;
+		let revealProgress;
+		const input = Promise.withResolvers();
+		const snapshot = Object.freeze({
+			availability: "available",
+			generation: 1,
+			plan: Object.freeze({
+				id: "plan-1",
+				state: "sealed",
+				total: 64,
+				active: Object.freeze({ id: "task-64", ordinal: 64 }),
+				counts: Object.freeze({
+					blocked: 0,
+					cancelled: 0,
+					completed: 63,
+					declaredEvidence: 0,
+					observedEvidence: 0,
+					verifiedEvidence: 0,
+				}),
+			}),
+		});
+		const harness = createConversationHarness({
+			executionRegistry: Object.freeze({
+				snapshot: () => snapshot,
+				subscribe: () => Object.freeze({ dispose() {} }),
+			}),
+			now: () => now,
+			progressCardDelayMs: 0,
+			setTimeout(handler) {
+				revealProgress = handler;
+				return 1;
+			},
+			clearTimeout() {},
+		});
+		harness.ctx.ui.input = () => input.promise;
+		await harness.handlers.get("session_start")({}, harness.ctx);
+		await harness.handlers.get("before_agent_start")(
+			{ prompt: language === "zh" ? "执行长计划" : "execute a long plan", systemPrompt: "base" },
+			harness.ctx,
+		);
+		await harness.handlers.get("agent_start")({}, harness.ctx);
+		for (let index = 0; index < 64; index += 1) {
+			await harness.handlers.get("tool_execution_start")(
+				{ toolCallId: `tool-${index}`, toolName: "read" },
+				harness.ctx,
+			);
+		}
+		await harness.handlers.get("message_update")(
+			{ message: { role: "assistant", usage: { input: Number.MAX_SAFE_INTEGER - 1, output: 1 } } },
+			harness.ctx,
+		);
+		now = 3_599_000;
+		revealProgress();
+		const confirmation = harness.getConfirmationPresenter()({
+			title: "confirm",
+			message: "confirm",
+			confirm: async () => false,
+		});
+		const line = harness.workingMessages.at(-1);
+		assert.equal(line.includes("\n"), false);
+		assert.ok(line.length <= 80, `${language} compact line was ${line.length} columns: ${line}`);
+		assert.match(line, language === "zh" ? /步骤 64\/64.*59分59秒.*Token/ : /Step 64\/64.*59m 59s.*Tokens/);
+		if (language === "en") assert.doesNotMatch(line, /64 tools running/);
+		input.resolve(language === "zh" ? "取消" : "cancel");
+		await confirmation;
 	}
 });
 

@@ -646,8 +646,15 @@ test("BYZ composition root injects one feature slice into each extension", async
 	const cli = await readFile(new URL("../src/cli.js", import.meta.url), "utf8");
 	assert.doesNotMatch(cli, /createPiExtensionAdapter/);
 	assert.match(cli, /diagnosticsFeature\(createPiExtensionPorts\(pi\)\.diagnostics\)/);
+	assert.match(cli, /createExecutionRegistry\(\{/);
+	assert.match(cli, /ports\.execution\.appendEntry\(receipt\)/);
+	assert.match(cli, /executionRegistry: executionRegistry\.consumer/);
+	assert.match(cli, /executionExtension\(ports\.execution\)/);
 	assert.match(cli, /conversationExtension\(ports\.conversation\)/);
 	assert.match(cli, /recoveryExtension\(ports\.recovery\)/);
+	assert.ok(
+		cli.indexOf("executionExtension(ports.execution)") < cli.indexOf("conversationExtension(ports.conversation)"),
+	);
 	assert.ok(
 		cli.indexOf("conversationExtension(ports.conversation)") < cli.indexOf("recoveryExtension(ports.recovery)"),
 	);
@@ -730,6 +737,7 @@ test("rejects raw Pi injection at the BYZ composition root", () =>
 			[
 				"diagnosticsFeature(createPiExtensionPorts(pi).diagnostics);",
 				"conversationExtension(pi);",
+				"executionExtension(ports.execution);",
 				"workflowExtension(ports.workflow);",
 				"fastController.extension(ports.fast);",
 				"prewalkExtension(ports.prewalk);",

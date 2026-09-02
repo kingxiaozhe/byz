@@ -53,7 +53,7 @@
 
 ### Conversation 集成
 
-- [ ] T-004: [NEW] 在 BYZ CLI 组合 registry 单例，并让 Conversation 只消费 frozen snapshot：可靠时追加 `步骤 N/T` 和完成/evidence counts，不可靠时省略；保持 Token、工具、timing、details、Footer、中英文和默认信息边界 ~45min
+- [x] T-004: [NEW] 在 BYZ CLI 组合 registry 单例，并让 Conversation 只消费 frozen snapshot：可靠时追加 `步骤 N/T` 和完成/evidence counts，不可靠时省略；保持 Token、工具、timing、details、Footer、中英文和默认信息边界 ~45min
   - 模块: `packages/byz/src/cli.js`、`packages/byz/src/conversation/conversation-extension.js`、对应测试
   - 依赖: T-003
   - 覆盖: AC-001、AC-002、AC-010 至 AC-015

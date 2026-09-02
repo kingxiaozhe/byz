@@ -10,6 +10,7 @@ const FORBIDDEN_PACKAGE_PREFIXES = ["@earendil-works/pi", "@aibyzero/byz"];
 const COMPOSITION_ARGUMENTS = new Map([
 	["diagnosticsFeature", "createPiExtensionPorts(pi).diagnostics"],
 	["conversationExtension", "ports.conversation"],
+	["executionExtension", "ports.execution"],
 	["workflowExtension", "ports.workflow"],
 	["fastController.extension", "ports.fast"],
 	["prewalkExtension", "ports.prewalk"],

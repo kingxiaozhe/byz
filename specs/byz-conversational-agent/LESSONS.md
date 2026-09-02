@@ -31,3 +31,4 @@
 - [已结构化] 工具结束 receipt 的 in-flight 解绑也属于 append-before-commit 原子边界；Session append 失败时必须保留绑定，允许重试并继续阻止任务提前完成。
 - [已结构化] 重放 duplicate 比较面对循环、过深、过大和非 JSON payload 必须有界且不抛异常；无法规范化的记录直接让当前 generation 失败关闭。
 - [已结构化] In-flight 工具绑定是瞬态事实，正常结束、取消、异常、压缩、重载和 Session 关闭都必须显式收口；收口只能清除绑定，不能顺带完成 active/pending task。managed registry tool 自身的 lifecycle 必须过滤，否则 `task_finish` 会被自己的 in-flight 绑定锁死。
+- [已结构化] 单行状态预算必须用最坏合法值验证，而不是只测常见短值；八十列下优先保留状态、可靠 `Step 64/64`、耗时和 Token，工具运行文案仅在完整行不换行时保留。
