@@ -22,3 +22,9 @@
 - [已结构化] 累积 PTY 字节只能证明内容曾经出现，不能证明两个组件仍在当前屏幕同时可见；终端覆盖类缺陷必须使用 current-screen oracle。
 - [已结构化] BYZ package image 复制 `packages/coding-agent/dist`；修改 coding-agent 源码后必须先重建该 runtime，再生成 BYZ image，否则 packed 验证会测试旧实现。
 - [已结构化] PTY Buffer 必须以 raw `Uint8Array` 进入流式终端解码器；逐 chunk `toString()` 会在多字节 UTF-8 边界产生 replacement character，使正确的 current-screen oracle 假失败。
+
+## 2026-09-01 — Trusted CM Recovery Card / v7 自愈与诊断
+
+- [已结构化] 候选级诊断要求每一条失败分支都绑定安全相对来源路径，不能只覆盖 JSON 解析和 review 文件；direct-child canonical 边界拒绝现已有精确回归。
+- [已结构化] `task: null` 只移除当前任务指针，不证明任务终结；canonical tasks 仍有未完成项时必须保持 actionable，并由 reducer 处理多任务冲突。
+- [已结构化] 必须在内容绑定 handoff 前运行会改写文件的 formatter/check；本轮通过 implementation hash 门禁发现格式化后的字节漂移并重新独立审查。

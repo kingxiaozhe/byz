@@ -43,6 +43,16 @@
 - Update comparisons require matching runtime identity and event/mode/tool/provider series with at least 20 samples on both sides. Results are correlation-only and never trigger rollback or upload.
 - Interactive privacy notice state is separate from enablement. Worker listeners must be installed before the final `unref()` so idle diagnostics cannot keep commands alive.
 
+## BYZ trusted project recovery
+
+**线路**：trusted interactive Session → bounded project-local CM candidate scan → strict legacy-aware projection → recovery reducer → compact warning/card or explicit `/project details` diagnostics.
+
+**关键规则**：
+
+- Legacy compatibility is closed to manifest `schema_version: 1`, status `task: null`, and status `state: completed`; normalization is memory-only.
+- Every unresolved or malformed candidate remains fail-closed. Candidate problems are bounded to eight stable reason/project-relative-path receipts and cannot be hidden by another valid candidate.
+- Startup and `/project status` expose only one fixed warning per Session. Unavailable `/project details` filters unsafe issue fields and performs no Git or Session-body read.
+
 ## Model metadata generation
 
 **线路**：generator (`packages/ai/scripts/generate-models.ts`) → provider data hydration → generated catalogs (`packages/ai/src/models.generated.ts`, providers data) → model resolver/runtime.

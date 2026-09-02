@@ -84,6 +84,8 @@ For a trusted project with valid CM state, BYZ shows a read-only recovery card a
 
 `/project details` performs a second trust check before lazily reading the current Git HEAD. Startup, status, and dismiss do not run Git. Untrusted projects are not scanned for CM, Session, or Git recovery data.
 
+Recovery accepts only three explicit legacy CM forms: manifest `schema_version: 1`, status `task: null`, and status `state: completed`. Unknown formats remain unavailable. Startup and `/project status` keep that failure to one fixed warning per session; `/project details` can then show the stable failure reason and at most eight safe project-relative source paths without reading Git or Session content.
+
 ## Fast mode
 
 Use Fast mode for lower-latency, lower-token everyday work without removing the

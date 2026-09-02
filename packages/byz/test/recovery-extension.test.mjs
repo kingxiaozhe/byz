@@ -352,6 +352,43 @@ test("details rejects forged Git and absolute evidence while tolerating decision
 	assert.doesNotMatch(h.notices[0].message, /private|secret/u);
 });
 
+test("manual details renders bounded unavailable diagnostics without Session or Git reads", async () => {
+	let gitReads = 0;
+	const safeIssues = Array.from({ length: 10 }, (_, index) =>
+		Object.freeze({ reasonCode: "invalid_record", relativePath: `specs/broken-${index}/.cm-status.json` }),
+	);
+	const h = harness({
+		readEvidence: async () =>
+			Object.freeze({
+				state: "unavailable",
+				reasonCode: "invalid_record",
+				issues: Object.freeze([
+					Object.freeze({ reasonCode: "unsafe_path", relativePath: "/private/raw-secret" }),
+					Object.freeze({ reasonCode: "unsafe_path", relativePath: "specs/../raw-secret" }),
+					Object.freeze({ reasonCode: "raw-exception", relativePath: "specs/evil/raw-value" }),
+					Object.freeze({ reasonCode: "unsafe_path", relativePath: "specs/evil/line\nbreak" }),
+					...safeIssues,
+				]),
+			}),
+		readGitHead: async () => {
+			gitReads += 1;
+			return "0123456789ab";
+		},
+	});
+	h.handlers.get("session_start")({}, h.ctx);
+	await settle();
+	await h.commands.get("project").handler("status", h.ctx);
+	assert.deepEqual(h.notices, [{ message: RECOVERY_WARNING, level: "warning" }]);
+	await h.commands.get("project").handler("details", h.ctx);
+	assert.equal(gitReads, 0);
+	assert.equal(h.sessionReads, 0);
+	assert.equal(h.notices.length, 2);
+	const output = h.notices[1].message;
+	assert.match(output, /^Project recovery unavailable\nReason: invalid_record\nIssues:/u);
+	assert.equal((output.match(/^- invalid_record: specs\/broken-/gmu) ?? []).length, 8);
+	assert.doesNotMatch(output, /broken-(8|9)|private|raw-secret|raw-exception|raw-value|line|break/u);
+});
+
 test("no candidate is silent", async () => {
 	const h = harness({ readEvidence: async () => Object.freeze({ state: "absent" }) });
 	h.handlers.get("session_start")({}, h.ctx);

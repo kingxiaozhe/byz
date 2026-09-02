@@ -14,3 +14,7 @@
 | T-009 | 1.trusted-cm-recovery-card | 21:44 | 21:52 | 1 | 0 | 通过 | 0 |
 | 20260901-recovery-startup-notification.md | fix | 03:15 | 04:02 | 2 | 5 | 阻塞 | 1: 第二轮跨平台证据阻塞 |
 | 20260901-recovery-current-screen-oracle.md | fix | 04:12 | 04:43 | 2 | 1 | 通过 | 1: 获批替代任务 |
+| T-013 | 1.trusted-cm-recovery-card | 03:34 | 03:59 | 2 | 2 | 未计入 | 1: 两轮阻塞后批准替代任务 |
+| T-016 | 1.trusted-cm-recovery-card | 04:17 | 04:52 | 2 | 1 | 通过(覆盖率未采集) | 0 |
+| T-014 | 1.trusted-cm-recovery-card | 04:31 | 04:44 | 1 | 0 | 通过(覆盖率未采集) | 0 |
+| T-015 | 1.trusted-cm-recovery-card | 04:38 | 05:03 | 1 | 0 | 通过(覆盖率未采集) | 0 |

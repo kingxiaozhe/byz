@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "task_id": "T-016",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/cm-evidence-reader.js",
+    "packages/byz/src/recovery/recovery-state.js",
+    "packages/byz/test/recovery-reader.test.mjs",
+    "packages/byz/test/recovery-state.test.mjs"
+  ],
+  "implementation_sha256": "ea4881a89ac11aa937b5ed84caa228923eb0d7ffe193c70485ac591bf6192f00",
+  "verification": [
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository checks passed; Biome normalized the new regression"
+    },
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs packages/byz/test/recovery-reader.test.mjs packages/byz/test/recovery-extension.test.mjs",
+      "status": "passed",
+      "evidence": "37 passed, 1 platform-specific junction test skipped, 0 failed"
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "210 passed, 1 platform-specific junction test skipped, 0 failed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed",
+      "evidence": "No whitespace errors"
+    }
+  ],
+  "evidence": [
+    "Round-1 candidate direct-child reproduction failed with a pathless unsafe_path issue",
+    "The rejection now binds the requested project-relative candidate path",
+    "Regression covers canonical nested-boundary simulation and exact specs/nested-boundary issue path",
+    "All previously approved legacy compatibility and bounded aggregation behavior remains green"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "task": "T-015",
+  "baseline_sha": "d3247c7491723a67bb309d62b9627d453a3cbb87",
+  "result": "passed",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs packages/byz/test/recovery-reader.test.mjs packages/byz/test/recovery-extension.test.mjs",
+      "result": "passed",
+      "passed": 37,
+      "failed": 0,
+      "skipped": 1,
+      "note": "The skip is the explicit platform-only Windows junction/reparse variant on macOS."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "result": "passed",
+      "passed": 210,
+      "failed": 0,
+      "skipped": 1
+    },
+    {
+      "command": "npm run check",
+      "result": "passed",
+      "note": "Biome, pinned dependency, import, shrinkwrap, install-lock, BYZ architecture, tsgo and browser smoke gates passed."
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    },
+    {
+      "command": "validate-test-cases.py test-cases.json",
+      "result": "passed",
+      "note": "All 25 acceptance criteria retain blocking-case mappings."
+    }
+  ],
+  "scope_audit": {
+    "product_files": [
+      "packages/byz/src/recovery/cm-evidence-reader.js",
+      "packages/byz/src/recovery/recovery-extension.js",
+      "packages/byz/src/recovery/recovery-state.js"
+    ],
+    "test_files": [
+      "packages/byz/test/recovery-extension.test.mjs",
+      "packages/byz/test/recovery-reader.test.mjs",
+      "packages/byz/test/recovery-state.test.mjs"
+    ],
+    "dependency_or_lockfile_changes": [],
+    "new_runtime_dependencies": false,
+    "project_state_write_apis_in_changed_recovery_sources": false,
+    "watchers_hooks_or_daemons_added": false,
+    "conversation_fast_prewalk_workflow_regression": "passed in the 210-test BYZ package suite"
+  },
+  "review_chain": {
+    "T-013": "blocked after two rounds; no attempt 3",
+    "T-016": "approved on attempt 2 with content-bound review",
+    "T-014": "approved on exact formatter-normalized bytes with content-bound review"
+  },
+  "packed_artifact_lineage": {
+    "receipt": "trusted-cm-recovery-card-T-008-artifact-receipt.json",
+    "status": "historical-package-boundary-evidence",
+    "note": "No package metadata, runtime dependency or packaging pipeline changed. The historical receipt is not represented as a byte receipt for the current source diff; T-015 did not build or publish an artifact."
+  },
+  "delivery": "diff",
+  "commit_or_push": false,
+  "blockers": []
+}

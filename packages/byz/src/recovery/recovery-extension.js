@@ -8,6 +8,7 @@ const WARNING = "Project recovery is unavailable for this session.";
 const NEXT_ENTRY_LABEL = "Next CM entry";
 const SESSION_REASONS = new Set(["startup", "reload", "new", "resume", "fork"]);
 const EVIDENCE_SEGMENT = /^[A-Za-z0-9._-]+$/u;
+const UNAVAILABLE_ISSUE_LIMIT = 8;
 const DEGRADATION_REASONS = new Set([
 	"candidate_limit",
 	"content_limit",
@@ -88,6 +89,35 @@ function sanitizeRenderInput({ project, projection, session, receipt, git }) {
 	});
 }
 
+function sanitizeUnavailableInput(result) {
+	const issues = Array.isArray(result?.issues)
+		? result.issues
+				.filter(
+					(issue) => DEGRADATION_REASONS.has(issue?.reasonCode) && isRelativeEvidencePath(issue?.relativePath),
+				)
+				.slice(0, UNAVAILABLE_ISSUE_LIMIT)
+				.map((issue) =>
+					Object.freeze({
+						reasonCode: field(issue.reasonCode, FIELD_LIMITS.reason),
+						relativePath: field(issue.relativePath, FIELD_LIMITS.path),
+					}),
+				)
+		: [];
+	return Object.freeze({
+		reasonCode: fixedReason(result),
+		issues: Object.freeze(issues),
+	});
+}
+
+function renderUnavailableCard({ reasonCode, issues }) {
+	const lines = ["Project recovery unavailable", `Reason: ${field(reasonCode, FIELD_LIMITS.reason)}`, "Issues:"];
+	if (issues.length === 0) lines.push("- unavailable");
+	for (const issue of issues) {
+		lines.push(`- ${field(issue.reasonCode, FIELD_LIMITS.reason)}: ${field(issue.relativePath, FIELD_LIMITS.path)}`);
+	}
+	return lines.join("\n");
+}
+
 function renderCompactCard({ project, projection, session }) {
 	const lines = [
 		"Project recovery",
@@ -135,6 +165,7 @@ export function createRecoveryExtension(options = {}) {
 	const gitReader = options.readGitHead ?? readGitHead;
 	const compactRenderer = options.renderCompact ?? renderCompactCard;
 	const detailsRenderer = options.renderDetails ?? renderDetailsCard;
+	const unavailableRenderer = options.renderUnavailable ?? renderUnavailableCard;
 	const degrade = options.onDegrade ?? (() => {});
 	const schedule = options.schedule ?? queueMicrotask;
 
@@ -207,7 +238,18 @@ export function createRecoveryExtension(options = {}) {
 			if (!current(operationGeneration, ctx)) return;
 			if (result?.state === "absent" || result?.state === "not-eligible") return;
 			if (result?.state !== "found") {
-				reportFailure(ctx, fixedReason(result));
+				if (mode !== "details") {
+					reportFailure(ctx, fixedReason(result));
+					return;
+				}
+				try {
+					degrade(fixedReason(result));
+				} catch {}
+				try {
+					notify(ctx, unavailableRenderer(sanitizeUnavailableInput(result)));
+				} catch {
+					reportFailure(ctx, "renderer_failure");
+				}
 				return;
 			}
 			let projection;

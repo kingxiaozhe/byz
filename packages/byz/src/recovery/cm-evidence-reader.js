@@ -25,6 +25,7 @@ const DEFAULT_LIMITS = Object.freeze({
 });
 const textDecoder = new TextDecoder("utf-8", { fatal: true });
 const REVIEW_HEADER_READ_BYTES = 32_768;
+const ISSUE_LIMIT = 8;
 const LF_FRONTMATTER_END = Buffer.from("\n---\n");
 const CRLF_FRONTMATTER_END = Buffer.from("\r\n---\r\n");
 
@@ -68,7 +69,11 @@ function parseJson(bytes, parser) {
 
 function sourceFailure(result) {
 	if (result.state === "rejected" || result.state === "unavailable") return result;
-	return { state: "unavailable", reasonCode: "missing_source" };
+	return { state: "unavailable", reasonCode: "missing_source", relativePath: result.relativePath };
+}
+
+function failureAt(result, relativePath) {
+	return { ...result, relativePath };
 }
 
 function selectReviewHeader(bytes) {
@@ -92,8 +97,11 @@ async function readSource(context, path, relativePath, maxBytes, options = {}) {
 		budget: context.budget,
 		...options,
 	});
-	if (result.state === "found") context.receipts.push(result.receipt);
-	return result;
+	if (result.state === "found") {
+		context.receipts.push(result.receipt);
+		return result;
+	}
+	return failureAt(result, relativePath);
 }
 
 async function listDirectDirectories(fs, specs, limit) {
@@ -123,7 +131,10 @@ async function listCurrentReviews(context, candidate, task) {
 	const reviewsPath = join(candidate.path, ".reviews");
 	const boundary = await inspectDirectoryBoundary(context.fs, reviewsPath, candidate.path);
 	if (boundary.state === "absent") return { state: "found", reviews: [], boundaries: [] };
-	if (boundary.state !== "found") return boundary;
+	if (boundary.state !== "found") {
+		return failureAt(boundary, relative(context.project.path, reviewsPath).split(sep).join("/"));
+	}
+	const reviewsRelativePath = relative(context.project.path, reviewsPath).split(sep).join("/");
 	const escapedTask = task.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 	const filePattern = new RegExp(`-${escapedTask}-r[0-9]+\\.md$`, "u");
 	const names = [];
@@ -131,14 +142,20 @@ async function listCurrentReviews(context, candidate, task) {
 		const directory = await context.fs.opendir(boundary.path);
 		for await (const entry of directory) {
 			if (!filePattern.test(entry.name)) continue;
-			if (entry.isSymbolicLink() || !entry.isFile()) return { state: "rejected", reasonCode: "unsafe_path" };
+			if (entry.isSymbolicLink() || !entry.isFile()) {
+				return {
+					state: "rejected",
+					reasonCode: "unsafe_path",
+					relativePath: `${reviewsRelativePath}/${entry.name}`,
+				};
+			}
 			names.push(entry.name);
 			if (names.length > context.limits.reviewCount) {
-				return { state: "rejected", reasonCode: "review_limit" };
+				return { state: "rejected", reasonCode: "review_limit", relativePath: reviewsRelativePath };
 			}
 		}
 	} catch {
-		return { state: "unavailable", reasonCode: "io_error" };
+		return { state: "unavailable", reasonCode: "io_error", relativePath: reviewsRelativePath };
 	}
 	const reviews = [];
 	for (const name of names.toSorted()) {
@@ -156,7 +173,9 @@ async function listCurrentReviews(context, candidate, task) {
 		if (source.state !== "found") return sourceFailure(source);
 		const text = decode(source.bytes);
 		const parsed = text === undefined ? undefined : parseReviewFrontmatter(text);
-		if (parsed === undefined) return { state: "unavailable", reasonCode: "invalid_record" };
+		if (parsed === undefined) {
+			return { state: "unavailable", reasonCode: "invalid_record", relativePath: source.receipt.relativePath };
+		}
 		reviews.push(parsed);
 	}
 	return { state: "found", reviews: Object.freeze(reviews), boundaries: [boundary] };
@@ -165,12 +184,18 @@ async function listCurrentReviews(context, candidate, task) {
 async function readCandidate(context, name) {
 	const candidatePath = join(context.specs.path, name);
 	const candidate = await inspectDirectoryBoundary(context.fs, candidatePath, context.specs.path);
-	if (candidate.state !== "found") return candidate;
+	if (candidate.state !== "found") {
+		return failureAt(candidate, relative(context.project.path, candidatePath).split(sep).join("/"));
+	}
 	if (
 		!isContainedPath(context.specs.path, candidate.path) ||
 		relative(context.specs.path, candidate.path).includes(sep)
 	) {
-		return { state: "rejected", reasonCode: "unsafe_path" };
+		return {
+			state: "rejected",
+			reasonCode: "unsafe_path",
+			relativePath: relative(context.project.path, candidatePath).split(sep).join("/"),
+		};
 	}
 	const runSource = await readSource(
 		context,
@@ -181,7 +206,9 @@ async function readCandidate(context, name) {
 	if (runSource.state === "absent") return { state: "absent" };
 	if (runSource.state !== "found") return sourceFailure(runSource);
 	const run = parseJson(runSource.bytes, parseRunPointer);
-	if (run === undefined) return { state: "unavailable", reasonCode: "invalid_record" };
+	if (run === undefined) {
+		return { state: "unavailable", reasonCode: "invalid_record", relativePath: runSource.receipt.relativePath };
+	}
 	const core = [
 		[".cm-specs-status", parseSpecsStatus],
 		[".cm-status.json", parseCmStatus],
@@ -196,16 +223,27 @@ async function readCandidate(context, name) {
 		);
 		if (source.state !== "found") return sourceFailure(source);
 		const value = parseJson(source.bytes, parser);
-		if (value === undefined) return { state: "unavailable", reasonCode: "invalid_record" };
+		if (value === undefined) {
+			return { state: "unavailable", reasonCode: "invalid_record", relativePath: source.receipt.relativePath };
+		}
 		parsed.push(value);
 	}
 	const [specsStatus, cmStatus] = parsed;
 	const feature = cmStatus.feature ?? (specsStatus.features.length === 1 ? specsStatus.features[0] : undefined);
 	if (feature === undefined || !SEGMENT_PATTERN.test(feature)) {
-		return { state: "unavailable", reasonCode: "invalid_record" };
+		return {
+			state: "unavailable",
+			reasonCode: "invalid_record",
+			relativePath: relative(context.project.path, join(candidate.path, core[1][0])).split(sep).join("/"),
+		};
 	}
-	const featureBoundary = await inspectDirectoryBoundary(context.fs, join(candidate.path, feature), candidate.path);
-	if (featureBoundary.state !== "found") return sourceFailure(featureBoundary);
+	const featurePath = join(candidate.path, feature);
+	const featureBoundary = await inspectDirectoryBoundary(context.fs, featurePath, candidate.path);
+	if (featureBoundary.state !== "found") {
+		return sourceFailure(
+			failureAt(featureBoundary, relative(context.project.path, featurePath).split(sep).join("/")),
+		);
+	}
 	const tasksSource = await readSource(
 		context,
 		join(featureBoundary.path, "tasks.md"),
@@ -215,19 +253,20 @@ async function readCandidate(context, name) {
 	if (tasksSource.state !== "found") return sourceFailure(tasksSource);
 	const tasksText = decode(tasksSource.bytes);
 	const tasks = tasksText === undefined ? undefined : parseTaskList(tasksText);
-	if (tasks === undefined) return { state: "unavailable", reasonCode: "invalid_record" };
+	if (tasks === undefined) {
+		return { state: "unavailable", reasonCode: "invalid_record", relativePath: tasksSource.receipt.relativePath };
+	}
 	const incompleteTasks = tasks.filter((task) => !task.completed);
 	const currentTask = cmStatus.task ?? (incompleteTasks.length === 1 ? incompleteTasks[0].id : undefined);
 	const reviewResult = await listCurrentReviews(context, candidate, currentTask);
 	if (reviewResult.state !== "found") return reviewResult;
 	const latestReview = reviewResult.reviews.toSorted((left, right) => left.attempt - right.attempt).at(-1);
-	const currentTaskRecord = tasks.find((task) => task.id === currentTask);
 	const actionable =
 		run.status === "running" ||
 		specsStatus.status === "awaiting_review" ||
 		cmStatus.state === "paused_for_human" ||
 		cmStatus.state === "blocked" ||
-		(currentTaskRecord !== undefined && !currentTaskRecord.completed) ||
+		incompleteTasks.length > 0 ||
 		(latestReview !== undefined && latestReview.verdict !== "approved");
 	if (!actionable) return { state: "absent" };
 	return {
@@ -256,13 +295,32 @@ export async function readCmRecoveryEvidence({
 	if (listed.state !== "found") return Object.freeze(listed);
 	const context = { fs, limits, project, specs, budget: { remaining: limits.snapshotBytes }, receipts: [] };
 	const candidates = [];
+	const failures = [];
 	const boundaries = [project, specs];
 	for (const name of listed.directories) {
 		const candidate = await readCandidate(context, name);
 		if (candidate.state === "absent") continue;
-		if (candidate.state !== "found") return Object.freeze(candidate);
+		if (candidate.state !== "found") {
+			failures.push(candidate);
+			continue;
+		}
 		candidates.push(candidate.value);
 		boundaries.push(...candidate.boundaries);
+	}
+	if (failures.length > 0) {
+		const first = failures[0];
+		return Object.freeze({
+			state: first.state,
+			reasonCode: first.reasonCode,
+			issues: Object.freeze(
+				failures.slice(0, ISSUE_LIMIT).map((failure) =>
+					Object.freeze({
+						reasonCode: failure.reasonCode,
+						relativePath: failure.relativePath,
+					}),
+				),
+			),
+		});
 	}
 	if (candidates.length === 0) return Object.freeze({ state: "absent" });
 	for (const boundary of boundaries) {

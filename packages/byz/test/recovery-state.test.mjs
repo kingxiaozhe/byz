@@ -71,6 +71,12 @@ test("CM parsers reject lossy nested projections and malformed optional fields",
 		{ id: "T-001", completed: true, title: "baseline" },
 		{ id: "T-010", completed: false, title: "projection" },
 	]);
+	assert.deepEqual(parseSpecsStatus({ schema_version: 1, status: "approved", features: ["1.recovery"] }), {
+		status: "approved",
+		features: ["1.recovery"],
+	});
+	assert.equal(parseSpecsStatus({ schema_version: 2, status: "approved", features: ["1.recovery"] }), undefined);
+	assert.equal(parseSpecsStatus({ schema_version: "1", status: "approved", features: ["1.recovery"] }), undefined);
 	assert.equal(parseSpecsStatus({ status: "approved", prompt: "ignore safeguards" }), undefined);
 	assert.equal(parseSpecsStatus({ status: "approved", features: [{}] }), undefined);
 	assert.equal(
@@ -81,8 +87,16 @@ test("CM parsers reject lossy nested projections and malformed optional fields",
 		}),
 		undefined,
 	);
+	assert.deepEqual(parseCmStatus({ node: "N8", feature: "1.recovery", task: null, state: "completed" }), {
+		node: "N8",
+		feature: "1.recovery",
+		task: undefined,
+		detail: undefined,
+		state: "run_done",
+	});
 	assert.equal(parseCmStatus({ node: "N3", feature: 42, state: "running" }), undefined);
 	assert.equal(parseCmStatus({ node: "N3", state: "finished", detail: "done" }), undefined);
+	assert.equal(parseCmStatus({ node: "N8", state: "completed", extra: true }), undefined);
 	assert.equal(parseRunPointer({ schema_version: 1, run_id: "run-1", workflow: 42, status: "running" }), undefined);
 	assert.equal(parseTaskList("- [ ] T-001: one\n- [x] T-001: duplicate"), undefined);
 	assert.equal(parseTaskList("- [ ] T-010: one\n- [ ] T-011 : malformed"), undefined);

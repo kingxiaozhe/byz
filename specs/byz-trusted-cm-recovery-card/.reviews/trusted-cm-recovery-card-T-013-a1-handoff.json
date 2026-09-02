@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "task_id": "T-013",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/cm-evidence-reader.js",
+    "packages/byz/src/recovery/recovery-state.js",
+    "packages/byz/test/recovery-reader.test.mjs",
+    "packages/byz/test/recovery-state.test.mjs"
+  ],
+  "implementation_sha256": "9dd4f8e7b26db5e8e211c2fbeedd994eccb1d1ad2390d8b08ad512d376c3f288",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs packages/byz/test/recovery-reader.test.mjs",
+      "status": "passed",
+      "evidence": "18 passed, 1 platform-specific junction test skipped, 0 failed"
+    },
+    {
+      "command": "git diff --check -- packages/byz/src/recovery/recovery-state.js packages/byz/src/recovery/cm-evidence-reader.js packages/byz/test/recovery-state.test.mjs packages/byz/test/recovery-reader.test.mjs",
+      "status": "passed",
+      "evidence": "No whitespace errors"
+    }
+  ],
+  "evidence": [
+    "AC-023: exact legacy schema_version/task/state compatibility tests",
+    "AC-024: ten malformed candidates produce eight bounded relative issue receipts and block resumable",
+    "Source bytes for legacy fixtures are unchanged before and after reading"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

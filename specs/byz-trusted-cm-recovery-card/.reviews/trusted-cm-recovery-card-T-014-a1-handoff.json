@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "T-014",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/recovery-extension.js",
+    "packages/byz/test/recovery-extension.test.mjs"
+  ],
+  "implementation_sha256": "8bb7fd6f8c08511fd4ebf779e833b8fd414408dee351e149c5922ba848c31f74",
+  "verification": [
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome normalized two T-014 files; all repository checks passed"
+    },
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs packages/byz/test/recovery-reader.test.mjs packages/byz/test/recovery-extension.test.mjs",
+      "status": "passed",
+      "evidence": "36 passed, 1 platform-specific junction test skipped, 0 failed on the normalized bytes"
+    }
+  ],
+  "evidence": [
+    "TC-013 red test showed details previously emitted no diagnostics card",
+    "Startup/status still emit only the fixed once-per-session warning",
+    "Manual details emits at most eight allowlisted reason/path issues with zero Session or Git reads",
+    "Required repository check normalized formatting without changing behavior or scope"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

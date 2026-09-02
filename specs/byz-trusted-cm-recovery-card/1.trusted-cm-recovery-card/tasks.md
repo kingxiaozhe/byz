@@ -9,6 +9,8 @@
 | 2026-09-01 | v3 | 删除全局索引与 Git status，缩小证据集并去重最终验证 |
 | 2026-09-01 | v4 | 停止两轮阻塞的 T-010，新增三条精确回归替代任务 T-011 |
 | 2026-09-01 | v5 | 停止两轮测试矩阵阻塞的 T-003，新增 tests-only T-012 |
+| 2026-09-02 | v6 | 新增旧版兼容、候选问题归集和 unavailable details 任务 |
+| 2026-09-02 | v7 | 停止两轮阻塞的 T-013，经人工批准新增独立替代任务 T-016 |
 
 ## 项目信息
 
@@ -86,13 +88,36 @@
   - 模块: 全 feature 验证与审计产物
   - 覆盖: AC-001 至 AC-022
 
+### 兼容、自愈与诊断 `[CHANGED v7]`
+
+- [ ] T-013: [BLOCKED v7; no attempt 3] 两轮独立审查后停止：attempt 2 已补齐旧版兼容、候选问题归集和 review 非普通文件来源路径，但 `task: null` + `state: completed` 仍可能把含多个未完成任务的候选错误判为 absent；实现与历史 review 只作为 T-016 输入，不构成批准凭证 ~1h
+  - 依赖: T-012
+  - 模块: `packages/byz/src/recovery/recovery-state.js`、`packages/byz/src/recovery/cm-evidence-reader.js`、`packages/byz/test/recovery-state.test.mjs`、`packages/byz/test/recovery-reader.test.mjs`
+  - 覆盖: AC-003, AC-018, AC-019, AC-023, AC-024
+
+- [x] T-016: [NEW v7] 作为 T-013 的独立替代任务，接管其 attempt 2 字节；先新增 `done + completed + task:null + 多个未完成任务` 红灯回归，再最小修复 actionable 判定，使该候选进入 reducer 并得到 reconciliation 而非静默 absent；复跑旧版兼容、候选归集与来源路径矩阵并重新独立审查 ~30min
+  - 依赖: T-012
+  - 模块: `packages/byz/src/recovery/cm-evidence-reader.js`、`packages/byz/test/recovery-reader.test.mjs`
+  - 覆盖: AC-003, AC-018, AC-019, AC-023, AC-024
+
+- [x] T-014: [NEW] 为手动 `/project details` 增加 unavailable 诊断卡，固定显示顶层 reason 与最多 8 条安全相对来源路径；自动 startup/status 仍只显示一次固定 warning，unavailable details 不读 Git，恶意 issue 字段不能进入 UI ~30min
+  - 依赖: T-016
+  - 模块: `packages/byz/src/recovery/recovery-extension.js`、`packages/byz/test/recovery-extension.test.mjs`
+  - 覆盖: AC-015, AC-017, AC-019, AC-025
+
+- [x] T-015: [CHANGED v7] 运行三份 focused recovery tests、`npm --prefix packages/byz test` 和 `npm run check`，核对零新增依赖、零项目写回、普通 Conversation/Fast/Prewalk/workflow 行为及既有 packed artifact receipt 不受源码范围外变化影响 ~30min
+  - 依赖: T-014
+  - 模块: v7 feature 验证与最终 diff 审计
+  - 覆盖: AC-001 至 AC-025
+
 ## 依赖关系
 
 ```text
-T-002, T-010, T-003 (DROPPED; no attempt 3)
+T-002, T-010, T-003, T-013 (BLOCKED; no attempt 3)
 T-001 ─┬─> T-011 ─> T-012 ─┐
        ├─> T-004 ──────────┼─> T-006 ─> T-007 ─> T-008 ─> T-009
        └─> T-005 ──────────┘
+T-012 ─> T-016 ─> T-014 ─> T-015
 ```
 
 ## 风险点
@@ -106,3 +131,7 @@ T-001 ─┬─> T-011 ─> T-012 ─┐
 - CM review 文件只是历史记录；Recovery Card 不读取源码重算 implementation SHA，不能声称当前代码仍获批准或跳过 CM N4/N5 gate。
 - T-022 既有 facade review debt 不在本 feature 内全面修复；RecoveryPort 必须独立满足最小能力和 zero-raw-leak 测试，不得借 P0 扩大为通用架构重写。
 - 首版故意不读取全局 CM index、运行日志、历史 QA/delivery；这会减少跨项目恢复上下文，但不影响当前项目的 P0 恢复入口。
+- v6 兼容只允许三个明确旧形态；不得借 T-016 接受任意未知字段、版本、时间戳或状态，也不得写回修复项目状态。
+- T-013 已达到两轮审查上限；T-016 必须作为新任务重新绑定当前字节和 review，不得创建或伪造 T-013 attempt 3。
+- 候选归集是诊断增强，不是 partial-success 授权；任何无法证明终态的损坏候选，以及 terminal alias 下仍存在的未完成任务，都继续阻止静默 absent 或唯一 resumable。
+- unavailable details 只允许稳定 reason 和安全相对路径，且该分支不得为了“更多上下文”读取 Git、Session 正文或全局 CM。

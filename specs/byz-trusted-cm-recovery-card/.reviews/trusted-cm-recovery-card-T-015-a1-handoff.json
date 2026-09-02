@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "task_id": "T-015",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "specs/byz-trusted-cm-recovery-card/.reviews/trusted-cm-recovery-card-T-015-final-audit.json"
+  ],
+  "implementation_sha256": "017ddb0eb88bb45bc41ea88b9bc6c35030f22b1ffcd584074cb9b51a631b9244",
+  "verification": [
+    {
+      "command": "focused recovery tests",
+      "status": "passed",
+      "evidence": "37 passed, 1 explicit platform skip, 0 failed"
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "210 passed, 1 explicit platform skip, 0 failed"
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All static and architecture gates passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed",
+      "evidence": "No whitespace errors"
+    }
+  ],
+  "evidence": [
+    "Final audit records exact command evidence, approved product/test scope and dependency/write boundaries",
+    "T-016 attempt 2 and T-014 exact-byte N5 gates are content-bound and approved",
+    "No package metadata, lockfile, dependency, project-state write API, hook, watcher or daemon changed",
+    "Historical packed receipt is identified honestly as lineage evidence rather than a current byte receipt",
+    "No commit, push, build or publish was performed"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

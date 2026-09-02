@@ -9,6 +9,7 @@
 | 2026-09-01 | v3 | 删除全局索引与 Git working-tree 查询，收敛项目内证据和验证矩阵 |
 | 2026-09-01 | v4 | 用 canonical line protocol 与三条精确回归替代宽泛 YAML 等价判断 |
 | 2026-09-01 | v5 | 以 tests-only T-012 补齐 reader 生命周期和 identity/file-type 矩阵 |
+| 2026-09-02 | v6 | 增加封闭旧版兼容、候选问题归集和 unavailable details 卡 |
 
 ## 项目架构
 
@@ -57,6 +58,52 @@ compact/details renderer ──> ui.notify
 ```
 
 首屏读取是一次性异步 operation。它不阻塞 TUI ready，不安装 watcher/daemon/heartbeat；`session_shutdown` 或新 generation 会取消/废弃旧结果。
+
+## v6 增量设计：兼容与可诊断降级
+
+本轮只修改现有 Recovery parser、reader 和 presentation，不新建事件库、迁移服务、权限系统或长期存储。
+
+### 封闭兼容层
+
+兼容发生在 strict parser 的 schema 校验入口，解析结果继续使用现有 canonical projection：
+
+- `.cm-specs-status` 允许可选 `schema_version`，仅数值 `1` 合法；字段缺失保持当前行为，其他版本或类型返回 `invalid_record`。
+- `.cm-status.json.task === null` 规范化为未指定；其他非字符串值仍拒绝。
+- `.cm-status.json.state === "completed"` 规范化为 `run_done`；不接受其他别名或大小写变化。
+- 兼容只修改内存值，不写项目文件，不放宽其他 exact-key、timestamp、task-id 或 manifest 校验。
+
+### 候选级问题归集
+
+`readCandidate` 的失败转换为候选局部 `RecoverySourceIssue`，顶层 scanner 在已有 candidate/snapshot 预算内继续枚举，最多保留 8 条。扫描完成后统一裁决：
+
+1. 有 running、awaiting_review、paused、blocked 或无法证明终态的损坏候选时，继续失败关闭，不能从另一个有效候选推断唯一 `resumable`。
+2. `run.status == "done"`、spec status 非待审、CM state 已规范化为 `run_done` 且 task/review 没有未决证据时，该候选为 `absent`。`task: null` 只移除当前任务指针；只要 canonical tasks 中仍有未完成项，候选就必须进入 reducer。一个未完成项可继续投影，多个未完成项必须由 reducer 返回 reconciliation，不能因 terminal alias 静默 absent。
+3. 一个候选的异常不得阻止 scanner 收集后续候选的问题证据，但不得为了“部分成功”跳过潜在 active 候选。
+4. issue 只包含 allowlist `reasonCode` 与通过现有 relative-path validator 的项目内相对路径；不包含字段值、异常文本、绝对路径、文件内容或 identity。
+
+建议合同：
+
+```ts
+interface RecoverySourceIssue {
+  reasonCode: string;
+  relativePath?: string;
+}
+
+interface RecoveryIssueReceipt {
+  issues: readonly RecoverySourceIssue[]; // max 8
+  truncated: boolean;
+}
+```
+
+### unavailable details 卡
+
+自动 startup 和 `/project status` 保持现有固定 warning，避免启动噪声与路径泄露。`/project details` 在 trust 复查后重新读取 CM：若结果不可用，渲染固定标题、顶层 reason code 和 issue receipt；此分支不读取 Git，因为 CM details 未成立。renderer 继续复用 sanitizer 与相对路径 allowlist。
+
+本轮上下文范围为定向：`packages/byz/src/recovery/recovery-state.js`、`cm-evidence-reader.js`、`recovery-extension.js` 及对应三份 focused tests。现有 RecoveryPort、Git reader、diagnostics schema、Conversation、Fast、Prewalk、workflow 和 package contract 只做回归验证。
+
+### v7 替代任务边界
+
+T-013 两轮审查后停止。T-016 只接管 attempt 2 当前字节，并新增 terminal alias 下多个未完成任务的回归；产品修复限定为让 `incompleteTasks.length > 0` 保持 candidate actionable，由既有 reducer 决定单任务投影或多任务 reconciliation。不得扩大 parser 兼容、issue schema、读取来源或恢复动作。
 
 ## 功能模块设计
 
@@ -193,8 +240,8 @@ interface RecoveryPort extends EventPort<RecoveryContext>, CommandRegistrationPo
 type SourceResult<T> =
   | { state: "found"; value: T; receipt: SourceReceipt }
   | { state: "absent" }
-  | { state: "rejected"; reasonCode: string }
-  | { state: "unavailable"; reasonCode: string };
+  | { state: "rejected"; reasonCode: string; issues?: readonly RecoverySourceIssue[] }
+  | { state: "unavailable"; reasonCode: string; issues?: readonly RecoverySourceIssue[] };
 ```
 
 `reasonCode` 来自固定 allowlist；错误对象、路径和来源文本留在进程内且不进入 diagnostics/UI。

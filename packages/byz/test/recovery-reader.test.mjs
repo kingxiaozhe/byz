@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { platform } from "node:process";
 import test from "node:test";
 import { readCmRecoveryEvidence } from "../src/recovery/cm-evidence-reader.js";
+import { reduceRecoveryEvidence } from "../src/recovery/recovery-state.js";
 
 const nativeFs = { lstat, open, opendir, realpath };
 
@@ -15,11 +16,20 @@ async function createFixture(root, name, options = {}) {
 	await mkdir(feature, { recursive: true });
 	await writeFile(
 		join(candidate, ".cm-specs-status"),
-		JSON.stringify({ status: options.specStatus ?? "approved", features: ["1.recovery"] }),
+		JSON.stringify({
+			...(options.specSchemaVersion === undefined ? {} : { schema_version: options.specSchemaVersion }),
+			status: options.specStatus ?? "approved",
+			features: ["1.recovery"],
+		}),
 	);
 	await writeFile(
 		join(candidate, ".cm-status.json"),
-		JSON.stringify({ node: "N3", feature: "1.recovery", task: "T-011", state: options.cmState ?? "running" }),
+		JSON.stringify({
+			node: "N3",
+			feature: "1.recovery",
+			task: options.task === undefined ? "T-011" : options.task,
+			state: options.cmState ?? "running",
+		}),
 	);
 	await writeFile(
 		join(candidate, ".cm-run.json"),
@@ -47,6 +57,23 @@ async function withProject(run) {
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}
+}
+
+async function readBytes(path) {
+	const handle = await open(path);
+	try {
+		return Buffer.from(await handle.readFile());
+	} finally {
+		await handle.close();
+	}
+}
+
+function candidateFailure(reasonCode, relativePath) {
+	return {
+		state: "rejected",
+		reasonCode,
+		issues: [{ reasonCode, relativePath }],
+	};
 }
 
 function changedIdentity(stats) {
@@ -149,6 +176,73 @@ test("running and each unresolved done lifecycle remain actionable while done-re
 	}
 });
 
+test("known legacy terminal records normalize in memory and remain absent", async () => {
+	await withProject(async (root) => {
+		const candidate = await createFixture(root, "legacy-done", {
+			runStatus: "done",
+			specSchemaVersion: 1,
+			cmState: "completed",
+			task: null,
+			completed: true,
+		});
+		const paths = [join(candidate, ".cm-specs-status"), join(candidate, ".cm-status.json")];
+		const before = await Promise.all(paths.map(readBytes));
+		assert.deepEqual(await readCmRecoveryEvidence({ projectRoot: root, isTrusted: true }), { state: "absent" });
+		const after = await Promise.all(paths.map(readBytes));
+		assert.deepEqual(after, before);
+	});
+});
+
+test("legacy terminal aliases cannot hide multiple unfinished tasks", async () => {
+	await withProject(async (root) => {
+		const candidate = await createFixture(root, "legacy-unfinished", {
+			runStatus: "done",
+			specSchemaVersion: 1,
+			cmState: "completed",
+			task: null,
+		});
+		await writeFile(join(candidate, "1.recovery", "tasks.md"), "- [ ] T-011: first\n- [ ] T-012: second\n");
+		const result = await readCmRecoveryEvidence({ projectRoot: root, isTrusted: true });
+		assert.equal(result.state, "found");
+		assert.equal(reduceRecoveryEvidence(result.value).status, "needs-reconciliation");
+	});
+});
+
+test("candidate failures are bounded and cannot hide a potentially active record", async () => {
+	await withProject(async (root) => {
+		await createFixture(root, "valid-active");
+		for (let index = 0; index < 10; index += 1) {
+			const candidate = await createFixture(root, `broken-${String(index).padStart(2, "0")}`);
+			await writeFile(join(candidate, ".cm-specs-status"), JSON.stringify({ status: "unknown", features: [] }));
+		}
+		const result = await readCmRecoveryEvidence({ projectRoot: root, isTrusted: true });
+		assert.equal(result.state, "unavailable");
+		assert.equal(result.reasonCode, "invalid_record");
+		assert.equal(result.issues.length, 8);
+		assert.deepEqual(result.issues[0], {
+			reasonCode: "invalid_record",
+			relativePath: "specs/broken-00/.cm-specs-status",
+		});
+		assert.ok(
+			result.issues.every((issue) => !issue.relativePath.startsWith("/") && !JSON.stringify(issue).includes(root)),
+		);
+	});
+});
+
+test("non-direct canonical candidate rejection retains its requested relative path", async () => {
+	await withProject(async (root) => {
+		await createFixture(root, "nested-boundary");
+		const fs = {
+			...nativeFs,
+			realpath: async (path) => (path.endsWith("/specs/nested-boundary") ? join(path, "nested") : realpath(path)),
+		};
+		assert.deepEqual(
+			await readCmRecoveryEvidence({ projectRoot: root, isTrusted: true, fs }),
+			candidateFailure("unsafe_path", "specs/nested-boundary"),
+		);
+	});
+});
+
 test("candidate enumeration and pre-existing symlinks fail closed", async () => {
 	await withProject(async (root) => {
 		await mkdir(join(root, "specs"), { recursive: true });
@@ -208,6 +302,19 @@ test(
 	},
 );
 
+test("matching non-regular review entries retain their project-relative issue path", async () => {
+	await withProject(async (root) => {
+		const candidate = await createFixture(root, "current");
+		const outside = join(root, "outside-review.md");
+		await writeFile(outside, "not a trusted review");
+		await symlink(outside, join(candidate, ".reviews", "evil-T-011-r1.md"));
+		assert.deepEqual(
+			await readCmRecoveryEvidence({ projectRoot: root, isTrusted: true }),
+			candidateFailure("unsafe_path", "specs/current/.reviews/evil-T-011-r1.md"),
+		);
+	});
+});
+
 test("review count, snapshot total and leaf symlink limits fail closed", async () => {
 	await withProject(async (root) => {
 		const candidate = await createFixture(root, "current");
@@ -218,7 +325,7 @@ test("review count, snapshot total and leaf symlink limits fail closed", async (
 			);
 		}
 		const result = await readCmRecoveryEvidence({ projectRoot: root, isTrusted: true });
-		assert.deepEqual(result, { state: "rejected", reasonCode: "review_limit" });
+		assert.deepEqual(result, candidateFailure("review_limit", "specs/current/.reviews"));
 	});
 	await withProject(async (root) => {
 		await createFixture(root, "current");
@@ -233,7 +340,10 @@ test("review count, snapshot total and leaf symlink limits fail closed", async (
 				snapshotBytes: 180,
 			},
 		});
-		assert.deepEqual(result, { state: "rejected", reasonCode: "size_limit" });
+		assert.equal(result.state, "rejected");
+		assert.equal(result.reasonCode, "size_limit");
+		assert.equal(result.issues.length, 1);
+		assert.equal(result.issues[0].reasonCode, "size_limit");
 	});
 	await withProject(async (root) => {
 		const candidate = await createFixture(root, "current");
@@ -241,10 +351,10 @@ test("review count, snapshot total and leaf symlink limits fail closed", async (
 		await writeFile(outside, JSON.stringify({ schema_version: 1, run_id: "outside", status: "running" }));
 		await rm(join(candidate, ".cm-run.json"));
 		await symlink(outside, join(candidate, ".cm-run.json"));
-		assert.deepEqual(await readCmRecoveryEvidence({ projectRoot: root, isTrusted: true }), {
-			state: "rejected",
-			reasonCode: "unsafe_path",
-		});
+		assert.deepEqual(
+			await readCmRecoveryEvidence({ projectRoot: root, isTrusted: true }),
+			candidateFailure("unsafe_path", "specs/current/.cm-run.json"),
+		);
 	});
 });
 
@@ -261,10 +371,10 @@ test("non-regular leaf files are rejected before open", async () => {
 				return open(...args);
 			},
 		};
-		assert.deepEqual(await readCmRecoveryEvidence({ projectRoot: root, isTrusted: true, fs }), {
-			state: "rejected",
-			reasonCode: "unsafe_path",
-		});
+		assert.deepEqual(
+			await readCmRecoveryEvidence({ projectRoot: root, isTrusted: true, fs }),
+			candidateFailure("unsafe_path", "specs/current/.cm-run.json"),
+		);
 		assert.equal(opens, 0);
 	});
 });
@@ -316,10 +426,10 @@ test("leaf identity replacement discards the complete snapshot", async () => {
 				};
 			},
 		};
-		assert.deepEqual(await readCmRecoveryEvidence({ projectRoot: root, isTrusted: true, fs }), {
-			state: "rejected",
-			reasonCode: "source_changed",
-		});
+		assert.deepEqual(
+			await readCmRecoveryEvidence({ projectRoot: root, isTrusted: true, fs }),
+			candidateFailure("source_changed", "specs/current/.cm-run.json"),
+		);
 	});
 });
 
@@ -363,7 +473,7 @@ test("oversized state files are rejected before any file bytes are read", async 
 				snapshotBytes: 4_096,
 			},
 		});
-		assert.deepEqual(result, { state: "rejected", reasonCode: "size_limit" });
+		assert.deepEqual(result, candidateFailure("size_limit", "specs/current/.cm-run.json"));
 		assert.equal(reads, 0, "the oversized run marker is rejected before any source bytes are read");
 	});
 });

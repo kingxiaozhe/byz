@@ -67,10 +67,19 @@ export function sanitizeTerminalText(value, maxLength = 160) {
 }
 
 export function parseSpecsStatus(value) {
-	if (!isRecord(value) || !exactKeys(value, new Set(["status", "at", "features", "specFiles", "testCases"]))) {
+	if (
+		!isRecord(value) ||
+		!exactKeys(value, new Set(["schema_version", "status", "at", "features", "specFiles", "testCases"]))
+	) {
 		return undefined;
 	}
-	if (!SPEC_STATUSES.has(value.status) || (value.at !== undefined && !isTimestamp(value.at))) return undefined;
+	if (
+		(value.schema_version !== undefined && value.schema_version !== 1) ||
+		!SPEC_STATUSES.has(value.status) ||
+		(value.at !== undefined && !isTimestamp(value.at))
+	) {
+		return undefined;
+	}
 	if (!safeManifestEntries(value.specFiles) || !safeManifestEntries(value.testCases)) return undefined;
 	if (
 		!Array.isArray(value.features) ||
@@ -88,14 +97,16 @@ export function parseCmStatus(value) {
 	if (!isRecord(value) || !exactKeys(value, new Set(["node", "feature", "task", "detail", "state", "at"]))) {
 		return undefined;
 	}
+	const task = value.task === null ? undefined : value.task;
+	const state = value.state === "completed" ? "run_done" : value.state;
 	if (
 		typeof value.node !== "string" ||
-		!CM_STATES.has(value.state) ||
+		!CM_STATES.has(state) ||
 		!isOptionalString(value.feature) ||
-		!isOptionalString(value.task) ||
+		!isOptionalString(task) ||
 		!isOptionalString(value.detail) ||
 		(value.at !== undefined && !isTimestamp(value.at)) ||
-		(value.task !== undefined && !TASK_ID_PATTERN.test(value.task))
+		(task !== undefined && !TASK_ID_PATTERN.test(task))
 	) {
 		return undefined;
 	}
@@ -103,7 +114,7 @@ export function parseCmStatus(value) {
 	const feature = optionalText(value.feature, 120);
 	const detail = optionalText(value.detail, 240);
 	if (node.length === 0 || (value.feature !== undefined && feature?.length === 0)) return undefined;
-	return Object.freeze({ node, feature, task: value.task, detail, state: value.state });
+	return Object.freeze({ node, feature, task, detail, state });
 }
 
 export function parseRunPointer(value) {

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "task_id": "T-016",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/cm-evidence-reader.js",
+    "packages/byz/src/recovery/recovery-state.js",
+    "packages/byz/test/recovery-reader.test.mjs",
+    "packages/byz/test/recovery-state.test.mjs"
+  ],
+  "implementation_sha256": "60f6a31189eccdbb28bf900ee598d26466ca821ecc0a087d1d8afce16e266900",
+  "verification": [
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome normalized task files; all repository checks passed"
+    },
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs packages/byz/test/recovery-reader.test.mjs packages/byz/test/recovery-extension.test.mjs",
+      "status": "passed",
+      "evidence": "36 passed, 1 platform-specific junction test skipped, 0 failed on normalized bytes"
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "209 passed, 1 platform-specific junction test skipped, 0 failed"
+    }
+  ],
+  "evidence": [
+    "T-013 attempt 2 compatibility, bounded issue aggregation and review source-path bytes are rebound to T-016",
+    "done + completed + task:null + multiple unfinished tasks remains found and reduces to needs-reconciliation",
+    "Required repository check normalized formatting without changing behavior or scope"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

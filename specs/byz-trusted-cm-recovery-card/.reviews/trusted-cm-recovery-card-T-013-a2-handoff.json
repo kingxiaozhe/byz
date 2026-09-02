@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "task_id": "T-013",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/recovery/cm-evidence-reader.js",
+    "packages/byz/src/recovery/recovery-state.js",
+    "packages/byz/test/recovery-reader.test.mjs",
+    "packages/byz/test/recovery-state.test.mjs"
+  ],
+  "implementation_sha256": "fe421851dd42b567e874773cc16c0937568fd36ce49b0c2bfcf89ff871562073",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/recovery-state.test.mjs packages/byz/test/recovery-reader.test.mjs",
+      "status": "passed",
+      "evidence": "19 passed, 1 platform-specific junction test skipped, 0 failed"
+    },
+    {
+      "command": "git diff --check -- packages/byz/src/recovery/recovery-state.js packages/byz/src/recovery/cm-evidence-reader.js packages/byz/test/recovery-state.test.mjs packages/byz/test/recovery-reader.test.mjs",
+      "status": "passed",
+      "evidence": "No whitespace errors"
+    }
+  ],
+  "evidence": [
+    "Round-1 P2 fixed: matching review symlink/non-file reports its exact project-relative path",
+    "AC-023: exact legacy schema_version/task/state compatibility tests",
+    "AC-024: ten malformed candidates produce eight bounded relative issue receipts and block resumable",
+    "Source bytes for legacy fixtures are unchanged before and after reading"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

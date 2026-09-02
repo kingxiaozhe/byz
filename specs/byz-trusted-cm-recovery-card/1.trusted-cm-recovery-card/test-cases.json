@@ -131,6 +131,45 @@
       "steps": ["npm install --ignore-scripts 安装 tarball", "启动 BYZ 并观察 recovery card", "枚举 tar 文件与文本", "记录 artifact receipt", "最终审计核对 T-008 后产物输入是否变化"],
       "expected": ["安全 fixture 显示预期卡片", "tar 不含项目 specs、运行日志、本机绝对路径、secret marker 或开发产物", "没有新增 runtime dependency、watcher、hook 或 daemon，也不写项目状态", "产物未变化时 T-009 复用 receipt 而不重复矩阵；变化时明确重跑 T-008"],
       "cleanup": ["删除隔离 HOME、install prefix、artifact snapshot 与 fixture"]
+    },
+    {
+      "id": "TC-011",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-023"],
+      "taskIds": ["T-016"],
+      "title": "已知旧版 CM 字段只在封闭 allowlist 内兼容",
+      "preconditions": ["分别准备 manifest schema_version 缺失、1、2 和错误类型", "分别准备 status task null、state completed、未知 state 和未知附加字段"],
+      "steps": ["逐项送入 strict parser 和 reader", "检查规范化后的 canonical projection", "检查来源文件字节与 mtime"],
+      "expected": ["schema_version 缺失或数值 1 合法，其他版本或类型 invalid_record", "task null 按未指定处理，completed 只映射为 run_done", "未知字段与状态继续拒绝", "兼容过程不写回来源"],
+      "cleanup": ["删除临时旧版状态 fixture"]
+    },
+    {
+      "id": "TC-012",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-018", "AC-019", "AC-024"],
+      "taskIds": ["T-016"],
+      "title": "候选扫描归集问题但不把潜在 active 损坏候选当作可忽略",
+      "preconditions": ["直属 specs 同时包含兼容终态、有效 active、损坏 done 和损坏 running 候选", "准备超过 8 条候选问题的 bounded fixture", "准备 done + completed + task:null 且含两个未完成 canonical tasks 的 fixture"],
+      "steps": ["分别组合终态与 active 候选运行 reader", "把损坏候选放在排序首位和末位重复执行", "读取 terminal alias + 多未完成任务 fixture", "检查 returned issues 与最终状态"],
+      "expected": ["已证明终态且无未决任务的旧记录为 absent", "scanner 不因首个错误停止且最多返回 8 条稳定 reason/path", "损坏 running 或无法证明终态的候选阻止唯一 resumable", "terminal alias 下仍有多个未完成任务时得到 needs-reconciliation 而非 absent", "issue 不含异常原文、字段值、绝对路径或文件内容"],
+      "cleanup": ["删除临时候选 fixtures"]
+    },
+    {
+      "id": "TC-013",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-015", "AC-017", "AC-019", "AC-025"],
+      "taskIds": ["T-014"],
+      "title": "手动 details 提供脱敏 unavailable 诊断且不扩大读取",
+      "preconditions": ["reader 返回 invalid_record 与超过 8 条混合安全/恶意 issues", "Git、Session 正文和全局 CM reader 使用可计数 spies"],
+      "steps": ["触发 startup 并记录 warning", "执行 /project status 和 /project details", "输入包含绝对路径、控制字符和路径穿越的 issue", "传入未知 /project 参数"],
+      "expected": ["startup/status 每 Session 只显示一次固定 warning", "details 重新读取后显示固定 unavailable 标题、reason 和最多 8 条安全相对路径", "恶意或非相对 issue 被过滤且不泄露原始异常", "unavailable details 的 Git、Session 正文和全局 CM 调用次数为 0", "未知参数仍只显示固定 usage"],
+      "cleanup": []
     }
   ]
 }

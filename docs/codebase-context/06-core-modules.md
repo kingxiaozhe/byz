@@ -15,6 +15,7 @@ This is not a browser component application. Terminal UI primitives live in `pac
 | BYZ workflow layer | workflow selection, updates, release contract | `packages/byz/src/**`, `packages/byz/scripts/**` | BYZ product |
 | BYZ conversation shell | goal-first presentation, progress cards, per-turn stage timing, confirmation wait accounting | `packages/byz/src/conversation/**` | Interactive UX |
 | BYZ local diagnostics | closed event schema, bounded recorder/Worker shards, summaries, safe export, update-health comparison | `packages/byz/src/diagnostics/**` | Local diagnostics |
+| BYZ project recovery | strict CM state projection, bounded project-local evidence reads, recovery status/details presentation | `packages/byz/src/recovery/**` | Trusted CM recovery |
 
 ## Hooks
 

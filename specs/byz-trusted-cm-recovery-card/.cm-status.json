@@ -1,1 +1,1 @@
-{"node":"FIX","feature":"fix-recovery-current-screen-oracle","task":"T-FIX-recovery-current-screen-oracle","detail":"替代任务已批准，current-screen 验证通过","state":"run_done","at":"04:43:51"}
+{"node":"N8","feature":"1.trusted-cm-recovery-card","task":null,"detail":"v7 自愈与诊断实现、QA、文档同步完成","state":"run_done","at":"05:12:00"}

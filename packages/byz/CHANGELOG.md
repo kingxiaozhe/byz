@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Changed
+
+- Changed trusted CM recovery to read three explicit legacy state forms without writing them back and to keep unfinished or damaged candidates fail-closed.
+
+### Fixed
+
+- Fixed unavailable project recovery details to show bounded, sanitized reason and project-relative source diagnostics while startup and status retain one fixed warning.
+
 ## 0.1.12 - 2026-09-01
 
 ### Added
