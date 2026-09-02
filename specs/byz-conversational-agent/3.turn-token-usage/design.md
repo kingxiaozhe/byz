@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | 2026-09-01 | v1 | 当前回合 observed usage 的受控投影、累计与展示 |
 | 2026-09-01 | v2 | mandatory all-zero placeholder 失败关闭为 unavailable |
+| 2026-09-02 | v3 | 单行执行状态、in-flight tools 与 BYZ 模型活跃时间摘要 |
 
 ## 项目架构
 
@@ -15,12 +16,101 @@
 
 ## 波及面
 
-- `packages/byz/src/adapters/pi/pi-runtime-adapter.ts`：当前 Conversation facade 允许 `message_update`，但只投影 role；`agent_end` 不投影 usage。需要加入最小、安全的 usage 投影，不暴露原始消息或 Provider payload。
+- `packages/byz/src/adapters/pi/pi-runtime-adapter.ts`：v1/v2 已完成 bounded usage 投影；v3 复用现有 `toolCallId`、`toolName`、`isError` 与 usage projection，不扩大 capability surface。
 - `packages/byz/src/application/ports/runtime.ts`：如现有 Conversation event 类型不能表达 bounded usage，补充最小结构类型；不得扩展成完整 Pi API。
-- `packages/byz/src/conversation/conversation-extension.js`：当前 Footer 已从 Session entries 计算累计 usage，working message 和完成摘要只显示时间。新增 turn-scoped accumulator，并复用现有 `formatTokens`。
-- `packages/byz/test/conversation.test.mjs`：增加当前回合累计、重复 update 去重、多响应、缺失/非法 usage、结束清理和 80 列文案回归。
+- `packages/byz/src/conversation/conversation-extension.js`：v3 修改紧凑 renderer、状态优先级和 turn-scoped 工具统计；继续复用现有 usage accumulator、每秒刷新、progress timeout 与 Footer。
+- `packages/byz/src/conversation/turn-timing.js`：保持 monotonic active/waiting 核心合同；通过封闭 stage 投影计算模型活跃时间，不新增计时器。
+- `packages/byz/test/conversation.test.mjs`：保留 usage、Footer 和生命周期矩阵，新增 2 秒延迟、单行状态、并行工具配对、模型活跃时间、完成摘要和中英文回归。
 - `packages/byz/test/architecture.test.mjs`：如 capability surface 变化，固定仅允许数值 usage 投影，禁止 raw message/context 逃逸。
 - `scripts/byz-packed-runtime.test.mjs`：只在现有 packed TUI fixture 可低成本扩展时增加可见 Token 断言；不得调用真实 Provider。
+
+## v3 增量设计：执行状态可观测性
+
+### 状态来源与优先级
+
+默认执行文案只消费已有结构化事件，不读取模型自然语言或 tool payload。每个事件只更新 `waiting/recoverPending/replyActive/inFlightTools` 等底层信号；显示状态和计时 stage 必须由同一个纯 selector 派生，禁止事件 handler 直接覆盖当前 stage：
+
+```text
+confirmation presenter waiting
+  > inFlightTools.size > 0
+  > recover/error state
+  > model-active state
+  > reply state
+  > complete
+```
+
+实现顺序为“更新信号 → 调 selector → 仅在 selected stage 变化时 transition/render”。因此 assistant update、重复事件和无 ID 事件在合法工具仍运行时都不能离开 tool stage。
+
+固定状态词表：
+
+| 状态 | 中文 | English | 数据源 |
+| --- | --- | --- | --- |
+| think | BYZ 思考中 | BYZ is thinking | agent/model-active interval |
+| inspect | 核对中 | Checking | read/grep/find/ls tool start |
+| modify | 修改中 | Editing | edit/write tool start |
+| command | 执行中 | Running | bash/powershell tool start |
+| recover | 处理异常 | Recovering | matched tool end with error |
+| reply | 整理答复 | Preparing reply | assistant message update |
+| waiting | 等待确认 | Waiting for confirmation | confirmation presenter |
+
+不提供百分比，不显示 Tasks。当前 CM specs task 数是项目工作流事实，不能作为当前 Agent turn 的 runtime task 数。
+
+### 工具配对与统计
+
+Conversation extension 在每个 turn 内维护：
+
+```text
+inFlightTools: Map<toolCallId, { category, sequence }>
+startedToolIds: Set<toolCallId>
+endedToolIds: Set<toolCallId>
+toolCalls: non-negative safe integer
+toolFailures: non-negative safe integer
+```
+
+- 只接受非空字符串 `toolCallId`；无可靠 ID 的 start/end 对工具 Map、统计、selected stage 和 timing 都不产生影响。
+- 首次 start 加入 in-flight 并把累计调用数加一；重复 start 不重复计数。
+- 匹配 end 才移出 in-flight；重复或未知 end 不改变数量，绝不出现负数。
+- 并行工具按 Map 当前 size 展示；任一结束后仍有其他工具时，selector 继续选择 tool stage。
+- assistant update 只设置 `replyActive` 信号；合法工具仍在运行时 selector 保持 tool stage。
+- 最后一个合法工具结束后，selector 才根据 `recoverPending > replyActive > think` 选择模型 stage。
+- `agent_end` 与 `session_shutdown` 清空全部 turn-local 集合。
+
+### 模型活跃时间
+
+引入封闭 `think` stage，并复用 `createTurnTiming` 的 stage totals：
+
+- `agent_start` 初始化 model-active 信号并由 selector 选择 `think`。
+- 首个合法工具开始时 selector 切到对应工具 stage；并行工具不重复累计重叠 wall-clock。
+- assistant update 只设置 reply 信号；in-flight 非空时 timing 仍保持工具 stage。
+- 最后一个合法工具结束后，selector 才切到 `recover`、`reply` 或 `think`。
+- 完成摘要中的 `modelActiveMs` 是 selector 实际选择的 `think + recover + reply` stage wall-clock 总和；工具 stage 与 confirmation waiting 明确排除。
+- 该值只表示客户端观察到的模型活跃/生成区间，不声称读取 hidden chain-of-thought。
+
+### 紧凑渲染与延迟
+
+复用现有 progress timeout，将默认延迟改为 2 秒：
+
+- 2 秒前不调用自定义 `setWorkingMessage`；短 turn 结束时只清理 timer，不闪现状态行。
+- 2 秒后紧凑模式只发布一行，并由现有 interval 每秒刷新：
+
+```text
+BYZ 思考中 · 0分12秒 · Token 3.2k
+执行中 · 2 个工具运行 · 1分12秒 · Token 8.4k
+等待确认 · 0分11秒 · 已执行 1分31秒 · Token 14.2k
+```
+
+- Token headline 为安全的 observed `input + output`；缺失或相加溢出时为 `Token —`，cache 不进入 headline。
+- `inFlightTools.size === 0` 时隐藏工具字段；等待确认优先于工具/模型状态。
+- 详情模式是用户显式开启的既有能力，可继续展示经现有清理流程生成的目标、活动、边界、active/waiting 与分项 usage；默认紧凑 renderer 不消费 args/path/command，两种模式共用同一状态事实快照。
+
+完成时固定两行：
+
+```text
+完成 · 1分56秒 · Token 12.8k
+BYZ 思考了 0分42秒 · 工具 4 次 · 等待 0分11秒
+```
+
+工具或等待为零时省略对应字段；失败非零时追加 `（1 次失败）`。英文使用同一快照和结构，不建立第二套状态逻辑。
 
 ## 模块设计
 
@@ -66,14 +156,14 @@ Accumulator 不读取完整 Session，不写磁盘，不进入 diagnostics 或�
 
 ### 3. Progress and completion rendering
 
-复用现有 `formatTokens`，不新增第二套数量格式：
+复用现有 `formatTokens` 与 v3 状态快照，不新增第二套数量格式：
 
-- 尚未 observed，或仅收到 mandatory all-zero placeholder：`Token —`。
-- 已 observed：`Token ↑12.4k · ↓860`；输入或输出字段缺失时只显示已观测字段。
-- 完成摘要：在耗时通知中增加独立 usage 句，按 `输入；输出；缓存读取；缓存写入` 顺序显示。可选缓存字段缺失时省略；已由同一 payload 正值建立 presence 的零字段显示为 `0`，unknown 显示 `—`。
-- 中文和英文文案分别位于现有固定文案表，不把 Provider/model 名称写入显示。
+- 紧凑 headline：安全 observed `input + output` 总量；尚未 observed、mandatory all-zero 或 headline 相加溢出时为 `Token —`。
+- 详情 usage：继续按 `输入；输出；缓存读取；缓存写入` 显示逐字段事实；cache 不进入 headline。
+- 完成摘要：固定两行，使用 total、modelActive、toolCalls/toolFailures、waiting 和 Token headline；零值可选字段隐藏。
+- 中文和英文文案分别位于现有固定文案表，不把 Provider/model 名称、toolName、args 或路径写入紧凑显示。
 
-现有 1 秒 interval 调用 `publishWorking()` 时只读取 turn accumulator 的 O(1) snapshot。usage 事件仅在数值发生变化或完成提交时触发一次 working-message 更新；streaming 文本 delta 不额外重绘。
+现有 1 秒 interval 只读取 turn timing、usage 与工具 Map 的 O(1) snapshot。tool/message 事件仅在状态、工具数量或 observed usage 变化时触发必要重绘；streaming 文本 delta 不额外重绘。
 
 ### 4. Footer compatibility
 
@@ -100,9 +190,11 @@ ProjectedUsage = {
   cacheWrite?: non-negative safe integer
 }
 
-message_update -> { message: { role, usage? } }
-message_end    -> { message: { role, usage? } }
-agent_end      -> { usage? }
+message_update      -> { message: { role, usage? } }
+message_end         -> { message: { role, usage? } }
+tool_execution_start -> { toolCallId?, toolName? }
+tool_execution_end   -> { toolCallId?, toolName?, isError? }
+agent_end            -> { usage? }
 ```
 
 这些是 BYZ Conversation capability 的最小投影，不是公开完整 Pi message API。
@@ -128,4 +220,8 @@ agent_end      -> { usage? }
 | 聚合 | 正值建立 payload presence + mixed zero 保留 + checked safe-integer addition | mandatory all-zero 失败关闭，区分可证明的 observed zero，并防合法单值累计后溢出 |
 | Adapter 边界 | 投影闭合数值，不暴露 messages | 保持 BYZ Core 与完整 Pi API 隔离 |
 | 刷新 | 复用现有 interval，usage 变化时必要重绘 | 不增加 timer 或高频 streaming redraw |
-| 依赖 | 零新增 | 现有 Pi usage 与格式化能力足够 |
+| 依赖 | 零新增 | 现有 Pi usage、tool lifecycle 与格式化能力足够 |
+| 默认状态形态 | 2 秒后单行；详情按需展开 | 短任务无闪烁，长任务保留可见进展 |
+| 工具计数 | 只按稳定 toolCallId 配对 | 支持并行与乱序结束，不靠 toolName 猜数量 |
+| BYZ 思考时间 | `think + recover + reply` 的客户端 wall-clock | 排除工具与人工等待，不冒充 hidden chain-of-thought |
+| Tasks | v3 不显示 | 当前没有可靠 runtime task registry，CM tasks 不是 turn tasks |

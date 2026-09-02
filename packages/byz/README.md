@@ -64,11 +64,18 @@ When sufficient comparable samples exist, `diagnostics summary` can show a trend
 
 ## Interactive timing
 
-During an interactive turn, BYZ updates the working indicator once per second with the current stage, elapsed time, and observed input/output Token usage for that turn. When the turn completes, one summary shows time spent in each stage, total active execution time, time waiting for confirmation, total elapsed time, and observed input, output, cache-read, and cache-write usage. The footer remains Session-cumulative.
+Interactive turns that run for more than two seconds show one compact status line, refreshed at most once per second:
 
-BYZ does not estimate missing usage. Before usage is observed, and when a Provider returns only a mandatory all-zero placeholder without independent presence evidence, the turn shows `Token —`. Once a positive field proves a payload was observed, explicit legal zero sibling fields remain `0`.
+```text
+BYZ is thinking · 0m 12s · Tokens 3.2k
+Running · 2 tools running · 1m 12s · Tokens 8.4k
+```
 
-Confirmation wait is reported separately and is not counted as agent execution. Timing and turn usage are turn-local, use the existing monotonic clock and one-second refresh, and are not written to the session, diagnostics, or model context.
+The line is derived from structured Agent lifecycle events. It can show thinking, checking, editing, command execution, recovery, reply preparation, or confirmation waiting. Parallel tools are paired by their runtime call IDs; the compact line reports only the current count and never exposes tool names, commands, arguments, paths, results, Prompt text, response text, Tasks, or a guessed percentage. Turns completed within two seconds do not flash a custom status.
+
+The Token headline is current-turn observed `input + output`; cache usage remains available in explicit details and is not mixed into the headline. BYZ does not estimate missing usage. Before usage is observed, and when a Provider returns only a mandatory all-zero placeholder without independent presence evidence, the turn shows `Token —`. The footer remains Session-cumulative.
+
+Completion uses two lines: total elapsed time and Token headline, followed by client-observed BYZ model-active time plus non-zero tool, failure, and confirmation-wait facts. “BYZ thinking” is wall-clock model activity observed by the client, not hidden chain-of-thought. Tool execution and human waiting are excluded from that value. Timing, usage, and tool state are turn-local, monotonic, generation-bound across delayed callbacks, and are not written to the Session, diagnostics, or model context.
 
 The interactive footer shows the current effective Thinking level next to the model. Shift+Tab, `/thinking`, Fast, and model capability changes update it immediately without `/reload`.
 

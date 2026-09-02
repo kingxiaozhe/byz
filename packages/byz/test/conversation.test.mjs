@@ -41,6 +41,40 @@ function fauxProviderConfig(faux) {
 	};
 }
 
+function createConversationHarness(options = {}) {
+	const handlers = new Map();
+	const commands = new Map();
+	const notifications = [];
+	const workingMessages = [];
+	let confirmationPresenter;
+	createConversationExtension({ setInterval: () => 1, clearInterval() {}, ...options })({
+		on: (name, handler) => handlers.set(name, handler),
+		registerCommand: (name, command) => commands.set(name, command),
+	});
+	const ctx = {
+		ui: {
+			notify: (message) => notifications.push(message),
+			input: async () => undefined,
+			setTitle() {},
+			setMessagePresenter() {},
+			setToolExecutionVisible() {},
+			setFooter() {},
+			setConfirmationPresenter(presenter) {
+				confirmationPresenter = presenter;
+			},
+			setWorkingMessage: (message) => workingMessages.push(message),
+		},
+	};
+	return {
+		commands,
+		ctx,
+		getConfirmationPresenter: () => confirmationPresenter,
+		handlers,
+		notifications,
+		workingMessages,
+	};
+}
+
 test("maps structural conversation states to readable, low-noise output", () => {
 	const policy = createInteractionPolicy();
 	assert.equal(policy.present("result", "完成：已整理重点。"), "完成：已整理重点。");
@@ -140,6 +174,335 @@ test("turn timing uses a monotonic clock and separates active stages from confir
 	assert.equal(formatElapsed(187_999, "en"), "3m 07s");
 });
 
+test("compact execution status waits two seconds and uses an observed turn token headline", async (t) => {
+	const originalSetTimeout = globalThis.setTimeout;
+	const originalClearTimeout = globalThis.clearTimeout;
+	let now = 0;
+	let revealProgress;
+	let tick;
+	let timeoutDelay;
+	let timeoutClears = 0;
+	globalThis.setTimeout = (handler, delay) => {
+		revealProgress = handler;
+		timeoutDelay = delay;
+		return 2;
+	};
+	globalThis.clearTimeout = () => {
+		timeoutClears++;
+		revealProgress = undefined;
+	};
+	t.after(() => {
+		globalThis.setTimeout = originalSetTimeout;
+		globalThis.clearTimeout = originalClearTimeout;
+	});
+	const harness = createConversationHarness({
+		now: () => now,
+		setInterval(handler) {
+			tick = handler;
+			return 1;
+		},
+		clearInterval() {},
+	});
+	await harness.handlers.get("session_start")({}, harness.ctx);
+	await harness.handlers.get("before_agent_start")({ prompt: "检查执行状态", systemPrompt: "base" }, harness.ctx);
+	await harness.handlers.get("agent_start")({}, harness.ctx);
+	assert.equal(timeoutDelay, 2_000);
+	assert.deepEqual(harness.workingMessages, []);
+	now = 1_999;
+	tick();
+	assert.deepEqual(harness.workingMessages, []);
+	now = 2_000;
+	const revealLongTurn = revealProgress;
+	revealProgress = undefined;
+	revealLongTurn();
+	assert.match(harness.workingMessages.at(-1), /^BYZ 思考中 · 0分02秒 · Token —$/);
+	await harness.handlers.get("message_update")(
+		{ message: { role: "assistant", usage: { input: 120, output: 8, cacheRead: 40 } } },
+		harness.ctx,
+	);
+	assert.match(harness.workingMessages.at(-1), /Token 128$/);
+	assert.doesNotMatch(harness.workingMessages.at(-1), /40|缓存|cache/);
+	await harness.handlers.get("agent_end")({ usage: { input: 120, output: 8, cacheRead: 40 } }, harness.ctx);
+
+	const shortTurnStart = harness.workingMessages.length;
+	await harness.handlers.get("before_agent_start")({ prompt: "短任务", systemPrompt: "base" }, harness.ctx);
+	await harness.handlers.get("agent_start")({}, harness.ctx);
+	const staleShortTurnReveal = revealProgress;
+	now = 2_100;
+	await harness.handlers.get("agent_end")({}, harness.ctx);
+	assert.equal(timeoutClears, 1);
+	assert.equal(
+		harness.workingMessages.slice(shortTurnStart).some((message) => message !== undefined),
+		false,
+	);
+	const thirdTurnStart = harness.workingMessages.length;
+	await harness.handlers.get("before_agent_start")({ prompt: "第三轮", systemPrompt: "base" }, harness.ctx);
+	await harness.handlers.get("agent_start")({}, harness.ctx);
+	const thirdTurnReveal = revealProgress;
+	staleShortTurnReveal();
+	assert.equal(
+		harness.workingMessages.slice(thirdTurnStart).some((message) => message !== undefined),
+		false,
+	);
+	now = 4_100;
+	thirdTurnReveal();
+	assert.match(harness.workingMessages.at(-1), /^BYZ 思考中 · 0分02秒 · Token —$/);
+	await harness.handlers.get("agent_end")({}, harness.ctx);
+});
+
+test("parallel tools stay paired while assistant and malformed tool events interleave", async () => {
+	const harness = createConversationHarness({ progressCardDelayMs: 0 });
+	await harness.handlers.get("session_start")({}, harness.ctx);
+	await harness.handlers.get("before_agent_start")({ prompt: "并行核对", systemPrompt: "base" }, harness.ctx);
+	await harness.handlers.get("agent_start")({}, harness.ctx);
+	await new Promise((resolve) => setTimeout(resolve, 5));
+	await harness.handlers.get("tool_execution_start")({ toolCallId: "A", toolName: "read" }, harness.ctx);
+	await harness.handlers.get("tool_execution_start")({ toolCallId: "B", toolName: "bash" }, harness.ctx);
+	assert.match(harness.workingMessages.at(-1), /2 个工具运行/);
+	await harness.handlers.get("message_update")({ message: { role: "assistant" } }, harness.ctx);
+	assert.match(harness.workingMessages.at(-1), /2 个工具运行/);
+	await harness.handlers.get("tool_execution_start")({ toolName: "edit" }, harness.ctx);
+	await harness.handlers.get("tool_execution_end")({ toolName: "edit", isError: true }, harness.ctx);
+	assert.match(harness.workingMessages.at(-1), /2 个工具运行/);
+	await harness.handlers.get("tool_execution_end")(
+		{ toolCallId: "A", toolName: "read", args: { path: "/private/a" }, isError: true },
+		harness.ctx,
+	);
+	assert.match(harness.workingMessages.at(-1), /1 个工具运行/);
+	await harness.handlers.get("message_update")({ message: { role: "assistant" } }, harness.ctx);
+	assert.match(harness.workingMessages.at(-1), /1 个工具运行/);
+	await harness.handlers.get("tool_execution_end")({ toolCallId: "A", toolName: "read", isError: false }, harness.ctx);
+	await harness.handlers.get("tool_execution_end")(
+		{ toolCallId: "unknown", toolName: "write", isError: true },
+		harness.ctx,
+	);
+	assert.match(harness.workingMessages.at(-1), /1 个工具运行/);
+	await harness.handlers.get("tool_execution_end")(
+		{ toolCallId: "B", toolName: "bash", args: { command: "false" }, isError: false },
+		harness.ctx,
+	);
+	assert.match(harness.workingMessages.at(-1), /处理异常/);
+	assert.doesNotMatch(harness.workingMessages.at(-1), /工具运行/);
+	await harness.handlers.get("agent_end")({}, harness.ctx);
+	const summary = harness.notifications.at(-1);
+	assert.equal(summary.split("\n").length, 2);
+	assert.match(summary, /工具 2 次（1 次失败）/);
+	assert.doesNotMatch(summary, /\/private\/a|false/);
+});
+
+test("BYZ model-active summary excludes tool execution and confirmation waiting", async () => {
+	let now = 0;
+	const harness = createConversationHarness({
+		now: () => now,
+		progressCardDelayMs: 0,
+		setInterval: () => 1,
+		clearInterval() {},
+	});
+	await harness.handlers.get("session_start")({}, harness.ctx);
+	await harness.handlers.get("before_agent_start")({ prompt: "分账计时", systemPrompt: "base" }, harness.ctx);
+	await harness.handlers.get("agent_start")({}, harness.ctx);
+	now = 3_000;
+	await harness.handlers.get("tool_execution_start")({ toolCallId: "A", toolName: "read" }, harness.ctx);
+	now = 8_000;
+	await harness.handlers.get("message_update")({ message: { role: "assistant" } }, harness.ctx);
+	now = 10_000;
+	await harness.handlers.get("tool_execution_end")({ toolCallId: "A", toolName: "read", isError: false }, harness.ctx);
+	now = 12_000;
+	harness.ctx.ui.input = async () => {
+		now = 17_000;
+		return "确认";
+	};
+	assert.equal(
+		await harness.getConfirmationPresenter()({ title: "确认", message: "继续", confirm: async () => false }),
+		true,
+	);
+	now = 20_000;
+	await harness.handlers.get("message_update")({ message: { role: "assistant" } }, harness.ctx);
+	await harness.handlers.get("agent_end")({}, harness.ctx);
+	const summary = harness.notifications.at(-1);
+	assert.match(summary, /^完成 · 0分20秒 · Token —$/m);
+	assert.match(summary, /BYZ 思考了 0分08秒/);
+	assert.match(summary, /工具 1 次/);
+	assert.match(summary, /等待 0分05秒/);
+});
+
+test("turn-local execution state is cleared across agent end and session shutdown", async (t) => {
+	const originalSetTimeout = globalThis.setTimeout;
+	const originalClearTimeout = globalThis.clearTimeout;
+	const timeoutHandlers = new Map();
+	let nextTimeout = 1;
+	const intervalHandlers = [];
+	let intervalStarts = 0;
+	let intervalClears = 0;
+	let timeoutStarts = 0;
+	let timeoutClears = 0;
+	globalThis.setTimeout = (handler) => {
+		const id = nextTimeout++;
+		timeoutStarts++;
+		timeoutHandlers.set(id, handler);
+		return id;
+	};
+	globalThis.clearTimeout = (id) => {
+		timeoutClears++;
+		timeoutHandlers.delete(id);
+	};
+	t.after(() => {
+		globalThis.setTimeout = originalSetTimeout;
+		globalThis.clearTimeout = originalClearTimeout;
+	});
+	const harness = createConversationHarness({
+		setInterval(handler) {
+			intervalStarts++;
+			intervalHandlers.push(handler);
+			return intervalStarts;
+		},
+		clearInterval() {
+			intervalClears++;
+		},
+	});
+	await harness.handlers.get("session_start")({}, harness.ctx);
+	await harness.handlers.get("before_agent_start")({ prompt: "第一轮", systemPrompt: "base" }, harness.ctx);
+	await harness.handlers.get("agent_start")({}, harness.ctx);
+	const firstTurnInterval = intervalHandlers.at(-1);
+	await harness.handlers.get("tool_execution_start")({ toolCallId: "A", toolName: "bash" }, harness.ctx);
+	await harness.handlers.get("tool_execution_end")({ toolCallId: "A", toolName: "bash", isError: true }, harness.ctx);
+	await harness.handlers.get("agent_end")({}, harness.ctx);
+	assert.match(harness.notifications.at(-1), /工具 1 次（1 次失败）/);
+
+	await harness.handlers.get("before_agent_start")({ prompt: "第二轮", systemPrompt: "base" }, harness.ctx);
+	await harness.handlers.get("agent_start")({}, harness.ctx);
+	const secondReveal = [...timeoutHandlers.values()].at(-1);
+	timeoutHandlers.clear();
+	secondReveal();
+	assert.doesNotMatch(harness.workingMessages.at(-1), /工具运行|失败/);
+	const rendersBeforeStaleInterval = harness.workingMessages.length;
+	firstTurnInterval();
+	assert.equal(harness.workingMessages.length, rendersBeforeStaleInterval);
+	await harness.handlers.get("session_shutdown")({}, harness.ctx);
+	const rendersAfterShutdown = harness.workingMessages.length;
+	secondReveal();
+	assert.equal(harness.workingMessages.length, rendersAfterShutdown);
+
+	await harness.handlers.get("session_start")({}, harness.ctx);
+	await harness.handlers.get("before_agent_start")({ prompt: "第三轮", systemPrompt: "base" }, harness.ctx);
+	await harness.handlers.get("agent_start")({}, harness.ctx);
+	await harness.handlers.get("agent_end")({}, harness.ctx);
+	assert.doesNotMatch(harness.notifications.at(-1), /工具|失败|等待 0分00秒/);
+	assert.equal(intervalStarts, 3);
+	assert.equal(intervalClears, 3);
+	assert.equal(timeoutStarts, 3);
+	assert.equal(timeoutClears, 2);
+});
+
+test("stale confirmation continuation cannot resume a newer turn", async () => {
+	let now = 0;
+	const pendingInputs = [];
+	const harness = createConversationHarness({
+		now: () => now,
+		progressCardDelayMs: 60_000,
+		setInterval: () => 1,
+		clearInterval() {},
+	});
+	harness.ctx.ui.input = () => new Promise((resolve) => pendingInputs.push(resolve));
+	await harness.handlers.get("session_start")({}, harness.ctx);
+	await harness.handlers.get("before_agent_start")({ prompt: "旧回合", systemPrompt: "base" }, harness.ctx);
+	await harness.handlers.get("agent_start")({}, harness.ctx);
+	now = 1_000;
+	const oldConfirmation = harness.getConfirmationPresenter()({
+		title: "旧确认",
+		message: "旧回合等待",
+		confirm: async () => false,
+	});
+	assert.equal(pendingInputs.length, 1);
+	now = 2_000;
+	await harness.handlers.get("agent_end")({}, harness.ctx);
+
+	now = 10_000;
+	await harness.handlers.get("before_agent_start")({ prompt: "新回合", systemPrompt: "base" }, harness.ctx);
+	await harness.handlers.get("agent_start")({}, harness.ctx);
+	now = 12_000;
+	const newConfirmation = harness.getConfirmationPresenter()({
+		title: "新确认",
+		message: "新回合等待",
+		confirm: async () => false,
+	});
+	assert.equal(pendingInputs.length, 2);
+	now = 15_000;
+	pendingInputs[0]("确认");
+	assert.equal(await oldConfirmation, true);
+	now = 20_000;
+	pendingInputs[1]("确认");
+	assert.equal(await newConfirmation, true);
+	now = 22_000;
+	await harness.handlers.get("agent_end")({}, harness.ctx);
+	const summary = harness.notifications.at(-1);
+	assert.match(summary, /^完成 · 0分12秒 · Token —$/m);
+	assert.match(summary, /BYZ 思考了 0分04秒 · 等待 0分08秒/);
+});
+
+test("compact status is bilingual, single-line, and hides raw task and tool fields", async (t) => {
+	const originalAgentDir = process.env.BYZ_CODING_AGENT_DIR;
+	const agentDir = await mkdtemp(join(tmpdir(), "byz-compact-status-"));
+	process.env.BYZ_CODING_AGENT_DIR = agentDir;
+	t.after(async () => {
+		if (originalAgentDir === undefined) delete process.env.BYZ_CODING_AGENT_DIR;
+		else process.env.BYZ_CODING_AGENT_DIR = originalAgentDir;
+		await rm(agentDir, { force: true, recursive: true });
+	});
+	for (const expectation of [
+		{
+			prompt: "执行 Tasks 2/4，读取 /Users/secret/input.txt",
+			status: /BYZ 思考中|执行中|整理答复/,
+			time: /0分00秒/,
+			token: /Token —/,
+		},
+		{
+			prompt: "run Tasks 2/4 with /Users/secret/input.txt",
+			status: /BYZ is thinking|Running|Preparing reply/,
+			time: /0m 00s/,
+			token: /Tokens —/,
+		},
+	]) {
+		const harness = createConversationHarness({ progressCardDelayMs: 0 });
+		await harness.handlers.get("session_start")({}, harness.ctx);
+		await harness.handlers.get("before_agent_start")(
+			{ prompt: expectation.prompt, systemPrompt: "base" },
+			harness.ctx,
+		);
+		await harness.handlers.get("agent_start")({}, harness.ctx);
+		await new Promise((resolve) => setTimeout(resolve, 5));
+		await harness.handlers.get("tool_execution_start")(
+			{ toolCallId: "secret-call", toolName: "bash", args: { command: "cat /Users/secret/input.txt" } },
+			harness.ctx,
+		);
+		await harness.handlers.get("tool_execution_end")(
+			{
+				toolCallId: "secret-call",
+				toolName: "bash",
+				args: { command: "cat /Users/secret/input.txt" },
+				isError: false,
+				result: "private tool result",
+			},
+			harness.ctx,
+		);
+		await harness.handlers.get("message_update")(
+			{ message: { role: "assistant", content: [{ type: "text", text: "private assistant response" }] } },
+			harness.ctx,
+		);
+		const latest = harness.workingMessages.at(-1);
+		assert.equal(latest.split("\n").length, 1);
+		assert.match(latest, expectation.status);
+		assert.match(latest, expectation.time);
+		assert.match(latest, expectation.token);
+		assert.doesNotMatch(
+			latest,
+			/Tasks|2\/4|cat|Users|secret-call|bash|input\.txt|private tool result|private assistant response|%/,
+		);
+		await harness.handlers.get("agent_end")({}, harness.ctx);
+		assert.equal(harness.notifications.at(-1).split("\n").length, 2);
+	}
+});
+
 test("conversation extension refreshes current stage timing and freezes one final summary", async () => {
 	const handlers = new Map();
 	const workingMessages = [];
@@ -149,7 +512,7 @@ test("conversation extension refreshes current stage timing and freezes one fina
 	let intervalClears = 0;
 	createConversationExtension({
 		now: () => now,
-		progressCardDelayMs: 60_000,
+		progressCardDelayMs: 0,
 		setInterval: (handler) => {
 			tick = handler;
 			return 1;
@@ -175,17 +538,18 @@ test("conversation extension refreshes current stage timing and freezes one fina
 		},
 	};
 	await handlers.get("session_start")({}, ctx);
-	await handlers.get("before_agent_start")({ prompt: "核对阶段耗时", systemPrompt: "base" }, ctx);
+	await handlers.get("before_agent_start")({ prompt: "展开细节，核对阶段耗时", systemPrompt: "base" }, ctx);
 	await handlers.get("agent_start")({}, ctx);
-	assert.match(workingMessages.at(-1), /确认目标 · 0分00秒/);
+	await new Promise((resolve) => setTimeout(resolve, 5));
+	assert.match(workingMessages.at(-1), /当前耗时：BYZ 思考 0分00秒/);
 	now = 1_100;
 	tick();
-	assert.match(workingMessages.at(-1), /确认目标 · 0分01秒/);
+	assert.match(workingMessages.at(-1), /当前耗时：BYZ 思考 0分01秒/);
 	now = 2_000;
-	await handlers.get("tool_execution_start")({ toolName: "read" }, ctx);
-	assert.match(workingMessages.at(-1), /核对材料 · 0分00秒/);
+	await handlers.get("tool_execution_start")({ toolCallId: "read-1", toolName: "read" }, ctx);
+	assert.match(workingMessages.at(-1), /当前耗时：核对材料 0分00秒/);
 	now = 5_000;
-	await handlers.get("tool_execution_end")({ toolName: "read", isError: false }, ctx);
+	await handlers.get("tool_execution_end")({ toolCallId: "read-1", toolName: "read", isError: false }, ctx);
 	now = 6_000;
 	await handlers.get("message_update")({ message: { role: "assistant" } }, ctx);
 	const rendersAfterReplyTransition = workingMessages.length;
@@ -197,9 +561,9 @@ test("conversation extension refreshes current stage timing and freezes one fina
 	await handlers.get("agent_end")({}, ctx);
 	assert.equal(intervalClears, 1);
 	assert.equal(workingMessages.at(-1), undefined);
-	assert.match(notifications.at(-1), /确认目标与边界 0分02秒/);
-	assert.match(notifications.at(-1), /定位和核对相关材料 0分03秒/);
-	assert.match(notifications.at(-1), /执行 0分08秒；等待确认 0分00秒；总历时 0分08秒/);
+	assert.match(notifications.at(-1), /^完成 · 0分08秒 · Token —$/m);
+	assert.match(notifications.at(-1), /BYZ 思考了 0分05秒 · 工具 1 次/);
+	assert.doesNotMatch(notifications.at(-1), /等待/);
 	const countAfterFinish = workingMessages.length;
 	tick();
 	assert.equal(workingMessages.length, countAfterFinish);
@@ -209,7 +573,7 @@ test("current turn usage starts unknown and does not inherit session totals", as
 	const handlers = new Map();
 	const workingMessages = [];
 	const notifications = [];
-	createConversationExtension({ setInterval: () => 1, clearInterval() {} })({
+	createConversationExtension({ progressCardDelayMs: 0, setInterval: () => 1, clearInterval() {} })({
 		on: (name, handler) => handlers.set(name, handler),
 		registerCommand() {},
 	});
@@ -230,22 +594,24 @@ test("current turn usage starts unknown and does not inherit session totals", as
 	await handlers.get("session_start")({}, ctx);
 	await handlers.get("before_agent_start")({ prompt: "显示本轮 Token", systemPrompt: "base" }, ctx);
 	await handlers.get("agent_start")({}, ctx);
+	await new Promise((resolve) => setTimeout(resolve, 5));
 	assert.match(workingMessages.at(-1), /Token —/);
 	assert.doesNotMatch(workingMessages.at(-1), /9\.9k|999/);
 	await handlers.get("message_update")({ message: { role: "assistant", usage: { input: 120, output: 8 } } }, ctx);
-	assert.match(workingMessages.at(-1), /Token ↑120 · ↓8/);
+	assert.match(workingMessages.at(-1), /Token 128/);
 	await handlers.get("message_end")({ message: { role: "assistant", usage: { input: 120, output: 8 } } }, ctx);
-	await handlers.get("tool_execution_start")({ toolName: "read" }, ctx);
-	assert.match(workingMessages.at(-1), /Token ↑120 · ↓8/);
+	await handlers.get("tool_execution_start")({ toolCallId: "read-1", toolName: "read" }, ctx);
+	assert.match(workingMessages.at(-1), /Token 128/);
 	await handlers.get("agent_end")({ usage: { input: 120, output: 8, cacheRead: 40, cacheWrite: 0 } }, ctx);
-	assert.match(notifications.at(-1), /Token：输入 120；输出 8；缓存读取 40；缓存写入 0/);
+	assert.match(notifications.at(-1), /^完成 · 0分00秒 · Token 128$/m);
+	assert.doesNotMatch(notifications.at(-1), /缓存|cache/);
 });
 
 test("streaming usage snapshots and multiple responses are accumulated exactly once", async () => {
 	const handlers = new Map();
 	const workingMessages = [];
 	const notifications = [];
-	createConversationExtension({ setInterval: () => 1, clearInterval() {} })({
+	createConversationExtension({ progressCardDelayMs: 0, setInterval: () => 1, clearInterval() {} })({
 		on: (name, handler) => handlers.set(name, handler),
 		registerCommand() {},
 	});
@@ -263,15 +629,16 @@ test("streaming usage snapshots and multiple responses are accumulated exactly o
 	await handlers.get("session_start")({}, ctx);
 	await handlers.get("before_agent_start")({ prompt: "累计多次响应", systemPrompt: "base" }, ctx);
 	await handlers.get("agent_start")({}, ctx);
+	await new Promise((resolve) => setTimeout(resolve, 5));
 	await handlers.get("message_update")({ message: { role: "assistant", usage: { input: 10, output: 1 } } }, ctx);
 	await handlers.get("message_update")({ message: { role: "assistant", usage: { input: 15, output: 1 } } }, ctx);
 	await handlers.get("message_update")({ message: { role: "assistant", usage: { input: 20, output: 2 } } }, ctx);
 	await handlers.get("message_end")({ message: { role: "assistant", usage: { input: 20, output: 2 } } }, ctx);
 	await handlers.get("message_update")({ message: { role: "assistant", usage: { input: 5, output: 3 } } }, ctx);
 	await handlers.get("message_end")({ message: { role: "assistant", usage: { input: 5, output: 3 } } }, ctx);
-	assert.match(workingMessages.at(-1), /Token ↑25 · ↓5/);
+	assert.match(workingMessages.at(-1), /Token 30/);
 	await handlers.get("agent_end")({ usage: { input: 25, output: 5 } }, ctx);
-	assert.match(notifications.at(-1), /Token：输入 25；输出 5/);
+	assert.match(notifications.at(-1), /^完成 · 0分00秒 · Token 30$/m);
 	assert.doesNotMatch(notifications.at(-1), /输入 55|输出 9/);
 });
 
@@ -279,7 +646,7 @@ test("partial, invalid, and cumulatively overflowing usage fail closed by field"
 	const handlers = new Map();
 	const workingMessages = [];
 	const notifications = [];
-	createConversationExtension({ setInterval: () => 1, clearInterval() {} })({
+	createConversationExtension({ progressCardDelayMs: 0, setInterval: () => 1, clearInterval() {} })({
 		on: (name, handler) => handlers.set(name, handler),
 		registerCommand() {},
 	});
@@ -295,16 +662,17 @@ test("partial, invalid, and cumulatively overflowing usage fail closed by field"
 		},
 	};
 	await handlers.get("session_start")({}, ctx);
-	await handlers.get("before_agent_start")({ prompt: "拒绝非法 Token", systemPrompt: "base" }, ctx);
+	await handlers.get("before_agent_start")({ prompt: "展开细节，拒绝非法 Token", systemPrompt: "base" }, ctx);
 	await handlers.get("agent_start")({}, ctx);
+	await new Promise((resolve) => setTimeout(resolve, 5));
 	await handlers.get("message_update")(
 		{
 			message: { role: "assistant", usage: { input: -1, output: 7, cacheRead: Number.NaN } },
 		},
 		ctx,
 	);
-	assert.match(workingMessages.at(-1), /Token ↓7/);
-	assert.doesNotMatch(workingMessages.at(-1), /↑/);
+	assert.match(workingMessages.at(-1), /Token：输出 7/);
+	assert.doesNotMatch(workingMessages.at(-1), /输入/);
 	await handlers.get("message_end")({ message: { role: "assistant", usage: { output: 7 } } }, ctx);
 	await handlers.get("message_update")(
 		{
@@ -319,11 +687,11 @@ test("partial, invalid, and cumulatively overflowing usage fail closed by field"
 		ctx,
 	);
 	await handlers.get("message_update")({ message: { role: "assistant", usage: { input: 1 } } }, ctx);
-	assert.doesNotMatch(workingMessages.at(-1), /↑/);
+	assert.doesNotMatch(workingMessages.at(-1), /输入/);
 	await handlers.get("message_end")({ message: { role: "assistant", usage: { input: 1 } } }, ctx);
 	await handlers.get("agent_end")({ usage: { output: 7, cacheWrite: 0 } }, ctx);
-	assert.match(notifications.at(-1), /Token：输出 7；缓存写入 0/);
-	assert.doesNotMatch(notifications.at(-1), /输入/);
+	assert.match(notifications.at(-1), /^完成 · 0分00秒 · Token —$/m);
+	assert.doesNotMatch(notifications.at(-1), /输出 7|缓存写入/);
 });
 
 test("actual AgentSession error and abort paths emit agent_end and clear turn usage", async (t) => {
@@ -363,6 +731,7 @@ test("actual AgentSession error and abort paths emit agent_end and clear turn us
 					factory: (pi) => {
 						pi.registerProvider(faux.getModel().provider, fauxProviderConfig(faux));
 						createConversationExtension({
+							progressCardDelayMs: 0,
 							setInterval(handler, milliseconds) {
 								intervals += 1;
 								return globalThis.setInterval(handler, milliseconds);
@@ -418,7 +787,7 @@ test("actual AgentSession error and abort paths emit agent_end and clear turn us
 	assert.equal(agentEnds.length, 1);
 	assert.equal(intervals, 1);
 	assert.equal(intervalClears, 1);
-	assert.match(notifications.at(-1).message, /Tokens: input (?!0(?:\D|$))[^;]+; output (?!0(?:\D|$))[^;\n]+/);
+	assert.match(notifications.at(-1).message, /^Done · .* · Tokens (?!—)/m);
 
 	const errorWorkingStart = workingMessages.length;
 	faux.setResponses([
@@ -430,10 +799,10 @@ test("actual AgentSession error and abort paths emit agent_end and clear turn us
 	await session.prompt("error after observed usage").catch(() => {});
 	assert.equal(agentEnds.length, 2);
 	assert.equal(
-		workingMessages.slice(errorWorkingStart).some((message) => /Tokens? ↑/.test(message ?? "")),
+		workingMessages.slice(errorWorkingStart).some((message) => /Tokens? (?!—)\d/.test(message ?? "")),
 		true,
 	);
-	assert.match(notifications.at(-1).message, /Tokens?: input/);
+	assert.match(notifications.at(-1).message, /^Done · .* · Tokens (?!—)/m);
 	assert.equal(intervals, 2);
 	assert.equal(intervalClears, 2);
 	assert.equal(workingMessages.at(-1), undefined);
@@ -443,32 +812,30 @@ test("actual AgentSession error and abort paths emit agent_end and clear turn us
 	const pending = session.prompt("abort after observed usage");
 	for (
 		let attempt = 0;
-		attempt < 400 && !workingMessages.slice(abortWorkingStart).some((message) => /Tokens? ↑/.test(message ?? ""));
+		attempt < 400 &&
+		!workingMessages.slice(abortWorkingStart).some((message) => /Tokens? (?!—)\d/.test(message ?? ""));
 		attempt += 1
 	) {
 		await new Promise((resolve) => setTimeout(resolve, 5));
 	}
 	assert.equal(session.isStreaming, true);
 	assert.equal(
-		workingMessages.slice(abortWorkingStart).some((message) => /Tokens? ↑/.test(message ?? "")),
+		workingMessages.slice(abortWorkingStart).some((message) => /Tokens? (?!—)\d/.test(message ?? "")),
 		true,
 	);
 	await session.abort();
 	await pending.catch(() => {});
 	assert.equal(agentEnds.length, 3);
-	assert.match(notifications.at(-1).message, /Tokens?: input/);
+	assert.match(notifications.at(-1).message, /^Done · .* · Tokens (?!—)/m);
 	assert.equal(intervals, 3);
 	assert.equal(intervalClears, 3);
 	assert.equal(workingMessages.at(-1), undefined);
 
-	const postAbortWorkingStart = workingMessages.length;
 	faux.setResponses([fauxAssistantMessage("after abort")]);
 	await session.prompt("post abort turn");
 	assert.equal(agentEnds.length, 4);
-	assert.equal(
-		workingMessages.slice(postAbortWorkingStart).some((message) => /Tokens? —/.test(message ?? "")),
-		true,
-	);
+	assert.match(notifications.at(-1).message, /^Done · .* · Tokens (?!—)/m);
+	assert.doesNotMatch(notifications.at(-1).message, /tools?|failed|waited/);
 	assert.equal(intervals, 4);
 	assert.equal(intervalClears, 4);
 	assert.equal(faux.state.callCount, 5);
@@ -526,7 +893,8 @@ test("confirmation input and fallback time count only as waiting", async () => {
 	);
 	now = 13_000;
 	await handlers.get("agent_end")({}, ctx);
-	assert.match(notifications.at(-1), /执行 0分05秒；等待确认 0分08秒；总历时 0分13秒/);
+	assert.match(notifications.at(-1), /^完成 · 0分13秒 · Token —$/m);
+	assert.match(notifications.at(-1), /BYZ 思考了 0分05秒 · 等待 0分08秒/);
 });
 
 test("session shutdown clears timing without rendering a completion summary", async () => {
@@ -537,6 +905,7 @@ test("session shutdown clears timing without rendering a completion summary", as
 	let clears = 0;
 	createConversationExtension({
 		now: () => 1_000,
+		progressCardDelayMs: 0,
 		setInterval: (handler) => {
 			tick = handler;
 			return 1;
@@ -562,8 +931,9 @@ test("session shutdown clears timing without rendering a completion summary", as
 	await handlers.get("session_start")({}, ctx);
 	await handlers.get("before_agent_start")({ prompt: "关闭计时", systemPrompt: "base" }, ctx);
 	await handlers.get("agent_start")({}, ctx);
+	await new Promise((resolve) => setTimeout(resolve, 5));
 	await handlers.get("message_update")({ message: { role: "assistant", usage: { input: 10, output: 2 } } }, ctx);
-	assert.match(workingMessages.at(-1), /Token ↑10 · ↓2/);
+	assert.match(workingMessages.at(-1), /Token 12/);
 	await handlers.get("session_shutdown")({}, ctx);
 	assert.equal(clears, 1);
 	assert.equal(
@@ -575,6 +945,7 @@ test("session shutdown clears timing without rendering a completion summary", as
 	assert.equal(workingMessages.length, rendersAfterShutdown);
 	await handlers.get("before_agent_start")({ prompt: "新回合", systemPrompt: "base" }, ctx);
 	await handlers.get("agent_start")({}, ctx);
+	await new Promise((resolve) => setTimeout(resolve, 5));
 	assert.match(workingMessages.at(-1), /Token —/);
 	await handlers.get("agent_end")({}, ctx);
 });
@@ -606,18 +977,15 @@ test("conversation extension shows a scoped progress card after a short wait", a
 	await handlers.get("before_agent_start")({ prompt: "修复 footer 等待状态", systemPrompt: "base" }, ctx);
 	await handlers.get("agent_start")({}, ctx);
 	await new Promise((resolve) => setTimeout(resolve, 5));
-	await handlers.get("tool_execution_start")({ toolName: "read" }, ctx);
-	await handlers.get("tool_execution_end")({ toolName: "read", isError: false }, ctx);
-	await handlers.get("tool_execution_start")({ toolName: "edit" }, ctx);
-	await handlers.get("tool_execution_end")({ toolName: "edit", isError: false }, ctx);
+	await handlers.get("tool_execution_start")({ toolCallId: "read-1", toolName: "read" }, ctx);
+	await handlers.get("tool_execution_end")({ toolCallId: "read-1", toolName: "read", isError: false }, ctx);
+	await handlers.get("tool_execution_start")({ toolCallId: "edit-1", toolName: "edit" }, ctx);
+	await handlers.get("tool_execution_end")({ toolCallId: "edit-1", toolName: "edit", isError: false }, ctx);
 
 	const latest = workingMessages.at(-1);
-	assert.match(latest, /处理中：修复 footer 等待状态/);
-	assert.match(latest, /进展：修改 相关文件，是为了用最小改动解决当前问题。/);
-	assert.match(latest, /下一步：补充验证/);
-	assert.match(latest, /边界：需要人决策时会停下来说明/);
-	assert.doesNotMatch(latest, /正在处理，稍后给你结果/);
-	assert.doesNotMatch(latest, /当前判断：/);
+	assert.equal(latest.split("\n").length, 1);
+	assert.match(latest, /^BYZ 思考中 · 0分00秒 · Token —$/);
+	assert.doesNotMatch(latest, /footer|修改|下一步|边界|Tasks|%/);
 	await handlers.get("agent_end")({}, ctx);
 	assert.equal(workingMessages.at(-1), undefined);
 });
@@ -649,14 +1017,19 @@ test("conversation extension expands progress card in details mode", async () =>
 	await handlers.get("before_agent_start")({ prompt: "展开细节，修复 footer 等待状态", systemPrompt: "base" }, ctx);
 	await handlers.get("agent_start")({}, ctx);
 	await new Promise((resolve) => setTimeout(resolve, 5));
-	await handlers.get("tool_execution_start")({ toolName: "read" }, ctx);
-	await handlers.get("tool_execution_end")({ toolName: "read", isError: false }, ctx);
+	await handlers.get("tool_execution_start")({ toolCallId: "read-1", toolName: "read" }, ctx);
+	await handlers.get("tool_execution_end")({ toolCallId: "read-1", toolName: "read", isError: false }, ctx);
+	await handlers.get("message_update")(
+		{ message: { role: "assistant", usage: { input: 10, output: 2, cacheRead: 3 } } },
+		ctx,
+	);
 
 	const latest = workingMessages.at(-1);
 	assert.match(latest, /正在处理：修复 footer 等待状态/);
-	assert.match(latest, /当前阶段：继续核对并收敛结果/);
+	assert.match(latest, /当前阶段：组织回复/);
 	assert.match(latest, /已确认：.*已查看相关项目资料/);
 	assert.match(latest, /当前判断：.*任务类型：bug-fix/);
+	assert.match(latest, /Token：输入 10；输出 2；缓存读取 3/);
 	await handlers.get("agent_end")({}, ctx);
 });
 
@@ -786,9 +1159,9 @@ test("language preference can be saved and reused across sessions", async () => 
 		await secondHandlers.get("before_agent_start")({ prompt: "fix the release", systemPrompt: "base" }, secondCtx);
 		await secondHandlers.get("agent_start")({}, secondCtx);
 		await new Promise((resolve) => setTimeout(resolve, 5));
-		assert.match(workingMessages.at(-1), /Working on: fix the release/);
-		assert.match(workingMessages.at(-1), /Boundary: I will stop only when a human decision is needed/);
-		assert.match(workingMessages.at(-1), /Tokens —/);
+		assert.equal(workingMessages.at(-1).split("\n").length, 1);
+		assert.match(workingMessages.at(-1), /^BYZ is thinking · 0m 00s · Tokens —$/);
+		assert.doesNotMatch(workingMessages.at(-1), /fix the release|Boundary/);
 		await secondHandlers.get("agent_end")({}, secondCtx);
 	} finally {
 		if (originalAgentDir === undefined) {

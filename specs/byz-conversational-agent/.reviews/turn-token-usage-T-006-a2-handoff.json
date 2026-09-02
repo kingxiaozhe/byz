@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "task_id": "T-006",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "package.json",
+    "packages/byz/package.json",
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/conversation.test.mjs",
+    "specs/byz-conversational-agent/.reviews/turn-token-usage-T-006-qa.md",
+    "specs/byz-conversational-agent/.reviews/turn-token-usage-T-006-tui-evidence.md",
+    "specs/byz-conversational-agent/3.turn-token-usage/requirements.md"
+  ],
+  "implementation_sha256": "93d77a2cf29c35fd14665aa02b4874364f185b3c1bc89f3761fd081cc5e6ee92",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs packages/byz/test/architecture.test.mjs",
+      "status": "passed",
+      "evidence": "40/40 passed; attempt 2 binds both executable files, containing 24 and 16 test declarations respectively."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "216 passed, one platform skip, zero failures; the bound BYZ manifest defines node --test test/*.test.mjs."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All checks passed with no fixes; the bound root and BYZ manifests make the command chain traceable."
+    },
+    {
+      "command": "80x24 tmux with local OpenAI-compatible faux provider",
+      "status": "passed",
+      "evidence": ".reviews/turn-token-usage-T-006-tui-evidence.md persists pane size, line counts/lengths, sanitized statuses, forbidden-field result, stdout/stderr byte facts and exit codes."
+    },
+    {
+      "command": "two generation-guard mutation probes",
+      "status": "passed",
+      "evidence": "2/2 mutations killed; restored product SHA-256 matches the bound product source."
+    }
+  ],
+  "evidence": [
+    "TC-001 through TC-008 remain individually PASS in the rebound QA report.",
+    "The durable TUI artifact records version exit 0 with zero stderr and workflow-list exit 0 with zero stderr, plus cm/cm-plugin identities.",
+    "The TUI status lines occur once, are 26-47 characters in an 80-column pane, and contain no compact forbidden fields.",
+    "No real Provider credential, external endpoint, paid Token, persistent model config, or extra runtime dependency was used."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

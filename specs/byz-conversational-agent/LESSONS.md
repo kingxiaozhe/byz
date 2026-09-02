@@ -16,3 +16,8 @@
 - [已结构化] Cleanup mutation 必须删除 `finishTurn()` 的清理调用，而不是删除下一回合初始化；只有前者能证明异常生命周期真正释放资源。
 - [已结构化] Pi/Provider mandatory all-zero usage 在没有独立 presence 信号时按 unavailable 失败关闭；只有正值证明 payload observed 后，显式零 sibling 才能显示为 `0`。
 - [已结构化] `.cm-specs-status` 保存规范化 AC/task checkbox 后的语义哈希；审批完整性必须用 `cm-spec-manifest.py --status-file` 验证，不能与 raw SHA-256 比较。
+
+## 2026-09-02 — Turn Token Usage v3 / 跨回合异步隔离
+
+- [已结构化] 清除 timer handle 不能单独证明已经排队的 callback 安全；timeout 与 interval callback 必须捕获 turn generation，并在读取共享当前回合状态前校验。
+- [已结构化] confirmation presenter 的异步 `finally` 也属于 turn continuation；旧回合结束后不得恢复或重绘新回合的等待计时。

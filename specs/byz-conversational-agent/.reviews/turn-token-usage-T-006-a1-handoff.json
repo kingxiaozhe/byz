@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "task_id": "T-006",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/test/conversation.test.mjs",
+    "specs/byz-conversational-agent/.reviews/turn-token-usage-T-006-qa.md",
+    "specs/byz-conversational-agent/3.turn-token-usage/requirements.md"
+  ],
+  "implementation_sha256": "8390c454425af5a3d715a5c24bcbd747e86d0cd365be449b775e21ac33c72156",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs packages/byz/test/architecture.test.mjs",
+      "status": "passed",
+      "evidence": "Focused Conversation and architecture tests passed 40/40."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "BYZ package suite passed 216 tests with one platform-specific skip and zero failures."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository checks passed with no formatter fixes."
+    },
+    {
+      "command": "80x24 tmux with local OpenAI-compatible faux provider",
+      "status": "passed",
+      "evidence": "Observed BYZ thinking at 2 seconds, one running tool with Tokens 88, and two-line completion with Tokens 192 and model-active/tool summary; compact output hid raw fields."
+    },
+    {
+      "command": "two generation-guard mutation probes",
+      "status": "passed",
+      "evidence": "Both interval and confirmation mutations made their dedicated regressions red; source restored to SHA-256 ec83d18c35da30019fbaf44af495e85bea83bc04e243d00926709bd99ace36da."
+    },
+    {
+      "command": "cm-spec-manifest.py --status-file specs/byz-conversational-agent/.cm-specs-status",
+      "status": "passed",
+      "evidence": "All approved spec semantics matched after AC checkbox updates."
+    }
+  ],
+  "evidence": [
+    "TC-001 through TC-008 are individually recorded PASS in .reviews/turn-token-usage-T-006-qa.md.",
+    "The first TUI attempt exposed only an incorrect ad-hoc version oracle; the corrected retry passed and both isolated fixtures cleaned all resources.",
+    "No real Provider credential, external endpoint, paid Token, persistent model config, or extra runtime dependency was used."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

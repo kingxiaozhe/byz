@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "task_id": "T-005",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "6872ec50ea74805fca43d40a3d0a4f006b9d33b159b66936baa79794747d2ba8",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "All 23 focused tests passed after adding the stale-generation and parallel-error event traces."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "BYZ package suite passed 215 tests with one platform-specific skip and zero failures."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository checks passed with no formatter changes in attempt 2."
+    }
+  ],
+  "evidence": [
+    "Each progress timeout captures a turn generation and cannot mutate a later turn after end, shutdown or replacement.",
+    "A tool failure remains recover-pending through assistant updates while any paired tool stays in flight; after the last success, recover status remains visible and failure count is retained.",
+    "The complete v3 selector, rendering, usage, cleanup, details, Footer and bilingual suite remains green."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

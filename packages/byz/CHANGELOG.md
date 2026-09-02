@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Changed interactive execution feedback to a delayed single-line status with current-turn Token totals, paired in-flight tool counts, and a two-line completion summary that separates client-observed model activity from tool and confirmation time.
 - Changed trusted CM recovery to read three explicit legacy state forms without writing them back and to keep unfinished or damaged candidates fail-closed.
 
 ### Fixed

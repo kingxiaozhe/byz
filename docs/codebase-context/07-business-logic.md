@@ -22,13 +22,16 @@
 
 ## BYZ conversation timing
 
-**线路**：Agent lifecycle events → fixed conversation stage IDs → monotonic turn timer → once-per-second working-message update → one completion summary.
+**线路**：Agent lifecycle signals → turn-local selector (`waiting > in-flight tools > recover > reply/think`) → monotonic timing/usage/tool snapshot → delayed single-line working status → two-line completion summary.
 
 **关键规则**：
 
-- Stage timing is turn-local and aggregates repeated entries into fixed, localized stage categories; prompts, paths, commands, tool arguments, and free-form errors never become stage names.
-- Confirmation input and fallback confirmation pause active execution timing and accumulate separately as human wait.
-- Streaming assistant deltas do not trigger timing redraws after the first reply-stage transition. The single interval is cleared on agent end and session shutdown.
+- Compact status starts only after two seconds and refreshes at most once per second. Short turns do not flash custom status; no runtime Tasks registry or percentage is invented.
+- Tool starts/ends pair only by stable `toolCallId`; duplicate, unknown, missing, parallel, and out-of-order events cannot produce negative or repeated counts. Assistant updates cannot overwrite an active tool or prematurely clear a parallel failure.
+- The headline is safe observed current-turn `input + output`; cache remains a details-only breakdown and Footer usage remains Session-cumulative. Unknown, all-zero placeholders, invalid fields, and overflow fail closed.
+- Client-observed model-active time sums only `think`, `recover`, and `reply`; tool stages and confirmation waiting are excluded. It is not hidden chain-of-thought.
+- Timeout, interval, and asynchronous confirmation continuations capture a turn generation before reading shared state, so callbacks from an ended turn cannot reveal, redraw, or resume a newer turn.
+- Default compact rendering never consumes Prompt/response text, tool names, arguments, paths, results, or commands. Explicit details retain the existing cleaned activity card and usage breakdown.
 - The Footer reads the effective Thinking level at session start and consumes `thinking_level_select` only as a notification, preserving model/Fast ownership of the real setting.
 
 ## BYZ local diagnostics

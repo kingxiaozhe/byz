@@ -12,6 +12,45 @@ const LANGUAGE_AUTO = "auto";
 const LANGUAGE_ZH = "zh";
 const LANGUAGE_EN = "en";
 const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+const MODEL_ACTIVE_STAGES = new Set(["think", "recover", "reply"]);
+
+const EXECUTION_TEXT = {
+	zh: {
+		status: {
+			think: "BYZ 思考中",
+			inspect: "核对中",
+			modify: "修改中",
+			command: "执行中",
+			other: "执行中",
+			recover: "处理异常",
+			reply: "整理答复",
+			waiting: "等待确认",
+		},
+		runningTools: (count) => `${count} 个工具运行`,
+		completion: "完成",
+		modelActive: (elapsed) => `BYZ 思考了 ${elapsed}`,
+		toolSummary: (calls, failures) => `工具 ${calls} 次${failures > 0 ? `（${failures} 次失败）` : ""}`,
+		waitingSummary: (elapsed) => `等待 ${elapsed}`,
+	},
+	en: {
+		status: {
+			think: "BYZ is thinking",
+			inspect: "Checking",
+			modify: "Editing",
+			command: "Running",
+			other: "Running",
+			recover: "Recovering",
+			reply: "Preparing reply",
+			waiting: "Waiting for confirmation",
+		},
+		runningTools: (count) => `${count} ${count === 1 ? "tool" : "tools"} running`,
+		completion: "Done",
+		modelActive: (elapsed) => `BYZ thought for ${elapsed}`,
+		toolSummary: (calls, failures) =>
+			`${calls} ${calls === 1 ? "tool" : "tools"}${failures > 0 ? ` (${failures} failed)` : ""}`,
+		waitingSummary: (elapsed) => `waited ${elapsed}`,
+	},
+};
 
 function getByzAgentDir() {
 	return process.env.BYZ_CODING_AGENT_DIR || join(homedir(), ".byz", "agent");
@@ -64,6 +103,7 @@ const TEXT = {
 	zh: {
 		initialWorking: "正在确认目标与边界…",
 		stageLabels: {
+			think: "BYZ 思考",
 			goal: "确认目标与边界",
 			inspect: "定位和核对相关材料",
 			modify: "执行最小必要修改",
@@ -73,6 +113,7 @@ const TEXT = {
 			other: "继续核对并收敛结果",
 		},
 		stageShortLabels: {
+			think: "BYZ 思考",
 			goal: "确认目标",
 			inspect: "核对材料",
 			modify: "执行修改",
@@ -168,6 +209,7 @@ const TEXT = {
 	en: {
 		initialWorking: "Confirming the goal and boundaries…",
 		stageLabels: {
+			think: "BYZ thinking",
 			goal: "confirming the goal and boundaries",
 			inspect: "checking the relevant material",
 			modify: "making the smallest necessary change",
@@ -177,6 +219,7 @@ const TEXT = {
 			other: "checking and narrowing the result",
 		},
 		stageShortLabels: {
+			think: "BYZ thinking",
 			goal: "confirming goal",
 			inspect: "checking material",
 			modify: "making changes",
@@ -362,12 +405,77 @@ function createTurnUsage() {
 	});
 }
 
-function formatTurnUsageProgress(usage, language) {
+function createTurnExecution() {
+	const inFlightTools = new Map();
+	const startedToolIds = new Set();
+	const endedToolIds = new Set();
+	let sequence = 0;
+	let toolCalls = 0;
+	let toolFailures = 0;
+	let recoverPending = false;
+	let replyActive = false;
+
+	function validToolCallId(value) {
+		return typeof value === "string" && value.length > 0;
+	}
+
+	function selectedStage() {
+		if (inFlightTools.size > 0) {
+			let latest;
+			for (const tool of inFlightTools.values()) {
+				if (!latest || tool.sequence > latest.sequence) latest = tool;
+			}
+			return latest?.stage ?? "think";
+		}
+		if (recoverPending) return "recover";
+		if (replyActive) return "reply";
+		return "think";
+	}
+
+	return Object.freeze({
+		start(toolCallId, toolName) {
+			if (!validToolCallId(toolCallId) || startedToolIds.has(toolCallId) || endedToolIds.has(toolCallId))
+				return false;
+			startedToolIds.add(toolCallId);
+			sequence += 1;
+			inFlightTools.set(toolCallId, { sequence, stage: stageForTool(toolName), toolName });
+			if (toolCalls < Number.MAX_SAFE_INTEGER) toolCalls += 1;
+			replyActive = false;
+			return true;
+		},
+		end(toolCallId, isError) {
+			if (!validToolCallId(toolCallId)) return undefined;
+			const tool = inFlightTools.get(toolCallId);
+			if (!tool || endedToolIds.has(toolCallId)) return undefined;
+			inFlightTools.delete(toolCallId);
+			endedToolIds.add(toolCallId);
+			if (isError) {
+				if (toolFailures < Number.MAX_SAFE_INTEGER) toolFailures += 1;
+				recoverPending = true;
+			}
+			return tool;
+		},
+		observeReply() {
+			replyActive = true;
+			if (inFlightTools.size === 0) recoverPending = false;
+		},
+		selectedStage,
+		snapshot() {
+			return Object.freeze({
+				inFlightCount: inFlightTools.size,
+				selectedStage: selectedStage(),
+				toolCalls,
+				toolFailures,
+			});
+		},
+	});
+}
+
+function formatTurnUsageHeadline(usage, language) {
 	const label = language === LANGUAGE_EN ? "Tokens" : "Token";
-	const parts = [];
-	if (usage?.input !== undefined) parts.push(`↑${formatTokens(usage.input)}`);
-	if (usage?.output !== undefined) parts.push(`↓${formatTokens(usage.output)}`);
-	return parts.length > 0 ? `${label} ${parts.join(" · ")}` : `${label} —`;
+	if (usage?.input === undefined || usage.output === undefined) return `${label} —`;
+	const total = usage.input + usage.output;
+	return Number.isSafeInteger(total) ? `${label} ${formatTokens(total)}` : `${label} —`;
 }
 
 function formatTurnUsageSummary(usage, language) {
@@ -570,40 +678,41 @@ function timingValues(state, snapshot) {
 	};
 }
 
-function renderInitialWorking(state, snapshot, usage) {
+function renderProgressCard(state, snapshot, usage, execution, options = {}) {
 	const copy = textFor(state.language);
-	const values = timingValues(state, snapshot);
-	return `${copy.timingWorking(values)}\n${formatTurnUsageProgress(usage, state.language)}`;
-}
-
-function renderProgressCard(state, snapshot, usage, options = {}) {
-	const activity = getActivitySummary(state);
-	const copy = textFor(state.language);
-	const timing = [...copy.timingLines(timingValues(state, snapshot)), formatTurnUsageProgress(usage, state.language)];
 	if (options.compact) {
-		const next = state.nextSteps.at(-1) ?? copy.defaultNext.at(-1);
-		const boundary = state.safeguards.at(-1) ?? copy.defaultSafeguards.at(-1);
-		return [...copy.compactLines({ state, activity, next, boundary }), ...timing].join("\n");
+		const executionCopy = EXECUTION_TEXT[state.language];
+		const stage = snapshot.waiting ? "waiting" : execution.selectedStage;
+		const parts = [executionCopy.status[stage] ?? executionCopy.status.think];
+		if (execution.inFlightCount > 0) parts.push(executionCopy.runningTools(execution.inFlightCount));
+		parts.push(formatElapsed(snapshot.totalMs, state.language), formatTurnUsageHeadline(usage, state.language));
+		return parts.join(" · ");
 	}
-	return [...copy.detailLines({ state, activity }), ...timing].join("\n");
+	const activity = getActivitySummary(state);
+	return [
+		...copy.detailLines({ state, activity }),
+		...copy.timingLines(timingValues(state, snapshot)),
+		formatTurnUsageSummary(usage, state.language),
+	].join("\n");
 }
 
-function renderTimingSummary(state, snapshot, usage) {
-	const copy = textFor(state.language);
+function renderTimingSummary(state, snapshot, usage, execution) {
 	const language = state.language;
-	const stages = snapshot.stages
-		.map(
-			({ stage, milliseconds }) =>
-				`${copy.stageLabels[stage] ?? copy.stageLabels.other} ${formatElapsed(milliseconds, language)}`,
-		)
-		.join("；");
-	const timing = copy.timingSummary({
-		stages,
-		active: formatElapsed(snapshot.activeMs, language),
-		waiting: formatElapsed(snapshot.waitingMs, language),
-		total: formatElapsed(snapshot.totalMs, language),
-	});
-	return `${timing}\n${formatTurnUsageSummary(usage, language)}`;
+	const executionCopy = EXECUTION_TEXT[language];
+	const modelActiveMs = snapshot.stages.reduce(
+		(sum, entry) => (MODEL_ACTIVE_STAGES.has(entry.stage) ? sum + entry.milliseconds : sum),
+		0,
+	);
+	const firstLine = [
+		executionCopy.completion,
+		formatElapsed(snapshot.totalMs, language),
+		formatTurnUsageHeadline(usage, language),
+	].join(" · ");
+	const secondLine = [executionCopy.modelActive(formatElapsed(modelActiveMs, language))];
+	if (execution.toolCalls > 0) secondLine.push(executionCopy.toolSummary(execution.toolCalls, execution.toolFailures));
+	if (snapshot.waitingMs > 0)
+		secondLine.push(executionCopy.waitingSummary(formatElapsed(snapshot.waitingMs, language)));
+	return `${firstLine}\n${secondLine.join(" · ")}`;
 }
 
 function stageForTool(toolName) {
@@ -620,7 +729,6 @@ function setProgressStage(state, stageId) {
 
 function updateProgressFromToolStart(state, toolName) {
 	const copy = textFor(state.language);
-	setProgressStage(state, stageForTool(toolName));
 	if (["read", "grep", "find", "ls"].includes(toolName)) {
 		pushUnique(state.nextSteps, copy.nextEvidence);
 	} else if (["edit", "write"].includes(toolName)) {
@@ -644,18 +752,13 @@ function updateProgressFromToolEnd(state, toolName, args, isError) {
 		state.tools.commands += 1;
 		pushUnique(state.confirmed, isError ? copy.confirmedCommandError : copy.confirmedCommand);
 	}
-	if (isError) {
-		setProgressStage(state, "recover");
-		pushUnique(state.judgements, copy.judgementRecover);
-		return;
-	}
-	setProgressStage(state, "other");
+	if (isError) pushUnique(state.judgements, copy.judgementRecover);
 }
 
 export function createConversationExtension(options = {}) {
 	const policy = createInteractionPolicy();
 	const routingPolicy = createRoutingPolicy();
-	const progressCardDelayMs = options.progressCardDelayMs ?? 8_000;
+	const progressCardDelayMs = options.progressCardDelayMs ?? 2_000;
 	const now = options.now ?? (() => performance.now());
 	const scheduleInterval = options.setInterval ?? setInterval;
 	const cancelInterval = options.clearInterval ?? clearInterval;
@@ -666,15 +769,17 @@ export function createConversationExtension(options = {}) {
 	return function conversationExtension(ports) {
 		let progressTimer;
 		let elapsedTimer;
+		let turnGeneration = 0;
 		let turnTiming;
 		let turnUsage;
+		let turnExecution;
 		let footerComponent;
 		let currentThinkingLevel = "off";
 		let progressState = createProgressState(currentLanguage);
 		let activeCtx;
 
 		function clearProgressTimer() {
-			if (progressTimer) clearTimeout(progressTimer);
+			if (progressTimer !== undefined) clearTimeout(progressTimer);
 			progressTimer = undefined;
 		}
 
@@ -683,31 +788,46 @@ export function createConversationExtension(options = {}) {
 			elapsedTimer = undefined;
 		}
 
+		function syncSelectedStage() {
+			if (!turnTiming || !turnExecution) return false;
+			const stage = turnExecution.selectedStage();
+			if (progressState.stageId === stage) return false;
+			setProgressStage(progressState, stage);
+			turnTiming.transition(stage);
+			return true;
+		}
+
 		function publishWorking() {
-			if (!activeCtx || !turnTiming) return;
-			const snapshot = turnTiming.snapshot();
-			const usage = turnUsage?.snapshot();
-			const message = progressState.visible
-				? renderProgressCard(progressState, snapshot, usage, { compact: !policy.isDetailEnabled() })
-				: renderInitialWorking(progressState, snapshot, usage);
-			activeCtx.ui.setWorkingMessage?.(message);
+			if (!activeCtx || !turnTiming || !turnExecution || !progressState.visible) return;
+			activeCtx.ui.setWorkingMessage?.(
+				renderProgressCard(progressState, turnTiming.snapshot(), turnUsage?.snapshot(), turnExecution.snapshot(), {
+					compact: !policy.isDetailEnabled(),
+				}),
+			);
 		}
 
 		function publishProgress() {
+			progressTimer = undefined;
 			if (!activeCtx || !turnTiming) return;
 			progressState.visible = true;
 			publishWorking();
 		}
 
 		function finishTurn(options = {}) {
+			turnGeneration += 1;
 			clearProgressTimer();
 			clearElapsedTimer();
 			const usage = turnUsage?.snapshot();
+			const execution = turnExecution?.snapshot();
 			turnUsage = undefined;
-			if (!turnTiming) return;
+			turnExecution = undefined;
+			if (!turnTiming || !execution) {
+				turnTiming = undefined;
+				return;
+			}
 			const snapshot = turnTiming.finish();
 			if (options.notify && activeCtx)
-				activeCtx.ui.notify(renderTimingSummary(progressState, snapshot, usage), "info");
+				activeCtx.ui.notify(renderTimingSummary(progressState, snapshot, usage, execution), "info");
 			turnTiming = undefined;
 		}
 
@@ -723,6 +843,7 @@ export function createConversationExtension(options = {}) {
 				return footerComponent;
 			});
 			ctx.ui.setConfirmationPresenter?.(async ({ title, message, confirm }) => {
+				const generation = turnGeneration;
 				turnTiming?.pauseForConfirmation();
 				publishWorking();
 				try {
@@ -738,8 +859,10 @@ export function createConversationExtension(options = {}) {
 					if (choice === "reject") return false;
 					return await confirm();
 				} finally {
-					turnTiming?.resumeAfterConfirmation();
-					publishWorking();
+					if (generation === turnGeneration) {
+						turnTiming?.resumeAfterConfirmation();
+						publishWorking();
+					}
 				}
 			});
 			ctx.ui.notify(WELCOME, "info");
@@ -754,34 +877,40 @@ export function createConversationExtension(options = {}) {
 			progressState.visible = false;
 			clearProgressTimer();
 			clearElapsedTimer();
+			turnGeneration += 1;
+			const generation = turnGeneration;
 			turnTiming = createTurnTiming({ now });
 			turnUsage = createTurnUsage();
-			turnTiming.start(progressState.stageId);
-			publishWorking();
-			elapsedTimer = scheduleInterval(publishWorking, 1_000);
+			turnExecution = createTurnExecution();
+			setProgressStage(progressState, "think");
+			turnTiming.start("think");
+			elapsedTimer = scheduleInterval(() => {
+				if (generation === turnGeneration) publishWorking();
+			}, 1_000);
 			progressTimer = setTimeout(() => {
+				if (generation !== turnGeneration) return;
 				publishProgress();
 			}, progressCardDelayMs);
 		});
 		ports.on("tool_execution_start", (event) => {
+			if (!turnExecution?.start(event.toolCallId, event.toolName)) return;
 			updateProgressFromToolStart(progressState, event.toolName);
-			turnTiming?.transition(progressState.stageId);
+			syncSelectedStage();
 			publishWorking();
 		});
 		ports.on("tool_execution_end", (event) => {
-			updateProgressFromToolEnd(progressState, event.toolName, event.args, event.isError);
-			turnTiming?.transition(progressState.stageId);
+			const tool = turnExecution?.end(event.toolCallId, event.isError);
+			if (!tool) return;
+			updateProgressFromToolEnd(progressState, tool.toolName, event.args, event.isError);
+			syncSelectedStage();
 			publishWorking();
 		});
 		ports.on("message_update", (event) => {
 			if (event.message?.role !== "assistant") return;
 			const copy = textFor(progressState.language);
 			const usageChanged = turnUsage?.update(event.message.usage) ?? false;
-			const stageChanged = progressState.stageId !== "reply";
-			if (stageChanged) {
-				setProgressStage(progressState, "reply");
-				turnTiming?.transition("reply");
-			}
+			turnExecution?.observeReply();
+			const stageChanged = syncSelectedStage();
 			pushUnique(progressState.nextSteps, copy.nextResult);
 			if (stageChanged || usageChanged) publishWorking();
 		});

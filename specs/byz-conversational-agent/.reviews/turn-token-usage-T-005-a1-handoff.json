@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "task_id": "T-005",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "369cf46e1a05971aca18f894e201c2c6ca683e2d00efdd1e3d8e4fbf3d50af09",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "All 23 focused Conversation tests passed, including the five T-004 v3 red regressions."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "BYZ package suite passed 215 tests with one platform-specific skip and zero failures."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, pinned dependencies, import rules, shrinkwrap/install lock checks, BYZ architecture, tsgo and browser smoke passed."
+    },
+    {
+      "command": "git diff --check -- packages/byz/src/conversation/conversation-extension.js packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "Task-scoped source and test diff has no whitespace errors."
+    }
+  ],
+  "evidence": [
+    "A single turn-local selector derives timing and display stages from paired tool, reply and waiting signals.",
+    "Compact rendering is delayed for two seconds, remains one line, uses safe observed input+output, and does not consume prompt/tool payload fields.",
+    "Tool starts and ends require unique non-empty toolCallId values; parallel, duplicate, unknown and malformed events are covered.",
+    "Completion uses total, model-active stage aggregation, unique tool/failure counts and non-zero waiting while Footer and details regressions remain green.",
+    "The implementation task prestate was materialized late; the preceding T-004 status proved both product source files clean, and the recovery is recorded in the prestate and run log."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

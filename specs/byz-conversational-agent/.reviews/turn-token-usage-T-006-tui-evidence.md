@@ -1,0 +1,21 @@
+# T-006 durable TUI evidence
+
+- pane: 80x24
+- thinking_line_count: 1
+- thinking_line_length: 37
+- thinking: `⠧ BYZ is thinking · 0m 02s · Tokens —`
+- tool_line_count: 1
+- tool_line_length: 47
+- tool: `⠧ Running · 1 tool running · 0m 03s · Tokens 88`
+- completion_line_length: 26
+- completion: `Done · 0m 07s · Tokens 192`
+- summary_line_length: 31
+- summary: `BYZ thought for 0m 04s · 1 tool`
+- compact_forbidden_fields: absent
+- version_stdout: `0.1.12`
+- version_stderr_bytes: 0
+- version_exit: 0
+- workflow_identities: `cm`, `cm-plugin`
+- workflow_stderr_bytes: 0
+- workflow_exit: 0
+- fixture_cleanup: trap completed after evidence write

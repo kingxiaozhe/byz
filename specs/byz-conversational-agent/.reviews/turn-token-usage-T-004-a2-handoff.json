@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "task_id": "T-004",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "76144c07d4233c182735d365455701bd47eba53ec3f8f682cc702f1a44dcdc15",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs (pre-change baseline)",
+      "status": "passed",
+      "evidence": "Existing Conversation baseline passed 18 of 18 tests."
+    },
+    {
+      "command": "npm --prefix packages/byz test (pre-change baseline)",
+      "status": "passed",
+      "evidence": "BYZ package baseline passed 210 tests with one platform-specific skip and zero failures."
+    },
+    {
+      "command": "expected-red node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "Five v3 regressions fail for the intended old behavior: 8-second delay, missing tool count, missing model-active summary, missing lifecycle summary, and multi-line raw compact card; all 18 existing tests stay green."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency checks, architecture gate, tsgo and browser smoke passed after the second-round test changes."
+    }
+  ],
+  "evidence": [
+    "Global timer interception now observes the old 8-second behavior directly and covers a turn ending before the reveal threshold plus a stale callback.",
+    "Chinese and English compact snapshots use equivalent inputs and reject prompt, args, result and assistant body data.",
+    "Agent end, session shutdown and a fresh session verify turn-local tool/failure state and one timer pair per turn.",
+    "Existing details, Footer, language preference, streaming usage, error/abort and shutdown regressions remain in the same focused suite."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

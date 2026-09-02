@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "task_id": "T-007",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "7098b34034acb5724d24be358f5c71f61c5ca2ba57b1da0423a3675a01db4d80",
+  "verification": [
+    {
+      "command": "expected-red node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "Before the T-007 product edit, stale interval rendering and stale confirmation waiting produced two focused failures while 22 existing tests stayed green."
+    },
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "All 24 focused Conversation tests passed after generation-binding interval and confirmation continuations."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "BYZ package suite passed 216 tests with one platform-specific skip and zero failures."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency/import/lock checks, BYZ architecture, tsgo and browser smoke passed with no fixes."
+    }
+  ],
+  "evidence": [
+    "A retained interval callback from Turn A is invoked after Turn B becomes visible and produces no render because the callback captures Turn A generation.",
+    "An unresolved Turn A confirmation resolves while Turn B is waiting; its finally is inert, preserving Turn B model-active 4 seconds and waiting 8 seconds.",
+    "The replacement task content-binds the complete T-005 attempt-2 source/test bytes plus the two approved isolation fixes."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

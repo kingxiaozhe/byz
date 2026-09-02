@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "task_id": "T-004",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "3230c3903898170dd253fb2197c5575bb62afaf32382bfdcb6c4cf064449db76",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs (pre-change baseline)",
+      "status": "passed",
+      "evidence": "Existing Conversation baseline passed 18 of 18 tests."
+    },
+    {
+      "command": "npm --prefix packages/byz test (pre-change baseline)",
+      "status": "passed",
+      "evidence": "BYZ package baseline passed 210 tests with one platform-specific skip and zero failures."
+    },
+    {
+      "command": "expected-red node --test packages/byz/test/conversation.test.mjs",
+      "status": "passed",
+      "evidence": "All four new v3 regressions failed against the old implementation while the 18 existing tests stayed green."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency checks, architecture gate, tsgo and browser smoke passed; Biome formatted the task test file."
+    }
+  ],
+  "evidence": [
+    "The red tests cover the 2-second visibility boundary and observed input+output headline without cache.",
+    "Parallel tool tests interleave assistant, duplicate, unknown and missing-ID events and require exact in-flight and failure counts.",
+    "Monotonic timing evidence separates model-active, tool and confirmation waiting intervals.",
+    "English compact output rejects Tasks, percentages, tool names, commands, identifiers and paths."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}
