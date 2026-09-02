@@ -33,8 +33,14 @@
 
 ### Registry reducer 与 Session receipt
 
-- [ ] T-002: [NEW] 新增纯 `execution-registry` service 和 focused tests，实现 host generation/planId、原子 plan_open、explicit seal、task reducer、bounded receipts、deep-frozen snapshot、closed error codes、propose→Session append→commit 原子性、entry replay 与损坏 generation 失败关闭 ~1h
+- [ ] T-002: [DROPPED] [NEW] 新增纯 `execution-registry` service 和 focused tests，实现 host generation/planId、原子 plan_open、explicit seal、task reducer、bounded receipts、deep-frozen snapshot、closed error codes、propose→Session append→commit 原子性、entry replay 与损坏 generation 失败关闭 ~1h
+  - 替代: 第二轮独立审查发现未接受的最大安全 sequence 会永久阻断显式新 generation 恢复，由用户批准的 T-008 接管当前实现；不得创建 T-002 attempt 3
   - 模块: `packages/byz/src/execution/**`、`packages/byz/test/execution-registry.test.mjs`
+  - 依赖: T-007
+  - 覆盖: AC-002 至 AC-004、AC-008 至 AC-010、AC-013、AC-015
+
+- [x] T-008: [NEW] 接管 T-002 attempt 2 的实现字节，让 replay 和 live recovery 只从最后 accepted sequence 继续，补齐恶意最大安全 sequence 后显式新 generation、重载重放和失败关闭回归，并复核完整 registry 合同 ~30min
+  - 模块: `packages/byz/src/execution/**`、`packages/byz/test/execution-registry.test.mjs`、T-002/T-008 review evidence
   - 依赖: T-007
   - 覆盖: AC-002 至 AC-004、AC-008 至 AC-010、AC-013、AC-015
 
@@ -42,7 +48,7 @@
 
 - [ ] T-003: [NEW] 扩展 BYZ application port 与 Pi Adapter，注册 closed `byz_execution` managed tool，投影专用 Session custom entries 和 bounded tool lifecycle；实现 active-task 绑定、并行/乱序 receipt、ephemeral command classifier（仅 categorized observed）及 formal runtime/trusted workflow verified receipt 边界 ~1h
   - 模块: `packages/byz/src/application/ports/runtime.ts`、`packages/byz/src/adapters/pi/pi-runtime-adapter.ts`、registry extension/tests；如现有 Pi extension API 不足，仅补最小 product-neutral runtime API
-  - 依赖: T-002
+  - 依赖: T-008
   - 覆盖: AC-005 至 AC-009、AC-012、AC-013
 
 ### Conversation 集成
@@ -62,8 +68,8 @@
 ## 依赖关系
 
 - T-001 已停止，由 T-006 替代；T-006 已停止，由 T-007 替代。
-- T-002 依赖 T-007。
-- T-003 依赖 T-002。
+- T-002 已停止，由 T-008 接管当前实现；T-008 依赖 T-007。
+- T-003 依赖 T-008。
 - T-004 依赖 T-003。
 - T-005 依赖 T-004。
 

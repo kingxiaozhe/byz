@@ -16,3 +16,5 @@
 | T-001 | 4.structured-execution-registry | 2 | 3：replay、启动时工具绑定与 provenance 红灯缺口 | BLOCKED，由 T-006 替代 | 1：批准替代任务 T-006 |
 | T-006 | 4.structured-execution-registry | 2 | 5：非法任务字段、英文状态、未知身份、toolCallId 与 details 脱敏 | BLOCKED，由 T-007 替代 | 1：批准替代任务 T-007 |
 | T-007 | 4.structured-execution-registry | 2 | 0（主执行者自审拦截 5 项） | — | 0 |
+| T-002 | 4.structured-execution-registry | 2 | 3：工具 receipt 原子性、恶意 replay 边界与最大 sequence 恢复阻断 | BLOCKED，由 T-008 替代 | 1：批准替代任务 T-008 |
+| T-008 | 4.structured-execution-registry | 1 | 0（主执行者额外覆盖恶意 generation） | 合并至 Feature QA | 0 |

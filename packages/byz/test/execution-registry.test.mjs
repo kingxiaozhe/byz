@@ -4,15 +4,13 @@ import { createExecutionRegistry } from "../src/execution/execution-registry.js"
 
 function createHarness(options = {}) {
 	const entries = [];
-	let planNumber = 0;
 	const registry = createExecutionRegistry({
 		appendReceipt(receipt) {
 			if (options.appendError) throw new Error("session append failed");
 			entries.push(structuredClone(receipt));
 		},
-		createPlanId() {
-			planNumber += 1;
-			return `plan-${planNumber}`;
+		createPlanId(generation) {
+			return `plan-${generation}`;
 		},
 		...options,
 	});
@@ -160,6 +158,31 @@ test("does not publish or commit a transition when Session append fails", () => 
 	assert.deepEqual(published, []);
 });
 
+test("preserves an in-flight binding when observed-receipt append fails", () => {
+	let failObservedAppend = true;
+	const entries = [];
+	const { registry } = createHarness({
+		appendReceipt(receipt) {
+			if (receipt.action === "tool_observed" && failObservedAppend) throw new Error("observed append failed");
+			entries.push(structuredClone(receipt));
+		},
+	});
+	const planId = sealAndStart(registry);
+	assert.equal(
+		registry.recordToolStart({ toolCallId: "call-1", toolCategory: "command", commandCategory: "test" }),
+		true,
+	);
+	assert.throws(() => registry.recordToolEnd({ toolCallId: "call-1", outcome: "success" }), /append failed/);
+	assert.equal(
+		registry.dispatch({ action: "task_finish", planId, taskId: "A", outcome: "completed" }).accepted,
+		false,
+	);
+	failObservedAppend = false;
+	assert.equal(registry.recordToolEnd({ toolCallId: "call-1", outcome: "success" }), true);
+	assert.equal(registry.dispatch({ action: "task_finish", planId, taskId: "A", outcome: "completed" }).accepted, true);
+	assert.equal(entries.filter((entry) => entry.action === "tool_observed").length, 1);
+});
+
 test("replays accepted receipts exactly and treats identical duplicates as idempotent", () => {
 	const source = createHarness();
 	const planId = sealAndStart(source.registry);
@@ -183,8 +206,64 @@ test("fails a damaged replay generation closed until an explicit new plan", () =
 		reasonCode: "invalid_record",
 	});
 	const planId = openPlan(restored.registry, [{ id: "new" }]);
-	assert.equal(planId, "plan-1");
+	assert.equal(planId, "plan-2");
 	assert.equal(restored.registry.snapshot().availability, "available");
+	const recovered = createHarness();
+	assert.equal(recovered.registry.replay([...damaged, ...restored.entries]).accepted, true);
+	assert.deepEqual(recovered.registry.snapshot(), restored.registry.snapshot());
+});
+
+test("does not let a rejected maximum sequence permanently poison explicit recovery", () => {
+	const hostile = [
+		{
+			schemaVersion: 1,
+			sequence: Number.MAX_SAFE_INTEGER,
+			generation: 1,
+			planId: "plan-1",
+			action: "unknown_action",
+			payload: {},
+		},
+	];
+	const restored = createHarness();
+	assert.equal(restored.registry.replay(hostile).accepted, false);
+	assert.deepEqual(restored.registry.snapshot(), {
+		availability: "unavailable",
+		generation: 1,
+		reasonCode: "invalid_record",
+	});
+	const planId = openPlan(restored.registry, [{ id: "new" }]);
+	assert.equal(planId, "plan-2");
+	assert.deepEqual(
+		restored.entries.map((entry) => entry.sequence),
+		[1],
+	);
+	const reloaded = createHarness();
+	assert.equal(reloaded.registry.replay([...hostile, ...restored.entries]).accepted, true);
+	assert.deepEqual(reloaded.registry.snapshot(), restored.registry.snapshot());
+});
+
+test("does not adopt a rejected hostile generation as the recovery baseline", () => {
+	const hostile = [
+		{
+			schemaVersion: 1,
+			sequence: 1,
+			generation: Number.MAX_SAFE_INTEGER,
+			planId: "plan-hostile",
+			action: "unknown_action",
+			payload: {},
+		},
+	];
+	const restored = createHarness();
+	assert.equal(restored.registry.replay(hostile).accepted, false);
+	assert.deepEqual(restored.registry.snapshot(), {
+		availability: "unavailable",
+		generation: 0,
+		reasonCode: "invalid_record",
+	});
+	assert.equal(openPlan(restored.registry, [{ id: "new" }]), "plan-1");
+	const reloaded = createHarness();
+	assert.equal(reloaded.registry.replay([...hostile, ...restored.entries]).accepted, true);
+	assert.deepEqual(reloaded.registry.snapshot(), restored.registry.snapshot());
 });
 
 test("fails unsupported schema, invalid replayed tasks, and illegal replay transitions closed", () => {
@@ -247,6 +326,40 @@ test("fails unsupported schema, invalid replayed tasks, and illegal replay trans
 			generation: 1,
 			reasonCode: "invalid_record",
 		});
+	}
+});
+
+test("fails cyclic, excessive, non-JSON, and unknown replay payloads closed without throwing", () => {
+	const source = createHarness();
+	sealAndStart(source.registry);
+	const variants = [
+		() => {
+			const payload = {};
+			payload.self = payload;
+			return { action: "unknown_action", payload };
+		},
+		() => {
+			let payload = {};
+			for (let depth = 0; depth < 10; depth += 1) payload = { nested: payload };
+			return { action: "unknown_action", payload };
+		},
+		() => ({ action: "unknown_action", payload: { value: 1n } }),
+		() => ({ action: "unknown_action", payload: { values: Array.from({ length: 129 }, (_, index) => index) } }),
+	];
+	for (const createVariant of variants) {
+		const entries = source.entries.map((entry) => structuredClone(entry));
+		const variant = createVariant();
+		entries.push({
+			schemaVersion: 1,
+			sequence: 4,
+			generation: 1,
+			planId: "plan-1",
+			action: variant.action,
+			payload: variant.payload,
+		});
+		const restored = createHarness();
+		assert.doesNotThrow(() => restored.registry.replay(entries));
+		assert.equal(restored.registry.snapshot().availability, "unavailable");
 	}
 });
 

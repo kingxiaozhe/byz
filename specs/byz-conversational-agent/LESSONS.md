@@ -27,3 +27,6 @@
 - [已结构化] Session replay 红灯必须分别覆盖 schema、sequence/generation、plan/task identity、任务集合与字段边界、非法迁移、冲突 duplicate、receipt 上限和损坏后伪造完成，不能用一类损坏输入代替完整失败关闭矩阵。
 - [已结构化] Tool evidence 测试必须同时证明稳定有界 `toolCallId`、start-time active-task 绑定、in-flight finish 拒绝、乱序/重复 end，以及 generic/failed check 不升级为 verified。
 - [已结构化] Registry renderer 的安全边界需要同时覆盖中英文、compact/details/completion，以及 available/drafting/unavailable snapshot；只测默认单行不能证明 details 不泄露。
+- [已结构化] Session 中未接受的 receipt 不能推进可恢复的 sequence 或 generation 基线；否则恶意最大安全整数会让显式新计划永久溢出。重放恢复必须从最后 accepted receipt 继续，并在 reload 后得到同一 snapshot。
+- [已结构化] 工具结束 receipt 的 in-flight 解绑也属于 append-before-commit 原子边界；Session append 失败时必须保留绑定，允许重试并继续阻止任务提前完成。
+- [已结构化] 重放 duplicate 比较面对循环、过深、过大和非 JSON payload 必须有界且不抛异常；无法规范化的记录直接让当前 generation 失败关闭。
