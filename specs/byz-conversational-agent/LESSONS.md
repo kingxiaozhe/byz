@@ -21,3 +21,9 @@
 
 - [已结构化] 清除 timer handle 不能单独证明已经排队的 callback 安全；timeout 与 interval callback 必须捕获 turn generation，并在读取共享当前回合状态前校验。
 - [已结构化] confirmation presenter 的异步 `finally` 也属于 turn continuation；旧回合结束后不得恢复或重绘新回合的等待计时。
+
+## 2026-09-02 — Structured Execution Registry / 红灯防护网
+
+- [已结构化] Session replay 红灯必须分别覆盖 schema、sequence/generation、plan/task identity、任务集合与字段边界、非法迁移、冲突 duplicate、receipt 上限和损坏后伪造完成，不能用一类损坏输入代替完整失败关闭矩阵。
+- [已结构化] Tool evidence 测试必须同时证明稳定有界 `toolCallId`、start-time active-task 绑定、in-flight finish 拒绝、乱序/重复 end，以及 generic/failed check 不升级为 verified。
+- [已结构化] Registry renderer 的安全边界需要同时覆盖中英文、compact/details/completion，以及 available/drafting/unavailable snapshot；只测默认单行不能证明 details 不泄露。

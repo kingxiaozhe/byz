@@ -1293,3 +1293,191 @@ test("conversation extension welcomes without exposing advanced controls until r
 	const resetRoute = await handlers.get("before_agent_start")({ prompt: "普通任务", systemPrompt: "base" }, ctx);
 	assert.doesNotMatch(resetRoute.systemPrompt, /安全且可逆/);
 });
+
+test("conversation status consumes only reliable frozen execution counts", async () => {
+	const snapshot = Object.freeze({
+		availability: "available",
+		generation: 1,
+		plan: Object.freeze({
+			id: "plan-1",
+			state: "sealed",
+			total: 4,
+			label: "Tasks 9/9 /Users/private command",
+			active: Object.freeze({ id: "B", ordinal: 2, label: "private task" }),
+			counts: Object.freeze({
+				blocked: 1,
+				cancelled: 0,
+				completed: 1,
+				declaredEvidence: 3,
+				observedEvidence: 2,
+				verifiedEvidence: 1,
+			}),
+		}),
+	});
+	const executionRegistry = Object.freeze({
+		snapshot: () => snapshot,
+		subscribe: () => Object.freeze({ dispose() {} }),
+	});
+	for (const expectation of [
+		{
+			prompt: "运行可靠计划",
+			status: /^BYZ 思考中 · 步骤 2\/4 · 0分00秒 · Token —$/,
+			completion: /完成 1\/4 · 阻塞 1 · 已验证 1/,
+		},
+		{
+			prompt: "run the reliable plan",
+			status: /^BYZ is thinking · Step 2\/4 · 0m 00s · Tokens —$/,
+			completion: /completed 1\/4 · 1 blocked · 1 verified/,
+		},
+	]) {
+		let revealProgress;
+		const harness = createConversationHarness({
+			executionRegistry,
+			progressCardDelayMs: 0,
+			setTimeout(handler) {
+				revealProgress = handler;
+				return 1;
+			},
+			clearTimeout() {},
+		});
+		await harness.handlers.get("session_start")({}, harness.ctx);
+		await harness.handlers.get("before_agent_start")(
+			{ prompt: expectation.prompt, systemPrompt: "base" },
+			harness.ctx,
+		);
+		await harness.handlers.get("agent_start")({}, harness.ctx);
+		assert.equal(typeof revealProgress, "function");
+		revealProgress();
+		assert.match(harness.workingMessages.at(-1), expectation.status);
+		await harness.handlers.get("agent_end")({}, harness.ctx);
+		assert.match(harness.notifications.at(-1), expectation.completion);
+		assert.doesNotMatch(harness.notifications.at(-1), /declared|observed|plan-1|task|B|Tasks|Users|private|command/);
+	}
+});
+
+test("details mode renders only localized registry facts and a fixed unavailable reason", async () => {
+	const snapshots = [
+		{
+			snapshot: Object.freeze({
+				availability: "available",
+				generation: 1,
+				plan: Object.freeze({
+					id: "plan-private",
+					state: "sealed",
+					total: 4,
+					label: "/Users/private command",
+					active: Object.freeze({ id: "task-private", ordinal: 2, label: "private task" }),
+					counts: Object.freeze({
+						blocked: 1,
+						cancelled: 0,
+						completed: 1,
+						declaredEvidence: 3,
+						observedEvidence: 2,
+						verifiedEvidence: 1,
+					}),
+				}),
+			}),
+			zh: /执行计划：步骤 2\/4；完成 1\/4；阻塞 1；已验证 1/,
+			en: /Execution plan: Step 2\/4; completed 1\/4; 1 blocked; 1 verified/,
+			completionZh: /完成 1\/4 · 阻塞 1 · 已验证 1/,
+			completionEn: /completed 1\/4 · 1 blocked · 1 verified/,
+		},
+		{
+			snapshot: Object.freeze({
+				availability: "unavailable",
+				generation: 1,
+				reasonCode: "invalid_record",
+				reasonText: "/Users/private command",
+			}),
+			zh: /执行计划：不可用（invalid_record）/,
+			en: /Execution plan: unavailable \(invalid_record\)/,
+		},
+	];
+	for (const scenario of snapshots) {
+		for (const language of ["zh", "en"]) {
+			let revealProgress;
+			const executionRegistry = Object.freeze({
+				snapshot: () => scenario.snapshot,
+				subscribe: () => Object.freeze({ dispose() {} }),
+			});
+			const harness = createConversationHarness({
+				executionRegistry,
+				progressCardDelayMs: 0,
+				setTimeout(handler) {
+					revealProgress = handler;
+					return 1;
+				},
+				clearTimeout() {},
+			});
+			await harness.handlers.get("session_start")({}, harness.ctx);
+			const prompt = language === "zh" ? "展开细节，核对执行计划" : "show details for the execution plan";
+			await harness.handlers.get("before_agent_start")({ prompt, systemPrompt: "base" }, harness.ctx);
+			await harness.handlers.get("agent_start")({}, harness.ctx);
+			assert.equal(typeof revealProgress, "function");
+			revealProgress();
+			assert.match(harness.workingMessages.at(-1), scenario[language]);
+			assert.doesNotMatch(
+				harness.workingMessages.at(-1),
+				/Users|private command|plan-private|task-private|reasonText/,
+			);
+			await harness.handlers.get("agent_end")({}, harness.ctx);
+			const completion = scenario[language === "zh" ? "completionZh" : "completionEn"];
+			if (completion) assert.match(harness.notifications.at(-1), completion);
+			assert.doesNotMatch(
+				harness.notifications.at(-1),
+				/Users|private command|plan-private|task-private|reasonText/,
+			);
+		}
+	}
+});
+
+test("drafting and unavailable execution snapshots do not leak progress or raw fields", async () => {
+	for (const snapshot of [
+		Object.freeze({
+			availability: "available",
+			generation: 1,
+			plan: Object.freeze({
+				id: "plan-1",
+				state: "drafting",
+				counts: Object.freeze({
+					blocked: 0,
+					cancelled: 0,
+					completed: 0,
+					declaredEvidence: 0,
+					observedEvidence: 0,
+					verifiedEvidence: 0,
+				}),
+			}),
+		}),
+		Object.freeze({
+			availability: "unavailable",
+			generation: 1,
+			reasonCode: "invalid_record",
+			label: "Tasks 9/9 /Users/private command",
+		}),
+	]) {
+		const executionRegistry = Object.freeze({
+			snapshot: () => snapshot,
+			subscribe: () => Object.freeze({ dispose() {} }),
+		});
+		for (const prompt of ["普通任务", "ordinary task"]) {
+			let revealProgress;
+			const harness = createConversationHarness({
+				executionRegistry,
+				progressCardDelayMs: 0,
+				setTimeout(handler) {
+					revealProgress = handler;
+					return 1;
+				},
+				clearTimeout() {},
+			});
+			await harness.handlers.get("session_start")({}, harness.ctx);
+			await harness.handlers.get("before_agent_start")({ prompt, systemPrompt: "base" }, harness.ctx);
+			await harness.handlers.get("agent_start")({}, harness.ctx);
+			assert.equal(typeof revealProgress, "function");
+			revealProgress();
+			assert.doesNotMatch(harness.workingMessages.at(-1), /步骤|Step|Tasks|9\/9|Users|private|command|%/);
+			await harness.handlers.get("agent_end")({}, harness.ctx);
+		}
+	}
+});

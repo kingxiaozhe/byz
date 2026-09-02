@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "task_id": "T-007",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/conversation.test.mjs",
+    "packages/byz/test/execution-extension.test.mjs",
+    "packages/byz/test/execution-registry.test.mjs"
+  ],
+  "implementation_sha256": "16d7743408e4f8485e90f80b3599fcd0f56e4ac2c9d34b5278f7748d5a93e41f",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs packages/byz/test/architecture.test.mjs",
+      "status": "passed",
+      "evidence": "Inherited pre-change baseline: 40 passed, 0 failed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "Inherited pre-change baseline: 216 passed, 0 failed, 1 skipped."
+    },
+    {
+      "command": "node --test packages/byz/test/execution-registry.test.mjs packages/byz/test/execution-extension.test.mjs packages/byz/test/conversation.test.mjs packages/byz/test/architecture.test.mjs",
+      "status": "passed",
+      "evidence": "Red objective passed with 7 expected missing-capability failures; suite now covers unknown/stale/extra replay records, bounded toolCallId, classifier categories, and bilingual details privacy."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository checks passed after T-007 additions."
+    }
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-006-r2.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

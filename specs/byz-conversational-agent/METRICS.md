@@ -13,3 +13,6 @@
 | T-005 | 3.turn-token-usage | 2 | 3：跨回合 timeout/interval/confirmation 与并行错误顺序 | 未计入（BLOCKED；delivery-diff） | 1：批准新增替代任务 T-007 |
 | T-007 | 3.turn-token-usage | 1 | 0（忽略 2 条误报） | PASS（Feature QA 8/8；delivery-diff） | 0 |
 | T-006 | 3.turn-token-usage | 2 | 2：补齐命令链与持久 TUI 证据 | PASS（8/8、80 列、2/2 mutations；delivery-diff） | 0 |
+| T-001 | 4.structured-execution-registry | 2 | 3：replay、启动时工具绑定与 provenance 红灯缺口 | BLOCKED，由 T-006 替代 | 1：批准替代任务 T-006 |
+| T-006 | 4.structured-execution-registry | 2 | 5：非法任务字段、英文状态、未知身份、toolCallId 与 details 脱敏 | BLOCKED，由 T-007 替代 | 1：批准替代任务 T-007 |
+| T-007 | 4.structured-execution-registry | 2 | 0（主执行者自审拦截 5 项） | — | 0 |

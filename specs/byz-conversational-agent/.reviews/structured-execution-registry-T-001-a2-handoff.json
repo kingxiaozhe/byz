@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "task_id": "T-001",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/conversation.test.mjs",
+    "packages/byz/test/execution-extension.test.mjs",
+    "packages/byz/test/execution-registry.test.mjs"
+  ],
+  "implementation_sha256": "2369c0f3b54aecbf177830482116c366076ffbac896a773a53e4293de2862202",
+  "verification": [
+    {
+      "command": "node --test packages/byz/test/conversation.test.mjs packages/byz/test/architecture.test.mjs",
+      "status": "passed",
+      "evidence": "Pre-change baseline remains recorded as 40 passed, 0 failed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "Pre-change baseline remains recorded as 216 passed, 0 failed, 1 skipped."
+    },
+    {
+      "command": "node --test packages/byz/test/execution-registry.test.mjs packages/byz/test/execution-extension.test.mjs packages/byz/test/conversation.test.mjs packages/byz/test/architecture.test.mjs",
+      "status": "passed",
+      "evidence": "Red-test objective passed after review fixes: 6 expected missing-capability failures; plan identity, receipt cap, trusted binding, deterministic timer, and valid-snapshot privacy contracts are present."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "All repository checks passed with no warnings or formatter changes."
+    }
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-prestate.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-001-baseline.md",
+    "specs/byz-conversational-agent/.reviews/structured-execution-registry-T-001-r1.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

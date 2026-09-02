@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "1.0",
+  "feature": "structured-execution-registry",
+  "cases": [
+    {
+      "id": "TC-001",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-001", "AC-002", "AC-003", "AC-004"],
+      "taskIds": ["T-007", "T-002", "T-004"],
+      "title": "只有封口且状态唯一的计划显示真实步骤位置",
+      "preconditions": ["Conversation turn 已开始", "registry 初始为空"],
+      "steps": ["观察空 registry 与 drafting plan 的 compact 状态", "原子建立四个唯一任务并 seal", "依次启动和完成前两个任务", "尝试 seal 后追加任务、双 active、未知 task 和状态倒退"],
+      "expected": ["空或 drafting 时不显示步骤、total 或百分比", "唯一 active 第二任务时显示步骤 2/4", "completed/total 与状态机一致", "非法与 stale transition 不改变 frozen snapshot"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-002",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-003", "AC-004", "AC-009", "AC-013"],
+      "taskIds": ["T-007", "T-002"],
+      "title": "越界和损坏 Session 记录失败关闭且不能被后续完成覆盖",
+      "preconditions": ["可构造 closed Session custom entries"],
+      "steps": ["分别重放 0、65、重复 ID 与非法字符任务集合", "重放未知 schema、sequence gap、conflicting duplicate 和非法迁移", "在损坏记录后追加 completed 自述", "显式创建新 generation"],
+      "expected": ["所有非法候选不显示 total/ordinal", "损坏 generation 标为 unavailable", "后续 completed 不能覆盖损坏", "只有新 generation 可恢复且没有项目/全局写入"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-003",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-005", "AC-006", "AC-007"],
+      "taskIds": ["T-007", "T-003"],
+      "title": "声明、运行时观察和验证证据保持分层",
+      "preconditions": ["sealed plan 有唯一 active task", "可发送 managed evidence action 和 bounded tool events"],
+      "steps": ["声明 tests passed 但不运行工具", "运行成功 generic command", "运行 classifier 命中的成功测试命令", "运行 classifier 命中的失败检查命令", "提交绑定错误与绑定正确的 formal runtime/workflow receipt", "读取 receipt 与 Session entry"],
+      "expected": ["模型自述保持 declared", "generic success 只成为 observed", "匹配成功测试命令只成为 categorized observed 且不显示测试通过", "失败检查不产生 pass", "只有来源、generation、task 和测试合同均匹配的 formal receipt 成为 verified", "receipt 不含命令、参数、路径、result 或自由错误"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-004",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-008", "AC-009", "AC-010", "AC-013"],
+      "taskIds": ["T-002", "T-003"],
+      "title": "同一 Session 重放恢复事实而生命周期结束不伪造完成",
+      "preconditions": ["Session 有合法 registry entries 和一个 active task"],
+      "steps": ["让 Session append 对一个 proposed transition 失败并读取 snapshot", "再次 append 成功", "触发正常 agent_end、取消、错误、compaction、reload 和 shutdown", "在同一 Session resume/reload 后重放 entries", "核对 task/evidence 状态及副作用 spy"],
+      "expected": ["append 失败时 proposal 不提交且 subscriber 不观察变化", "append 成功后状态才可见", "生命周期只收口 in-flight receipt，不自动完成 active/pending task", "重放 snapshot 与原 accepted transitions 一致", "entries 不进入模型上下文", "没有网络、diagnostics、项目或全局存储"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-005",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-005", "AC-006"],
+      "taskIds": ["T-007", "T-003"],
+      "title": "并行工具按开始时 active task 和 toolCallId 形成一次 receipt",
+      "preconditions": ["任务 A active", "可发送两个不同 toolCallId"],
+      "steps": ["start X、start Y", "把 registry task 状态保持不变", "乱序 end Y、end X", "发送重复与未知 end"],
+      "expected": ["X/Y 都绑定任务 A", "形成两条 observed receipt", "乱序不改变归属", "重复/未知事件不重复计数且无 raw payload"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-006",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-001", "AC-011", "AC-012", "AC-015"],
+      "taskIds": ["T-007", "T-004"],
+      "title": "Registry 消费保持 Turn Token Usage 兼容和只读边界",
+      "preconditions": ["无 plan、valid plan 和 unavailable plan 三种 snapshot", "snapshot 含恶意 label"],
+      "steps": ["分别驱动中文/英文 compact、details、completion 和 Footer", "尝试修改 consumer 收到的 snapshot", "运行短 turn、工具、Token 与非交互命令"],
+      "expected": ["无 plan 时现有输出不变", "valid plan 只追加安全 counts", "unavailable/恶意 label 不泄露", "外部修改不能改变 registry", "Token、工具、timing、Footer 和非交互行为不回归"],
+      "cleanup": []
+    },
+    {
+      "id": "TC-007",
+      "origin": "generated",
+      "kind": "browser",
+      "blocking": true,
+      "acIds": ["AC-011", "AC-012", "AC-014"],
+      "taskIds": ["T-005"],
+      "title": "80 列真实 TUI 只在可靠计划中显示单行步骤",
+      "preconditions": ["80x24 tmux", "隔离 HOME", "faux provider", "可建立 64-task sealed plan"],
+      "steps": ["运行无 plan 长 turn", "建立 64-task plan 并激活最后任务", "观察运行状态与完成摘要", "运行 --version 和 workflow 命令"],
+      "expected": ["无 plan 不显示步骤", "可靠 plan 显示步骤 64/64 且保持单行", "默认输出无 label、路径或 raw fields", "非交互 stdout/stderr/exit code 不变"],
+      "cleanup": ["关闭 tmux 并删除隔离 HOME"]
+    },
+    {
+      "id": "TC-008",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": ["AC-015"],
+      "taskIds": ["T-002", "T-004"],
+      "title": "所有消费者只能读取深冻结 snapshot",
+      "preconditions": ["Registry 有嵌套 plan、active 和 counts 数据"],
+      "steps": ["取得 snapshot", "尝试修改顶层、嵌套 plan、active 和 counts", "让 Conversation 与模拟 Pause/Delivery 消费同一 snapshot", "再次读取 registry"],
+      "expected": ["所有修改被拒绝或无效", "三个消费者观察同一事实", "内部 Map、Set 和 mutation 方法不可达", "registry 后续状态未被污染"],
+      "cleanup": []
+    }
+  ]
+}
