@@ -713,3 +713,33 @@ test("scoped replacement separates owners that share the same display source", a
 		await rm(root, { force: true, recursive: true });
 	}
 });
+
+test("successful reload invalidates the previous managed capability", async () => {
+	const root = await mkdtemp(join(tmpdir(), "byz-workflow-stale-capability-"));
+	const agentDir = join(root, "agent");
+	const cwd = join(root, "project");
+	await Promise.all([mkdir(agentDir, { recursive: true }), mkdir(cwd, { recursive: true })]);
+	try {
+		const loader = new DefaultResourceLoader({
+			agentDir,
+			cwd,
+			managedExtensionFactories: [{ factory: () => {}, name: "workflow", resourcePrecedence: "before" }],
+		});
+		await loader.reload();
+		const first = loader.getExtensions().extensions.find((extension) => extension.managedResource);
+		assert.ok(first?.managedResource);
+		const staleCapability = first.managedResource.capability;
+		loader.registerManagedResourceOwner(staleCapability, "owner:first-generation");
+
+		await loader.reload();
+		const second = loader.getExtensions().extensions.find((extension) => extension.managedResource);
+		assert.ok(second?.managedResource);
+		assert.notEqual(second.managedResource.capability, staleCapability);
+		assert.throws(
+			() => loader.registerManagedResourceOwner(staleCapability, "owner:first-generation"),
+			/Invalid managed resource capability/,
+		);
+	} finally {
+		await rm(root, { force: true, recursive: true });
+	}
+});

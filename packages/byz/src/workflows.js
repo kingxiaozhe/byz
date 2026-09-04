@@ -1,6 +1,7 @@
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createCommandOutput, createPassthroughResult, resultFromOutput } from "./application/command-result.js";
 import { loadSkillsFromDir } from "./runtime/bundle/index.js";
 import { getActiveByzOptionIndexes } from "./workflow-switch.js";
 
@@ -165,13 +166,13 @@ async function checkWorkflow(workflow) {
 	return status;
 }
 
-function printStatus(status) {
-	console.log(`${status.id}: ${status.available ? "available" : "unavailable"}`);
-	console.log(`  package: ${status.packageName}`);
-	console.log(`  source: ${status.source}`);
-	console.log(`  expected: ${status.version}`);
-	if (status.resolvedVersion) console.log(`  version: ${status.resolvedVersion}`);
-	if (status.root) console.log(`  root: ${status.root}`);
+function printStatus(status, stdout) {
+	stdout(`${status.id}: ${status.available ? "available" : "unavailable"}`);
+	stdout(`  package: ${status.packageName}`);
+	stdout(`  source: ${status.source}`);
+	stdout(`  expected: ${status.version}`);
+	if (status.resolvedVersion) stdout(`  version: ${status.resolvedVersion}`);
+	if (status.root) stdout(`  root: ${status.root}`);
 }
 
 export function parseWorkflowOption(args) {
@@ -237,43 +238,45 @@ export async function prepareWorkflowRuntimeArgs(args, options = {}) {
 }
 
 export async function handleWorkflowCommand(args, options = {}) {
-	if (args[0] !== "workflow") return false;
+	if (args[0] !== "workflow") return createPassthroughResult();
+	const output = createCommandOutput();
+	const stdout = output.writeStdout;
 
 	try {
 		const command = args[1] ?? "list";
 		if (command === "list") {
 			await assertDistinctRoots();
 			for (const workflow of await loadWorkflows()) {
-				printStatus(await getWorkflowStatus(workflow));
+				printStatus(await getWorkflowStatus(workflow), stdout);
 			}
-			return true;
+			return resultFromOutput(output);
 		}
 
 		if (command === "status") {
 			const activeWorkflowId = options.workflowId ?? parseWorkflowOption([]).workflowId;
 			const targetWorkflowId = args[2] ?? activeWorkflowId;
 			if (targetWorkflowId === "none") {
-				console.log(`none: ${activeWorkflowId === "none" ? "active" : "available"}`);
-				return true;
+				stdout(`none: ${activeWorkflowId === "none" ? "active" : "available"}`);
+				return resultFromOutput(output);
 			}
 			await assertDistinctRoots();
-			printStatus(await getWorkflowStatus(await getWorkflow(targetWorkflowId)));
-			return true;
+			printStatus(await getWorkflowStatus(await getWorkflow(targetWorkflowId)), stdout);
+			return resultFromOutput(output);
 		}
 
 		if (command === "check") {
 			const status = await checkWorkflow(await getWorkflow(args[2]));
-			console.log(`${status.id}: check passed`);
-			console.log(`  source: ${status.source}`);
-			console.log(`  version: ${status.resolvedVersion}`);
-			console.log(`  root: ${status.root}`);
-			return true;
+			stdout(`${status.id}: check passed`);
+			stdout(`  source: ${status.source}`);
+			stdout(`  version: ${status.resolvedVersion}`);
+			stdout(`  root: ${status.root}`);
+			return resultFromOutput(output);
 		}
 
 		throw new Error(`Unknown workflow command: ${command}. Expected list, status, or check.`);
 	} catch (error) {
-		console.error(error instanceof Error ? error.message : String(error));
-		process.exitCode = 1;
-		return true;
+		output.writeStderr(error instanceof Error ? error.message : String(error));
+		output.exitCode = 1;
+		return resultFromOutput(output);
 	}
 }

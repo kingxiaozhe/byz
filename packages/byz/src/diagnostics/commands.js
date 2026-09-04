@@ -2,6 +2,7 @@ import { constants } from "node:fs";
 import { access, lstat, readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { createCommandOutput, createPassthroughResult, resultFromOutput } from "../application/command-result.js";
 import {
 	getDiagnosticsHome,
 	getManagedPaths,
@@ -30,9 +31,9 @@ const USAGE = `Usage:
   byz diagnostics clear --confirm
   byz diagnostics export [--since <duration>] [--output <path>] --confirm`;
 
-function fail(message, stderr) {
-	stderr(message);
-	process.exitCode = 1;
+function fail(message, output, exitCode = 1) {
+	output.writeStderr(message);
+	output.exitCode = exitCode;
 }
 
 function parseSingleOption(args, name) {
@@ -61,10 +62,10 @@ async function statusCommand(home, stdout) {
 	stdout(`degraded: ${scan.unavailable > 0}`);
 }
 
-async function summaryCommand(args, home, stdout, stderr) {
+async function summaryCommand(args, home, stdout, output) {
 	const value = parseSingleOption(args, "--since") ?? "24h";
 	const duration = parseDuration(value);
-	if (!duration || args.length !== (args.includes("--since") ? 2 : 0)) return fail(USAGE, stderr);
+	if (!duration || args.length !== (args.includes("--since") ? 2 : 0)) return fail(USAGE, output);
 	const scan = await scanDiagnosticEvents({ home, since: Date.now() - duration });
 	const summary = summarizeDiagnosticEvents(scan.events, scan.unavailable);
 	const cmRoot = process.env.CM_WORKFLOW_LOG_HOME || join(homedir(), ".cm-workflow", "logs");
@@ -96,9 +97,9 @@ async function doctorCommand(home, stdout) {
 	stdout(JSON.stringify(checks, null, 2));
 }
 
-async function clearCommand(args, home, stdout, stderr) {
+async function clearCommand(args, home, stdout, output) {
 	if (args.length !== 1 || args[0] !== "--confirm")
-		return fail("Refusing to clear diagnostics without --confirm.", stderr);
+		return fail("Refusing to clear diagnostics without --confirm.", output);
 	const config = readDiagnosticsConfig(home);
 	writeDiagnosticsConfig({ ...config, generation: config.generation + 1, detailUntil: null }, home);
 	const failed = [];
@@ -112,44 +113,42 @@ async function clearCommand(args, home, stdout, stderr) {
 		}
 	}
 	if (failed.length > 0) {
-		process.exitCode = 2;
-		stderr(`Diagnostics partially cleared; remaining categories: ${failed.join(", ")}`);
+		fail(`Diagnostics partially cleared; remaining categories: ${failed.join(", ")}`, output, 2);
 		return;
 	}
 	stdout("Diagnostics cleared.");
 }
 
-async function exportCommand(args, home, options, stdout, stderr) {
+async function exportCommand(args, home, options, stdout, output) {
 	const sinceValue = parseSingleOption(args, "--since") ?? "24h";
 	const sinceDuration = parseDuration(sinceValue);
-	const output = parseSingleOption(args, "--output");
+	const outputPath = parseSingleOption(args, "--output");
 	const confirmed = args.includes("--confirm");
 	const allowedLength = (confirmed ? 1 : 0) + (args.includes("--since") ? 2 : 0) + (args.includes("--output") ? 2 : 0);
-	if (!sinceDuration || args.length !== allowedLength) return fail(USAGE, stderr);
+	if (!sinceDuration || args.length !== allowedLength) return fail(USAGE, output);
 	const preview = await scanDiagnosticEvents({ home, since: Date.now() - sinceDuration });
 	stdout(
-		`Export range: ${sinceValue}; events: ${preview.events.length}; fields: aggregate counts and versions; excludes prompts, code, paths, tool content and credentials; output: ${output ?? "managed exports directory"}.`,
+		`Export range: ${sinceValue}; events: ${preview.events.length}; fields: aggregate counts and versions; excludes prompts, code, paths, tool content and credentials; output: ${outputPath ?? "managed exports directory"}.`,
 	);
-	if (!confirmed) return fail("Review the preview, then rerun with --confirm.", stderr);
+	if (!confirmed) return fail("Review the preview, then rerun with --confirm.", output);
 	try {
 		const path = await createDiagnosticsExport({
 			home,
 			since: Date.now() - sinceDuration,
-			output,
+			output: outputPath,
 			byzVersion: options.version,
 			runtimeCategory: "node",
 		});
 		stdout(`Diagnostics exported to: ${path}`);
 	} catch {
-		process.exitCode = 2;
-		stderr("Diagnostics export failed privacy or filesystem validation.");
+		fail("Diagnostics export failed privacy or filesystem validation.", output, 2);
 	}
 }
 
 export async function handleDiagnosticsCommand(args, options = {}) {
-	if (args[0] !== "diagnostics") return false;
-	const stdout = options.stdout ?? console.log;
-	const stderr = options.stderr ?? console.error;
+	if (args[0] !== "diagnostics") return createPassthroughResult();
+	const output = createCommandOutput();
+	const stdout = output.writeStdout;
 	const home = options.home ?? getDiagnosticsHome(options.env);
 	const [command, ...rest] = args.slice(1);
 	try {
@@ -165,7 +164,7 @@ export async function handleDiagnosticsCommand(args, options = {}) {
 			stdout("Temporary detailed diagnostics stopped.");
 		} else if (command === "record" && rest[0] === "--for" && rest.length === 2) {
 			const duration = parseDuration(rest[1]);
-			if (!duration) fail(USAGE, stderr);
+			if (!duration) fail(USAGE, output);
 			else {
 				updateDiagnosticsConfig(
 					{ enabled: true, detailUntil: new Date(Date.now() + duration).toISOString() },
@@ -173,16 +172,15 @@ export async function handleDiagnosticsCommand(args, options = {}) {
 				);
 				stdout("Temporary detailed diagnostics enabled.");
 			}
-		} else if (command === "summary") await summaryCommand(rest, home, stdout, stderr);
+		} else if (command === "summary") await summaryCommand(rest, home, stdout, output);
 		else if (command === "doctor" && rest.length === 0) await doctorCommand(home, stdout);
-		else if (command === "clear") await clearCommand(rest, home, stdout, stderr);
-		else if (command === "export") await exportCommand(rest, home, options, stdout, stderr);
-		else fail(USAGE, stderr);
+		else if (command === "clear") await clearCommand(rest, home, stdout, output);
+		else if (command === "export") await exportCommand(rest, home, options, stdout, output);
+		else fail(USAGE, output);
 	} catch {
-		process.exitCode = 2;
-		stderr("Diagnostics storage is unavailable.");
+		fail("Diagnostics storage is unavailable.", output, 2);
 	}
-	return true;
+	return resultFromOutput(output);
 }
 
 export { USAGE as DIAGNOSTICS_USAGE };

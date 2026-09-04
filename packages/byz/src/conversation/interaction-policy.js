@@ -1,5 +1,3 @@
-const INTERNAL_TERMS = /\b(?:model|skill|workflow|fast|prewalk|token|tool|step\s*\d+)\b/gi;
-
 export function createInteractionPolicy() {
 	let progressShown = false;
 	let detailEnabled = false;
@@ -11,16 +9,12 @@ export function createInteractionPolicy() {
 			return "正在处理，稍后给你结果。";
 		}
 		if (kind === "advanced-control" && !detailEnabled && !detail) return undefined;
-		if (detail || detailEnabled) return message;
-		return message.replace(INTERNAL_TERMS, "内部设置");
+		return message;
 	}
 
 	function presentAssistantMessage(message) {
 		if (detailEnabled) return message;
-		const content = message.content
-			.filter((part) => part.type === "text")
-			.map((part) => ({ ...part, text: part.text.replace(INTERNAL_TERMS, "内部设置") }));
-		return { ...message, content };
+		return { ...message, content: message.content.filter((part) => part.type === "text") };
 	}
 
 	return {

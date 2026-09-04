@@ -13,6 +13,10 @@ function formatModel(model) {
 	return model ? `${model.provider}/${model.id}` : "none";
 }
 
+function modelIdentity(model) {
+	return model ? Object.freeze({ provider: model.provider, id: model.id }) : undefined;
+}
+
 function modelsMatch(left, right) {
 	return left?.provider === right?.provider && left?.id === right?.id;
 }
@@ -125,19 +129,19 @@ export function createFastSessionController({
 		const modelContext = getModelContext(ctx);
 		if (!modelContext) return undefined;
 		const configuredModel = useConfiguredModel ? env.BYZ_FAST_MODEL?.trim() : undefined;
-		let model = modelContext.model;
+		let modelHandle = modelContext.model;
 		if (configuredModel) {
 			const reference = parseFastModelReference(configuredModel);
 			if (!reference) {
 				ctx.ui.notify(`Invalid BYZ_FAST_MODEL "${configuredModel}". Expected provider/model.`, "error");
 				return undefined;
 			}
-			model = modelContext.modelRegistry.find(reference.provider, reference.modelId);
-			if (!model) {
+			modelHandle = modelContext.modelRegistry.find(reference.provider, reference.modelId);
+			if (!modelHandle) {
 				ctx.ui.notify(`Fast model "${configuredModel}" was not found.`, "error");
 				return undefined;
 			}
-			if (!modelContext.modelRegistry.hasConfiguredAuth(model)) {
+			if (!modelContext.modelRegistry.hasConfiguredAuth(modelHandle)) {
 				ctx.ui.notify(`Fast model "${configuredModel}" has no configured authentication.`, "error");
 				return undefined;
 			}
@@ -146,17 +150,17 @@ export function createFastSessionController({
 				return undefined;
 			}
 		}
-		if (!model && requireModel) {
+		if (!modelHandle && requireModel) {
 			ctx.ui.notify("Fast cannot preserve the current model because no model is selected.", "error");
 			return undefined;
 		}
-		if (model && requireAuth && !modelContext.modelRegistry.hasConfiguredAuth(model)) {
-			ctx.ui.notify(`Fast model "${formatModel(model)}" has no configured authentication.`, "error");
+		if (modelHandle && requireAuth && !modelContext.modelRegistry.hasConfiguredAuth(modelHandle)) {
+			ctx.ui.notify(`Fast model "${formatModel(modelHandle)}" has no configured authentication.`, "error");
 			return undefined;
 		}
 		return {
 			configuredModel,
-			model,
+			model: modelIdentity(modelHandle),
 			thinking: useLowThinking ? "low" : ports.getThinkingLevel(),
 		};
 	}
@@ -167,7 +171,12 @@ export function createFastSessionController({
 		internalTransition = true;
 		try {
 			if (target.model && !modelsMatch(modelContext.model, target.model)) {
-				const changed = await setModelInternally(target.model);
+				const modelHandle = modelContext.modelRegistry.find(target.model.provider, target.model.id);
+				if (!modelHandle || !modelContext.modelRegistry.hasConfiguredAuth(modelHandle)) {
+					ctx.ui.notify(`Fast model "${formatModel(target.model)}" has no configured authentication.`, "error");
+					return false;
+				}
+				const changed = await setModelInternally(modelHandle);
 				if (!changed) {
 					ctx.ui.notify(`Fast model "${formatModel(target.model)}" has no configured authentication.`, "error");
 					return false;
@@ -199,7 +208,7 @@ export function createFastSessionController({
 		const modelContext = getModelContext(ctx);
 		if (!modelContext) return;
 		const nextSnapshot = {
-			model: modelContext.model,
+			model: modelIdentity(modelContext.model),
 			thinking: ports.getThinkingLevel(),
 		};
 		if (!(await applyTarget(ctx, target))) return;

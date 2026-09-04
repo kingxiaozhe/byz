@@ -272,6 +272,61 @@ test("Fast restores an adapter-branded model snapshot after extension reload", a
 	assert.equal(state.thinking, "high");
 });
 
+test("model handles are accepted only by the Pi adapter lineage that created them", async () => {
+	function createRuntime(label) {
+		const handlers = new Map();
+		const model = { provider: "provider-a", id: "shared", label };
+		let selected;
+		const context = {
+			model,
+			modelRegistry: {
+				find: () => model,
+				hasConfiguredAuth: () => true,
+			},
+			isIdle: () => true,
+			ui: { notify() {} },
+		};
+		const ports = createPiExtensionPorts({
+			on: (name, handler) => handlers.set(name, handler),
+			registerCommand() {},
+			getAllTools: () => [],
+			getThinkingLevel: () => "high",
+			setThinkingLevel() {},
+			async setModel(next) {
+				selected = next;
+				return true;
+			},
+		});
+		let reference;
+		ports.fast.on("model_select", (_event, fastContext) => {
+			reference = fastContext.model;
+		});
+		return {
+			context,
+			handlers,
+			ports,
+			getReference: () => reference,
+			getSelected: () => selected,
+		};
+	}
+
+	const sessionA = createRuntime("A");
+	const sessionB = createRuntime("B");
+	await sessionA.handlers.get("model_select")(
+		{ type: "model_select", model: sessionA.context.model },
+		sessionA.context,
+	);
+	await sessionB.handlers.get("model_select")(
+		{ type: "model_select", model: sessionB.context.model },
+		sessionB.context,
+	);
+
+	await assert.rejects(() => sessionB.ports.fast.setModel(sessionA.getReference()), /current Pi adapter lineage/);
+	assert.equal(sessionB.getSelected(), undefined);
+	assert.equal(await sessionB.ports.fast.setModel(sessionB.getReference()), true);
+	assert.equal(sessionB.getSelected(), sessionB.context.model);
+});
+
 test("Fast runs through a real AgentSession command without replacing the conversation", async () => {
 	const root = await mkdtemp(join(tmpdir(), "byz-fast-session-"));
 	const agentDir = join(root, "agent");

@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import test from "node:test";
 import {
 	BYZ_PACKAGE_NAME,
 	getLatestByzRelease,
 	handleByzUpdate,
 	planByzUpdate,
+	runSelfUpdateCommand,
 } from "../.byz-output/current/dist/update.js";
 import { runUpdateWithDiagnostics } from "../src/diagnostics/update-integration.js";
 
@@ -58,7 +61,6 @@ test("plans upgrades without downgrading", () => {
 
 test("updates only a writable global BYZ installation", async () => {
 	const commands = [];
-	const stdout = [];
 	const handled = await handleByzUpdate(["update"], {
 		currentVersion: "0.1.0",
 		getLatestRelease: async () => ({ name: BYZ_PACKAGE_NAME, version: "0.2.0" }),
@@ -76,17 +78,232 @@ test("updates only a writable global BYZ installation", async () => {
 			};
 		},
 		runCommand: async (command) => commands.push(command),
-		stdout: (line) => stdout.push(line),
 	});
 
-	assert.equal(handled, true);
+	assert.equal(handled.status, "handled");
+	assert.equal(handled.exitCode, 0);
 	assert.equal(commands.length, 1);
 	assert.deepEqual(commands[0].args.slice(0, 3), [
 		"--@aibyzero:registry=https://registry.npmjs.org/",
 		"--prefix",
 		"/tmp/byz-prefix",
 	]);
-	assert.match(stdout.at(-1), /Updated BYZ from 0\.1\.0 to 0\.2\.0/);
+	assert.match(handled.stdout.at(-1), /Updated BYZ from 0\.1\.0 to 0\.2\.0/);
+});
+
+test("captures real update subprocess output in the successful CommandResult", async () => {
+	const spawnCalls = [];
+	const result = await handleByzUpdate(["update"], {
+		currentVersion: "0.1.0",
+		getLatestRelease: async () => ({ name: BYZ_PACKAGE_NAME, version: "0.2.0" }),
+		getUpdateCommand: () => ({ command: "npm", args: ["install"], display: "npm install" }),
+		spawnProcess(command, args, options) {
+			spawnCalls.push({ command, args, options });
+			const child = new EventEmitter();
+			child.stdout = new PassThrough();
+			child.stderr = new PassThrough();
+			child.kill = () => true;
+			queueMicrotask(() => {
+				child.stdout.end("npm output\n");
+				child.stderr.end("npm warning\n");
+				child.emit("close", 0, null);
+			});
+			return child;
+		},
+		stdout: () => assert.fail("update output must not bypass CommandResult"),
+		stderr: () => assert.fail("update output must not bypass CommandResult"),
+	});
+
+	assert.deepEqual(spawnCalls[0].options, { shell: false, stdio: ["inherit", "pipe", "pipe"] });
+	assert.match(result.stdout[0], /^Updating BYZ with npm --@aibyzero:registry=/);
+	assert.deepEqual(result.stdout.slice(1), [
+		"npm output",
+		"Updated BYZ from 0.1.0 to 0.2.0. Restart BYZ to use the new version.",
+	]);
+	assert.deepEqual(result.stderr, ["npm warning"]);
+	assert.equal(result.exitCode, 0);
+});
+
+test("retains failed update subprocess output and exit status in CommandResult", async () => {
+	const result = await handleByzUpdate(["update"], {
+		currentVersion: "0.1.0",
+		getLatestRelease: async () => ({ name: BYZ_PACKAGE_NAME, version: "0.2.0" }),
+		getUpdateCommand: () => ({ command: "npm", args: ["install"], display: "npm install" }),
+		spawnProcess() {
+			const child = new EventEmitter();
+			child.stdout = new PassThrough();
+			child.stderr = new PassThrough();
+			child.kill = () => true;
+			queueMicrotask(() => {
+				child.stdout.end("partial output\n");
+				child.stderr.end("npm failed\n");
+				child.emit("close", 7, null);
+			});
+			return child;
+		},
+	});
+
+	assert.equal(result.exitCode, 7);
+	assert.match(result.stdout[0], /^Updating BYZ with npm --@aibyzero:registry=/);
+	assert.deepEqual(result.stdout.slice(1), ["partial output"]);
+	assert.equal(result.stderr[0], "npm failed");
+	assert.match(result.stderr[1], /^npm --@aibyzero:registry=.* exited with code 7\.$/);
+});
+
+test("bounds stdout overflow with TERM-to-KILL fallback even without close", async () => {
+	const killCalls = [];
+	const result = await Promise.race([
+		handleByzUpdate(["update"], {
+			currentVersion: "0.1.0",
+			getLatestRelease: async () => ({ name: BYZ_PACKAGE_NAME, version: "0.2.0" }),
+			getUpdateCommand: () => ({ command: "npm", args: ["install"], display: "npm install" }),
+			spawnProcess() {
+				const child = new EventEmitter();
+				child.stdout = new PassThrough();
+				child.stderr = new PassThrough();
+				child.kill = (signal) => {
+					killCalls.push(signal);
+					return true;
+				};
+				queueMicrotask(() => child.stdout.write("123456789"));
+				return child;
+			},
+			updateProcessOptions: { maxOutputBytes: 8, terminateGraceMs: 1, forceKillGraceMs: 1 },
+		}),
+		new Promise((_, reject) => setTimeout(() => reject(new Error("overflow did not settle")), 200)),
+	]);
+
+	assert.deepEqual(killCalls, ["SIGTERM", "SIGKILL"]);
+	assert.equal(result.exitCode, 1);
+	assert.match(result.stderr.at(-1), /stdout exceeded.*did not close after forced termination/);
+});
+
+test("bounds stderr overflow when TERM and KILL are not accepted", async () => {
+	const killCalls = [];
+	const result = await Promise.race([
+		handleByzUpdate(["update"], {
+			currentVersion: "0.1.0",
+			getLatestRelease: async () => ({ name: BYZ_PACKAGE_NAME, version: "0.2.0" }),
+			getUpdateCommand: () => ({ command: "npm", args: ["install"], display: "npm install" }),
+			spawnProcess() {
+				const child = new EventEmitter();
+				child.stdout = new PassThrough();
+				child.stderr = new PassThrough();
+				child.kill = (signal) => {
+					killCalls.push(signal);
+					child.emit("error", new Error("EPERM"));
+					return false;
+				};
+				queueMicrotask(() => child.stderr.write("123456789"));
+				return child;
+			},
+			updateProcessOptions: { maxOutputBytes: 8, terminateGraceMs: 20, forceKillGraceMs: 1 },
+		}),
+		new Promise((_, reject) => setTimeout(() => reject(new Error("overflow did not settle")), 200)),
+	]);
+
+	assert.deepEqual(killCalls, ["SIGTERM", "SIGKILL"]);
+	assert.equal(result.exitCode, 1);
+	assert.match(result.stderr.at(-1), /stderr exceeded.*Force termination was not accepted/);
+});
+
+test("retains successful prior-step output when a later update step fails", async () => {
+	let spawnCount = 0;
+	const result = await handleByzUpdate(["update"], {
+		currentVersion: "0.1.0",
+		getLatestRelease: async () => ({ name: BYZ_PACKAGE_NAME, version: "0.2.0" }),
+		getUpdateCommand: () => ({
+			command: "npm",
+			args: ["first"],
+			display: "npm first",
+			steps: [
+				{ command: "npm", args: ["first"], display: "npm first" },
+				{ command: "npm", args: ["second"], display: "npm second" },
+			],
+		}),
+		spawnProcess() {
+			const child = new EventEmitter();
+			child.stdout = new PassThrough();
+			child.stderr = new PassThrough();
+			child.kill = () => true;
+			const current = spawnCount++;
+			queueMicrotask(() => {
+				child.stdout.end(current === 0 ? "first output\n" : "second partial\n");
+				child.stderr.end(current === 0 ? "" : "second failed\n");
+				child.emit("close", current === 0 ? 0 : 9, null);
+			});
+			return child;
+		},
+	});
+
+	assert.equal(result.exitCode, 9);
+	assert.deepEqual(result.stdout.slice(1), ["first output", "second partial"]);
+	assert.equal(result.stderr[0], "second failed");
+	assert.match(result.stderr[1], /second.*exited with code 9/);
+});
+
+test("detaches real child handles when a descendant retains update pipes", async () => {
+	const startedAt = performance.now();
+	const operation = runSelfUpdateCommand(
+		{
+			command: process.execPath,
+			args: [
+				"-e",
+				"require('node:child_process').spawn(process.execPath,['-e','setTimeout(()=>{},500)'],{stdio:['ignore',1,2]});process.stdout.write('123456789');setTimeout(()=>{},5000)",
+			],
+			display: "node overflow fixture",
+		},
+		undefined,
+		{ maxOutputBytes: 8, terminateGraceMs: 5, forceKillGraceMs: 5 },
+	);
+	await assert.rejects(
+		Promise.race([
+			operation,
+			new Promise((_, reject) => setTimeout(() => reject(new Error("real overflow did not settle")), 200)),
+		]),
+		(error) => error.result?.exitCode === 1 && /stdout exceeded/.test(error.result.stderr.at(-1)),
+	);
+	assert.ok(performance.now() - startedAt < 200);
+});
+
+test("resolves npm through node on Windows without a command shell", async () => {
+	const calls = [];
+	const result = await runSelfUpdateCommand(
+		{ command: "npm", args: ["install"], display: "npm install" },
+		(command, args, options) => {
+			calls.push({ command, args, options });
+			const child = new EventEmitter();
+			child.stdout = new PassThrough();
+			child.stderr = new PassThrough();
+			queueMicrotask(() => child.emit("close", 0, null));
+			return child;
+		},
+		{ platform: "win32", nodeExecutable: "C:\\node\\node.exe", npmCliPath: "C:\\node\\npm-cli.js" },
+	);
+	assert.equal(result.exitCode, 0);
+	assert.deepEqual(calls[0], {
+		command: "C:\\node\\node.exe",
+		args: ["C:\\node\\npm-cli.js", "install"],
+		options: { shell: false, stdio: ["inherit", "pipe", "pipe"] },
+	});
+});
+
+test("normalizes native exit statuses while retaining their diagnostic text", async () => {
+	const result = await handleByzUpdate(["update"], {
+		currentVersion: "0.1.0",
+		getLatestRelease: async () => ({ name: BYZ_PACKAGE_NAME, version: "0.2.0" }),
+		getUpdateCommand: () => ({ command: "npm", args: ["install"], display: "npm install" }),
+		spawnProcess() {
+			const child = new EventEmitter();
+			child.stdout = new PassThrough();
+			child.stderr = new PassThrough();
+			child.kill = () => true;
+			queueMicrotask(() => child.emit("close", 0xc0000005, null));
+			return child;
+		},
+	});
+	assert.equal(result.exitCode, 1);
+	assert.match(result.stderr.at(-1), /3221225477/);
 });
 
 test("diagnostics remain best effort and preserve update rejection identity", async () => {
@@ -128,9 +345,7 @@ test("diagnostics remain best effort and preserve update rejection identity", as
 });
 
 test("preserves a custom prefix in non-writable fallback guidance", async () => {
-	const stderr = [];
-	process.exitCode = undefined;
-	await handleByzUpdate(["update"], {
+	const result = await handleByzUpdate(["update"], {
 		currentVersion: "0.1.0",
 		getLatestRelease: async () => ({ name: BYZ_PACKAGE_NAME, version: "0.2.0" }),
 		getManualUpdateCommand: () => ({
@@ -139,40 +354,31 @@ test("preserves a custom prefix in non-writable fallback guidance", async () => 
 			display: `npm --prefix /tmp/byz-prefix install -g ${BYZ_PACKAGE_NAME}@0.2.0`,
 		}),
 		getUpdateCommand: () => undefined,
-		stderr: (line) => stderr.push(line),
 	});
-	assert.equal(process.exitCode, 2);
-	assert.match(stderr.join("\n"), /--@aibyzero:registry=https:\/\/registry\.npmjs\.org\//);
-	assert.match(stderr.join("\n"), /--prefix \/tmp\/byz-prefix/);
-	process.exitCode = undefined;
+	assert.equal(result.exitCode, 2);
+	assert.match(result.stderr.join("\n"), /--@aibyzero:registry=https:\/\/registry\.npmjs\.org\//);
+	assert.match(result.stderr.join("\n"), /--prefix \/tmp\/byz-prefix/);
 });
 
 test("refuses source checkouts and unsupported Pi update options", async () => {
-	const stderr = [];
-	process.exitCode = undefined;
-	await handleByzUpdate(["update"], {
+	const sourceResult = await handleByzUpdate(["update"], {
 		currentVersion: "0.1.0",
 		getLatestRelease: async () => ({ name: BYZ_PACKAGE_NAME, version: "0.2.0" }),
 		getManualUpdateCommand: () => undefined,
 		getUpdateCommand: () => undefined,
-		stderr: (line) => stderr.push(line),
 	});
-	assert.equal(process.exitCode, 2);
-	assert.match(stderr.join("\n"), /npm-managed global/);
+	assert.equal(sourceResult.exitCode, 2);
+	assert.match(sourceResult.stderr.join("\n"), /npm-managed global/);
 
-	process.exitCode = undefined;
-	await handleByzUpdate(["update"], {
+	const unsupportedResult = await handleByzUpdate(["update"], {
 		currentVersion: "0.1.0",
 		getLatestRelease: async () => ({ name: BYZ_PACKAGE_NAME, version: "0.2.0" }),
 		getManualUpdateCommand: () => undefined,
 		getUpdateCommand: () => ({ command: "pnpm", args: [], display: "pnpm install -g" }),
-		stderr: (line) => stderr.push(line),
 	});
-	assert.equal(process.exitCode, 2);
+	assert.equal(unsupportedResult.exitCode, 2);
 
-	process.exitCode = undefined;
-	await handleByzUpdate(["update", "--all"], { stderr: (line) => stderr.push(line) });
-	assert.equal(process.exitCode, 1);
-	assert.match(stderr.at(-1), /Expected only --force or --help/);
-	process.exitCode = undefined;
+	const invalidResult = await handleByzUpdate(["update", "--all"]);
+	assert.equal(invalidResult.exitCode, 1);
+	assert.match(invalidResult.stderr.at(-1), /Expected only --force or --help/);
 });

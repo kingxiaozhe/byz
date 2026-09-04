@@ -5,8 +5,9 @@ export async function runUpdateWithDiagnostics(options) {
 	} catch {
 		// Diagnostics are best effort and never affect update behavior.
 	}
+	let commandResult;
 	try {
-		await runCommand(command);
+		commandResult = await runCommand(command);
 	} catch (error) {
 		try {
 			diagnostics?.recordUpdateResult({ fromVersion, toVersion, outcome: "command_failed", identity });
@@ -20,4 +21,5 @@ export async function runUpdateWithDiagnostics(options) {
 	} catch {
 		// Diagnostics are best effort and never affect update behavior.
 	}
+	return commandResult;
 }

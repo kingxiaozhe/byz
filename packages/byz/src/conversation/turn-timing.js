@@ -13,10 +13,14 @@ export function createTurnTiming(options = {}) {
 	const now = options.now ?? (() => performance.now());
 	const stageTotals = new Map();
 	const stageOrder = [];
+	const waitingTotals = new Map([
+		["confirmation", 0],
+		["pause", 0],
+	]);
 	let currentStage;
 	let activeStartedAt;
 	let waitingStartedAt;
-	let waitingMs = 0;
+	let waitingReason;
 	let lastNow = 0;
 	let finished = false;
 	let finalSnapshot;
@@ -41,9 +45,10 @@ export function createTurnTiming(options = {}) {
 	}
 
 	function settleWaiting(at) {
-		if (waitingStartedAt === undefined) return;
-		waitingMs += Math.max(0, at - waitingStartedAt);
+		if (waitingStartedAt === undefined || waitingReason === undefined) return;
+		waitingTotals.set(waitingReason, (waitingTotals.get(waitingReason) ?? 0) + Math.max(0, at - waitingStartedAt));
 		waitingStartedAt = undefined;
+		waitingReason = undefined;
 	}
 
 	function snapshotAt(at) {
@@ -52,18 +57,41 @@ export function createTurnTiming(options = {}) {
 			return { stage, milliseconds: (stageTotals.get(stage) ?? 0) + active };
 		});
 		const currentWaiting = waitingStartedAt === undefined ? 0 : Math.max(0, at - waitingStartedAt);
+		const confirmationWaitingMs =
+			(waitingTotals.get("confirmation") ?? 0) + (waitingReason === "confirmation" ? currentWaiting : 0);
+		const pauseWaitingMs = (waitingTotals.get("pause") ?? 0) + (waitingReason === "pause" ? currentWaiting : 0);
 		const activeMs = stages.reduce((sum, entry) => sum + entry.milliseconds, 0);
-		const totalWaitingMs = waitingMs + currentWaiting;
+		const waitingMs = confirmationWaitingMs + pauseWaitingMs;
 		return {
 			activeMs,
+			confirmationWaitingMs,
 			currentStage,
 			currentStageMs: stages.find((entry) => entry.stage === currentStage)?.milliseconds ?? 0,
 			finished,
+			pauseWaitingMs,
 			stages,
-			totalMs: activeMs + totalWaitingMs,
-			waiting: waitingStartedAt !== undefined,
-			waitingMs: totalWaitingMs,
+			totalMs: activeMs + waitingMs,
+			waiting: waitingReason !== undefined,
+			waitingMs,
+			waitingReason,
 		};
+	}
+
+	function pause(reason) {
+		if (finished || waitingReason !== undefined || !waitingTotals.has(reason)) return false;
+		const at = readNow();
+		settleActive(at);
+		waitingReason = reason;
+		waitingStartedAt = at;
+		return true;
+	}
+
+	function resume(reason) {
+		if (finished || waitingReason !== reason || waitingStartedAt === undefined) return false;
+		const at = readNow();
+		settleWaiting(at);
+		if (currentStage !== undefined) activeStartedAt = at;
+		return true;
 	}
 
 	return Object.freeze({
@@ -80,19 +108,15 @@ export function createTurnTiming(options = {}) {
 			settleActive(at);
 			currentStage = stage;
 			rememberStage(stage);
-			if (waitingStartedAt === undefined) activeStartedAt = at;
+			if (waitingReason === undefined) activeStartedAt = at;
 		},
+		pause,
+		resume,
 		pauseForConfirmation() {
-			if (finished || waitingStartedAt !== undefined) return;
-			const at = readNow();
-			settleActive(at);
-			waitingStartedAt = at;
+			return pause("confirmation");
 		},
 		resumeAfterConfirmation() {
-			if (finished || waitingStartedAt === undefined) return;
-			const at = readNow();
-			settleWaiting(at);
-			if (currentStage !== undefined) activeStartedAt = at;
+			return resume("confirmation");
 		},
 		snapshot() {
 			return finalSnapshot ?? snapshotAt(readNow());
