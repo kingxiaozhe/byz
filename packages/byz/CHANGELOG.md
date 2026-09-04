@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.13 - 2026-09-04
+
 ### Added
 
 - Added a Session-backed structured execution registry with closed plan/task transitions, categorized verified evidence, bounded replay, and deeply frozen consumer snapshots.
@@ -11,7 +13,7 @@
 ### Changed
 
 - Changed BYZ runtime integration to use a centralized command registry, closed command results, stricter feature capability provenance, bounded subprocess termination, and atomic conversation preferences.
-
+- Updated the bundled CM Workflow 0.10.4 revision used by BYZ release artifacts.
 - Changed interactive execution feedback to a delayed single-line status with current-turn Token totals, paired in-flight tool counts, and a two-line completion summary that separates client-observed model activity from tool and confirmation time.
 - Changed trusted CM recovery to read three explicit legacy state forms without writing them back and to keep unfinished or damaged candidates fail-closed.
 

@@ -8,6 +8,7 @@
 - **Extension presentation hooks** — Customize assistant messages, tool rows, and confirmation prompts without changing conversation data.
 - **Scoped resource replacement** — Switch wrapper-managed skills and prompts without restarting the session.
 - **Interactive product profiles** — Let wrappers configure built-in startup presentation without product-specific environment branches.
+- **Model and tool execution gates** — Extensions can gate each model request and observe bounded tool-batch identities before execution. See [Extensions](docs/extensions.md).
 
 ### Added
 
@@ -17,6 +18,7 @@
 - Exported the image MIME detector from the public package API ([#8600](https://github.com/earendil-works/pi/pull/8600)).
 - Added inherited experimental DeepSeek V4 Flash vision model metadata.
 - Added RPC `clear_queue` to retrieve and remove queued steering and follow-up messages ([#8432](https://github.com/earendil-works/pi/issues/8432)).
+- Added payload-free `model_request_gate` and identity-only `tool_batch_start` extension events for safe model and parallel-tool admission control.
 
 ### Fixed
 

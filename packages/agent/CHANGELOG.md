@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added a `tool_batch_start` lifecycle event that reports bounded tool-call identities before each parallel execution batch.
+
 ## [0.84.3] - 2026-08-24
 
 ### Fixed
