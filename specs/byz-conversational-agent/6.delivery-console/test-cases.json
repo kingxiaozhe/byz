@@ -7,12 +7,33 @@
       "origin": "generated",
       "kind": "logic",
       "blocking": true,
-      "acIds": ["AC-001", "AC-002", "AC-013"],
-      "taskIds": ["T-001", "T-002", "T-004"],
+      "acIds": [
+        "AC-001",
+        "AC-002",
+        "AC-013"
+      ],
+      "taskIds": [
+        "T-001",
+        "T-002",
+        "T-004",
+        "T-007"
+      ],
       "title": "Delivery 只在显式 trusted 命令中读取 Git",
-      "preconditions": ["Git runner 有调用 spy", "trusted/untrusted project 可切换"],
-      "steps": ["触发 startup、session_start 和普通 turn", "执行 /deliver status", "在 untrusted、symlink escape 和未知 origin 中重试"],
-      "expected": ["普通生命周期零 Git 调用", "显式 status 只读一次 bounded snapshot", "所有不可信边界拒绝 mutation", "不读取 diff 正文或绝对路径"],
+      "preconditions": [
+        "Git runner 有调用 spy",
+        "trusted/untrusted project 可切换"
+      ],
+      "steps": [
+        "触发 startup、session_start 和普通 turn",
+        "执行 /deliver status",
+        "在 untrusted、symlink escape 和未知 origin 中重试"
+      ],
+      "expected": [
+        "普通生命周期零 Git 调用",
+        "显式 status 只读一次 bounded snapshot",
+        "所有不可信边界拒绝 mutation",
+        "不读取 diff 正文或绝对路径"
+      ],
       "cleanup": []
     },
     {
@@ -20,12 +41,36 @@
       "origin": "generated",
       "kind": "logic",
       "blocking": true,
-      "acIds": ["AC-003", "AC-004", "AC-012", "AC-013"],
-      "taskIds": ["T-001", "T-002"],
+      "acIds": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-013"
+      ],
+      "taskIds": [
+        "T-001",
+        "T-002",
+        "T-007"
+      ],
       "title": "可交付范围只取 observed mutation 与 Git diff 交集",
-      "preconditions": ["sealed plan 观察到 A/B 并记录 post digest", "另一 Session 随后改写 B", "工作树另有 pre-existing C、staged D 和 conflict E"],
-      "steps": ["重放 scope receipts 并重新 hash candidates", "构建 porcelain -z snapshot", "计算 readiness", "加入 declared tests passed 与 verified check receipt", "读取 compact/details"],
-      "expected": ["candidate 仅含当下 changed 且 digest 匹配的 A", "B/C/D/E excluded 或阻塞且不被 stage", "declared 不显示通过、verified 准确显示", "Session/default output 无 credential、diff、正文或 raw command"],
+      "preconditions": [
+        "sealed plan 观察到 A/B 并记录 post digest",
+        "另一 Session 随后改写 B",
+        "工作树另有 pre-existing C、staged D 和 conflict E"
+      ],
+      "steps": [
+        "重放 scope receipts 并重新 hash candidates",
+        "构建 porcelain -z snapshot",
+        "计算 readiness",
+        "加入 declared tests passed 与 verified check receipt",
+        "读取 compact/details"
+      ],
+      "expected": [
+        "candidate 仅含当下 changed 且 digest 匹配的 A",
+        "B/C/D/E excluded 或阻塞且不被 stage",
+        "declared 不显示通过、verified 准确显示",
+        "Session/default output 无 credential、diff、正文或 raw command"
+      ],
       "cleanup": []
     },
     {
@@ -33,51 +78,141 @@
       "origin": "generated",
       "kind": "logic",
       "blocking": true,
-      "acIds": ["AC-005", "AC-009"],
-      "taskIds": ["T-001", "T-003"],
+      "acIds": [
+        "AC-005",
+        "AC-009"
+      ],
+      "taskIds": [
+        "T-001",
+        "T-003",
+        "T-007"
+      ],
       "title": "Commit intent 精确绑定路径和 Git 状态",
-      "preconditions": ["candidate paths A/B", "index 初始为空"],
-      "steps": ["生成 commit preview/intent", "确认前检查 index", "分别改变 HEAD、index、worktree、candidate digest、branch、upstream、origin、remote branch OID 和 registry generation 后执行", "重新生成 intent 并确认"],
-      "expected": ["确认前零 stage/commit", "任何 local/remote fingerprint drift 使旧 intent 失效", "新 intent 只 stage digest 匹配的 A/B", "staged set 双校验后记录真实 commit SHA"],
-      "cleanup": ["删除临时 repo"]
+      "preconditions": [
+        "candidate paths A/B",
+        "index 初始为空"
+      ],
+      "steps": [
+        "生成 commit preview/intent",
+        "确认前检查 index",
+        "分别改变 HEAD、index、worktree、candidate digest、branch、upstream、origin、remote branch OID 和 registry generation 后执行",
+        "重新生成 intent 并确认"
+      ],
+      "expected": [
+        "确认前零 stage/commit",
+        "任何 local/remote fingerprint drift 使旧 intent 失效",
+        "新 intent 只 stage digest 匹配的 A/B",
+        "staged set 双校验后记录真实 commit SHA"
+      ],
+      "cleanup": [
+        "删除临时 repo"
+      ]
     },
     {
       "id": "TC-004",
       "origin": "generated",
       "kind": "logic",
       "blocking": true,
-      "acIds": ["AC-006", "AC-009", "AC-010"],
-      "taskIds": ["T-001", "T-003"],
+      "acIds": [
+        "AC-006",
+        "AC-009",
+        "AC-010"
+      ],
+      "taskIds": [
+        "T-001",
+        "T-003",
+        "T-007"
+      ],
       "title": "Push 只允许 origin 当前分支且独立确认",
-      "preconditions": ["临时 repo 有 bare origin 和额外 upstream", "commit intent 已消费"],
-      "steps": ["尝试复用 commit intent push", "分别在 upstream、detached、unknown tracking、force 和状态漂移下 preview", "为 origin/current branch 单独确认 push", "模拟 timeout/failure"],
-      "expected": ["跨动作 intent 不可复用", "所有危险状态无远端副作用", "成功 push 经远端 ref 复核后记录", "失败/超时不宣称成功"],
-      "cleanup": ["删除临时 repo 和 bare remotes"]
+      "preconditions": [
+        "临时 repo 有 bare origin 和额外 upstream",
+        "commit intent 已消费"
+      ],
+      "steps": [
+        "尝试复用 commit intent push",
+        "分别在 upstream、detached、unknown tracking、force 和状态漂移下 preview",
+        "为 origin/current branch 单独确认 push",
+        "模拟 timeout/failure"
+      ],
+      "expected": [
+        "跨动作 intent 不可复用",
+        "所有危险状态无远端副作用",
+        "成功 push 经远端 ref 复核后记录",
+        "失败/超时不宣称成功"
+      ],
+      "cleanup": [
+        "删除临时 repo 和 bare remotes"
+      ]
     },
     {
       "id": "TC-005",
       "origin": "generated",
       "kind": "logic",
       "blocking": true,
-      "acIds": ["AC-007", "AC-008", "AC-009", "AC-010"],
-      "taskIds": ["T-003", "T-004", "T-005"],
+      "acIds": [
+        "AC-007",
+        "AC-008",
+        "AC-009",
+        "AC-010"
+      ],
+      "taskIds": [
+        "T-003",
+        "T-004",
+        "T-005",
+        "T-007"
+      ],
       "title": "Draft PR 与 checks-gated merge 分别确认并处理部分成功",
-      "preconditions": ["fake gh 可配置 PR/checks/merge 结果", "branch 已推送"],
-      "steps": ["创建 PR preview 并确认", "模拟 push 已成功但 PR 失败", "创建成功 PR 后分别改变 PR head/base SHA、checks、mergeability 并执行旧 intent", "checks green 时生成独立 merge intent 并确认"],
-      "expected": ["PR 仅成功观察到 number/URL 后记 receipt", "partial success 分项报告", "任何 PR fingerprint drift、pending/conflict/wrong base 都不 merge", "merge 不复用 PR intent、不 direct push main 且每个副作用前复核远端状态"],
-      "cleanup": ["删除 fake gh state 和临时 body"]
+      "preconditions": [
+        "fake gh 可配置 PR/checks/merge 结果",
+        "branch 已推送"
+      ],
+      "steps": [
+        "创建 PR preview 并确认",
+        "模拟 push 已成功但 PR 失败",
+        "创建成功 PR 后分别改变 PR head/base SHA、checks、mergeability 并执行旧 intent",
+        "checks green 时生成独立 merge intent 并确认"
+      ],
+      "expected": [
+        "PR 仅成功观察到 number/URL 后记 receipt",
+        "partial success 分项报告",
+        "任何 PR fingerprint drift、pending/conflict/wrong base 都不 merge",
+        "merge 不复用 PR intent、不 direct push main 且每个副作用前复核远端状态"
+      ],
+      "cleanup": [
+        "删除 fake gh state 和临时 body"
+      ]
     },
     {
       "id": "TC-006",
       "origin": "generated",
       "kind": "logic",
       "blocking": true,
-      "acIds": ["AC-011", "AC-012"],
-      "taskIds": ["T-001", "T-003", "T-004"],
+      "acIds": [
+        "AC-011",
+        "AC-012"
+      ],
+      "taskIds": [
+        "T-001",
+        "T-003",
+        "T-004",
+        "T-007"
+      ],
       "title": "Release V1 始终只读且 receipt 严格脱敏",
-      "preconditions": ["runner 记录所有 program/args", "readiness 有缺失与齐全两种"],
-      "steps": ["执行 /deliver release", "确认所有待决项", "构造带 userinfo/query 的 remote URL 和敏感命令输出", "检查 runner 和 Session receipts"],
-      "expected": ["只显示 changelog/tests/build/external-smoke/version/tag/approval readiness", "从不调用 release、tag、npm publish、migration 或 infra 命令", "receipt 不含 credential、URL userinfo、stdout/stderr、PR body、diff 或绝对路径"],
+      "preconditions": [
+        "runner 记录所有 program/args",
+        "readiness 有缺失与齐全两种"
+      ],
+      "steps": [
+        "执行 /deliver release",
+        "确认所有待决项",
+        "构造带 userinfo/query 的 remote URL 和敏感命令输出",
+        "检查 runner 和 Session receipts"
+      ],
+      "expected": [
+        "只显示 changelog/tests/build/external-smoke/version/tag/approval readiness",
+        "从不调用 release、tag、npm publish、migration 或 infra 命令",
+        "receipt 不含 credential、URL userinfo、stdout/stderr、PR body、diff 或绝对路径"
+      ],
       "cleanup": []
     },
     {
@@ -85,26 +220,80 @@
       "origin": "generated",
       "kind": "logic",
       "blocking": true,
-      "acIds": ["AC-003", "AC-005", "AC-006", "AC-007", "AC-008", "AC-009", "AC-010", "AC-014"],
-      "taskIds": ["T-005"],
+      "acIds": [
+        "AC-003",
+        "AC-005",
+        "AC-006",
+        "AC-007",
+        "AC-008",
+        "AC-009",
+        "AC-010",
+        "AC-014"
+      ],
+      "taskIds": [
+        "T-005",
+        "T-007"
+      ],
       "title": "隔离临时仓库覆盖完整交付链且无真实远端副作用",
-      "preconditions": ["temp repo、bare origin、fake gh、隔离 HOME", "网络禁用"],
-      "steps": ["观察 edit/write scope", "执行 scoped commit 和 origin push", "执行 fake draft PR 与 merge", "注入 race、partial failure 和 cleanup failure", "审计 refs、index、进程和文件"],
-      "expected": ["正常链只影响 scoped paths 和 bare origin", "race/失败逐项关闭", "无 upstream、真实 GitHub、force、tag、publish 或额外 dirty file side effect", "所有临时资源释放或明确阻塞"],
-      "cleanup": ["删除 temp repo、bare origin、fake gh 和隔离 HOME"]
+      "preconditions": [
+        "temp repo、bare origin、fake gh、隔离 HOME",
+        "网络禁用"
+      ],
+      "steps": [
+        "观察 edit/write scope",
+        "执行 scoped commit 和 origin push",
+        "执行 fake draft PR 与 merge",
+        "注入 race、partial failure 和 cleanup failure",
+        "审计 refs、index、进程和文件"
+      ],
+      "expected": [
+        "正常链只影响 scoped paths 和 bare origin",
+        "race/失败逐项关闭",
+        "无 upstream、真实 GitHub、force、tag、publish 或额外 dirty file side effect",
+        "所有临时资源释放或明确阻塞"
+      ],
+      "cleanup": [
+        "删除 temp repo、bare origin、fake gh 和隔离 HOME"
+      ]
     },
     {
       "id": "TC-008",
       "origin": "generated",
       "kind": "browser",
       "blocking": true,
-      "acIds": ["AC-004", "AC-013", "AC-015"],
-      "taskIds": ["T-006"],
+      "acIds": [
+        "AC-004",
+        "AC-013",
+        "AC-015"
+      ],
+      "taskIds": [
+        "T-006",
+        "T-007"
+      ],
       "title": "80 列 TUI 交付摘要和确认保持低噪声",
-      "preconditions": ["80x24 tmux", "trusted temp repo", "fake runner", "sealed plan"],
-      "steps": ["显示 /deliver status", "展开 commit/push/PR/merge preview", "取消其中一个 intent", "显示 release readiness", "运行普通 turn 和非交互命令"],
-      "expected": ["摘要可读且不进入默认执行单行", "高影响 target/影响/拒绝结果明确", "取消零副作用", "路径仅 project-relative 且无 raw payload", "普通 turn 与非交互输出不回归"],
-      "cleanup": ["关闭 tmux 并删除临时 repo"]
+      "preconditions": [
+        "80x24 tmux",
+        "trusted temp repo",
+        "fake runner",
+        "sealed plan"
+      ],
+      "steps": [
+        "显示 /deliver status",
+        "展开 commit/push/PR/merge preview",
+        "取消其中一个 intent",
+        "显示 release readiness",
+        "运行普通 turn 和非交互命令"
+      ],
+      "expected": [
+        "摘要可读且不进入默认执行单行",
+        "高影响 target/影响/拒绝结果明确",
+        "取消零副作用",
+        "路径仅 project-relative 且无 raw payload",
+        "普通 turn 与非交互输出不回归"
+      ],
+      "cleanup": [
+        "关闭 tmux 并删除临时 repo"
+      ]
     }
   ]
 }

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "task_id": "T-005",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/application/command-registry.js",
+    "packages/byz/src/application/command-result.js",
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/bootstrap.js",
+    "packages/byz/src/cli.js",
+    "packages/byz/src/diagnostics/commands.js",
+    "packages/byz/src/update.js",
+    "packages/byz/src/workflows.js",
+    "packages/byz/test/command-registry.test.mjs",
+    "packages/byz/test/diagnostics.test.mjs",
+    "packages/byz/test/smoke.test.mjs",
+    "packages/byz/test/update.test.mjs"
+  ],
+  "implementation_sha256": "ee95a057a9e4675158422b1e36a30e9d9c6c1695bc48bea4fd1e4bf0946151a1",
+  "verification": [
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency/import/lock checks, architecture gate, tsgo, and browser smoke passed."
+    },
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Production package image rebuilt from T-005 source."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "270 tests passed with one platform-specific skip."
+    }
+  ],
+  "evidence": [
+    "Command Registry returns validated handled/passthrough CommandResult values and normalizes parser, executor, and result validation failures.",
+    "Update, workflow, and diagnostics commands collect stdout/stderr and exitCode without writing process.exitCode or emitting output callbacks.",
+    "Bootstrap parses Fast and workflow options once, preserves the double-dash tail, and supplies only unconsumed arguments to Pi.",
+    "CLI is the only command boundary that publishes structured output and maps exitCode; BYZ option parse failures use the same mapping.",
+    "Existing CLI, Fast, workflow, diagnostics and update behavior remains covered by package smoke tests."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "task_id": "T-023",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/scripts/check-architecture.mjs",
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/fast-session.js",
+    "packages/byz/src/prewalk.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/fast-switch.test.mjs",
+    "packages/byz/test/prewalk.test.mjs"
+  ],
+  "implementation_sha256": "31fce618d1b015a21090ee2aa089a39ccfc1c8aeba5612cdd45195b488ca0ce8",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Production BYZ package image rebuilt from the current T-023 source."
+    },
+    {
+      "command": "node --test packages/byz/test/architecture.test.mjs packages/byz/test/fast-switch.test.mjs packages/byz/test/prewalk.test.mjs",
+      "status": "passed",
+      "evidence": "62/62 focused architecture, adapter lineage, Fast reload, and Prewalk trust-race tests passed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "257 BYZ package tests passed with one platform-specific skip."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency/import/lock checks, architecture gate, tsgo, and browser smoke passed with no final fixes."
+    }
+  ],
+  "evidence": [
+    "Model handles are held only by the projector created for one Pi port lineage; Fast stores bounded identity and resolves a current handle before model selection.",
+    "The architecture gate follows imported creators and local aliases with a TypeScript Program and rejects computed Proxy plus property, method, accessor, and static computed raw escape keys.",
+    "Prewalk rechecks trust and built-in tool identity after awaited realpath validation before consuming the armed handoff.",
+    "Red tests failed on all three T-022 round-two scenarios before implementation; the same focused suite passes after the change."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

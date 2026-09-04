@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "task_id": "T-027",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/update.js",
+    "packages/byz/test/update.test.mjs"
+  ],
+  "implementation_sha256": "f19f2c3a3bdb6a1583945027559bc70b80db0cccb01977b7c321e53c8e4a86e9",
+  "verification": [
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Formatting, architecture, type, dependency and browser checks passed."
+    },
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Production package image rebuilt."
+    },
+    {
+      "command": "node --test packages/byz/test/update.test.mjs",
+      "status": "passed",
+      "evidence": "15/15 focused update tests passed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "278 tests passed with one platform-specific skip."
+    }
+  ],
+  "evidence": [
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-027-r1.md",
+    "Kill-emitted errors during overflow are recorded without settling, so SIGKILL and final deadline remain active.",
+    "The final deadline removes listeners, destroys both local pipe handles and unreferences the child before returning failure.",
+    "A real Node subprocess regression covers a descendant retaining inherited pipes.",
+    "Windows npm execution resolves the fixed npm CLI under the active Node executable without shell interpolation.",
+    "Native statuses outside 1..255 normalize to exit 1 while the original status remains in stderr."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "T-029",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-controller.js",
+    "packages/byz/src/conversation/conversation-preferences.js",
+    "packages/byz/src/conversation/language-catalog.js",
+    "packages/byz/test/conversation-preferences.test.mjs",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "1d9d5ae8314c068420ec638c5fc0fe3ac52bedfced8ea91c69d718d518a2ae05",
+  "verification": [
+    {"command":"npm run check","status":"passed","evidence":"Formatting, architecture, type, dependency and browser checks passed."},
+    {"command":"npm --prefix packages/byz run build","status":"passed","evidence":"Production package image rebuilt."},
+    {"command":"node --test packages/byz/test/conversation-preferences.test.mjs packages/byz/test/conversation.test.mjs","status":"passed","evidence":"41/41 focused tests passed before the final title-only edit."},
+    {"command":"npm --prefix packages/byz test","status":"passed","evidence":"290 tests passed with one platform-specific skip after all edits."}
+  ],
+  "evidence": [
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-028-r2.md",
+    "Threat contract now matches BYZ's non-permission-sandbox boundary and does not claim impossible portable defense against arbitrary same-user inter-syscall replacement.",
+    "Different fields remain structurally independent; a deterministic same-field live claim allows one winner and returns an explicit busy failure to the contender.",
+    "Claim creation is directory-fsynced before the publication hook; normal failure removes the owned claim.",
+    "Managed directory creation opens and fences the parent before mkdir, fsyncs that same parent, and never chmods an existing non-managed ancestor.",
+    "Missing parent returns missing defaults, deterministic corrupt copy is one bounded regular-file slot, and fixed production diagnostics remain visible.",
+    "Focused tests force same-field overlap, first-run ancestor modes, observable directory/destination replacement, repeated corruption and legacy precedence."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

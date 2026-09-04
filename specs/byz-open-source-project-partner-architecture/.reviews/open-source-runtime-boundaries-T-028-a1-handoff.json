@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "T-028",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-controller.js",
+    "packages/byz/src/conversation/conversation-preferences.js",
+    "packages/byz/src/conversation/language-catalog.js",
+    "packages/byz/test/conversation-preferences.test.mjs",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "e6b0a8006bc0adc5862a818d12d234a77d4bc092338030137b7e222fad8af08c",
+  "verification": [
+    {"command":"npm run check","status":"passed","evidence":"Formatting, architecture, type, dependency and browser checks passed."},
+    {"command":"npm --prefix packages/byz run build","status":"passed","evidence":"Production package image rebuilt."},
+    {"command":"node --test packages/byz/test/conversation-preferences.test.mjs packages/byz/test/conversation.test.mjs","status":"passed","evidence":"37/37 focused tests passed."},
+    {"command":"npm --prefix packages/byz test","status":"passed","evidence":"286 tests passed with one platform-specific skip before the final test-title-only edit; focused tests were rerun after it."}
+  ],
+  "evidence": [
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-007-r2.md",
+    "Language and detailMode publish to independent strict versioned cells, structurally eliminating cross-field overwrite and all persistent lock lifecycle failure modes.",
+    "Sync initialization and async update reads use no-follow/nonblocking descriptors, maximum+1 bytes and both pre-read and post-read pathname identity checks.",
+    "Atomic temp files are mode 0600 and fsynced before rename; the private cell directory is mode 0700 and fsynced after publication; no post-rename pathname chmod follows a replacement.",
+    "Corrupt copies use only bytes captured from the diagnosed descriptor; parent, cell-directory and final-file symlinks fail closed without touching targets.",
+    "Production session start emits fixed bilingual corrupt/unavailable warnings and still invokes the bounded diagnostic callback.",
+    "Real concurrent child processes prove separate field cells survive and no shared lock artifact exists."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

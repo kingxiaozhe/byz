@@ -1,0 +1,24 @@
+ Next CM entry:
+
+ BYZ 本地诊断已开启：仅保存在本机，不上传，也不记录 Prompt、代码、路径或工具内
+ 容。可运行 `byz diagnostics disable` 关闭。
+
+
+ run requested capture
+
+
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working work
+
+ Pause requested; waiting for a safe boundary.
+
+ ⠦ Preparing reply · 0m 11s · Tokens 5.5k
+
+────────────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────────────
+pi  cm/runtime-boundary-p1--7a33ed19  left 100%             faux-1  thinking off

@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "task_id": "T-009",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-007-tui-abort.txt",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-noninteractive.txt",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-tui-paused.txt",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-tui-requested.txt",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-tui-resumed.txt",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-009-agent.log",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-009-byz.log",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-009-check.log",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-009-coding-agent.log",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-009-focused.log",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-009-qa.md"
+  ],
+  "implementation_sha256": "30823552b2822ef9100dfb9e48d22cd72acd3f5d7fdcb9d7d6d14dfd37888c43",
+  "verification": [
+    {
+      "command": "isolated npm run check",
+      "status": "passed",
+      "evidence": "Command-stamped log from detached complete QA image."
+    },
+    {
+      "command": "isolated Agent focused",
+      "status": "passed",
+      "evidence": "24/24."
+    },
+    {
+      "command": "isolated coding-agent focused",
+      "status": "passed",
+      "evidence": "33/33."
+    },
+    {
+      "command": "isolated BYZ focused",
+      "status": "passed",
+      "evidence": "78/78."
+    },
+    {
+      "command": "isolated BYZ package",
+      "status": "passed",
+      "evidence": "316 passed, one skip."
+    },
+    {
+      "command": "TUI/noninteractive",
+      "status": "passed",
+      "evidence": "Requested, paused, resume, abort, version and workflow captures attached."
+    }
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-r2.md",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-009-qa.md",
+    "Detached base 8bd3d775 with complete inherited source, generated prerequisites, isolated builds and read-only dependency link.",
+    "v8 semantic manifest matched before review."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

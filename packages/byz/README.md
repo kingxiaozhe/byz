@@ -93,7 +93,39 @@ Task transitions and bounded evidence receipts are appended to existing Session 
 
 Evidence remains separated into model-declared, runtime-observed, and formally verified facts. A successful command classification is still only observed evidence; it does not become “tests passed” without a fully bound trusted receipt. Stored observations never include commands, arguments, paths, results, prompts, responses, or free-form errors.
 
-Conversation and future pause/delivery features receive only the same deeply frozen plain-data snapshot. They cannot mutate registry state or bypass its transition rules.
+Conversation, pause, and delivery features receive only the same deeply frozen plain-data snapshot. They cannot mutate registry state or bypass its transition rules. Formally verified evidence can additionally carry a closed `test`, `check`, `build`, `review`, or `qa` category; Delivery remains blocked until every required category is verified and none has failed.
+
+## Safe pause and resume
+
+Use `/pause` to request a stop at the next safe model or tool boundary. Already admitted parallel tools drain before BYZ enters the paused state; new model requests and tool batches wait behind the same generation-bound gate.
+
+```text
+/pause
+/pause status
+/pause resume
+/pause abort
+```
+
+Pause does not replace Pi's Session `/resume` command. `/pause resume` continues the same in-memory execution, while `/pause abort` closes the current pause request. Confirmation dialogs remain modal and do not create nested pause gates. Pause wait time is reported separately from model, tool, and confirmation time.
+
+## Delivery console
+
+`/deliver` provides an explicit trusted-project delivery gate after a structured plan reaches a verified terminal state:
+
+```text
+/deliver status
+/deliver commit
+/deliver push
+/deliver pr
+/deliver merge
+/deliver release
+```
+
+Status is read-only and Git is never run during startup or ordinary turns. Commit scope is limited to successful built-in edit/write calls bound to the current plan, persisted with a post-mutation digest, and still matching the current unstaged Git change. Unobserved, staged, untracked, conflicted, symlink-escaped, or subsequently changed files are excluded.
+
+Commit, origin-only push, draft GitHub PR creation, and checks-gated PR merge each require a new five-minute one-time confirmation. BYZ rechecks the local/remote/PR fingerprint immediately before mutation, uses fixed argument-array Git/GitHub commands, rejects force/admin/no-verify paths, and records only closed identifiers and observed side effects. GitHub PR operations are bound to the sanitized `origin` repository; protected checks retain required context and GitHub App identity.
+
+`/deliver release` is informational only. It does not run release scripts, create tags, publish packages, migrate production data, or change infrastructure. Delivery is a workflow gate, not an OS permission sandbox; users can still run Git or shell commands outside it.
 
 ## Project recovery
 

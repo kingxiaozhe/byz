@@ -1,0 +1,24 @@
+ 容。可运行 `byz diagnostics disable` 关闭。
+
+
+ run final pause test
+
+
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working
+
+ Pause requested; waiting for a safe boundary.
+
+ ⠙ Paused · 0m 19s · Tokens 5.5k
+
+────────────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────────────
+pi  cm/runtime-boundary-p1--7a33ed19  left 92%  ↑5.3k  ↓1…  faux-1  thinking off

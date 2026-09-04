@@ -9,13 +9,19 @@
 - 项目名: pi-monorepo
 - 架构类型: npm workspace monorepo；BYZ CLI/TUI 产品层 + 本地 Git/GitHub CLI
 - 交付形态: 本地终端 CLI
-- 本批执行: 否；依赖 Feature 4 稳定后另行批准
+- 优先级: P1（Safe Pause and Resume 之后）
+- 执行状态: v6 T-007 已由用户批量授权执行
 
 ## 需求版本
 
 | 日期 | 版本 | 说明 |
 | --- | --- | --- |
 | 2026-09-02 | v1 | 初始需求；生产发布只读待决 |
+| 2026-09-02 | v2 | Feature 4 已由 T-009 完成并合并；纳入 P1，并增加 Runtime Boundary 与 Safe Pause 前置门禁 |
+| 2026-09-02 | v3 | Runtime Boundary 前置由达到审查上限的 T-023 更新为人工批准的替代任务 T-025 |
+| 2026-09-02 | v4 | Runtime Boundary 前置更新为人工批准的 T-026 canonical-provenance 替代任务 |
+| 2026-09-03 | v5 | 前置更新为 Runtime Boundary T-024 与 Safe Pause T-009 最终 QA |
+| 2026-09-03 | v6 | T-007 接管两轮整体审查的 scope/side-effect/required-check/receipt 剩余门禁 |
 
 ## 范围
 
@@ -57,25 +63,27 @@
 
 ## 验收标准
 
-- [ ] [AC-001] startup 与普通 turn 不运行 Git；显式 `/deliver status` 才读取一次 bounded 交付快照。
-- [ ] [AC-002] untrusted project、Git root 越界、symlink escape 或无法证明 origin 时所有 mutation action 拒绝，且不读取 diff 正文。
-- [ ] [AC-003] 当前 plan 观察到 A/B 并记录 post-mutation digest，但另一 Session 随后改写 B、工作树另有用户文件 C 时，commit preview 只含 digest 仍匹配的 A，把 B/C 列为 excluded；不能 stage B/C。
-- [ ] [AC-004] declared “tests passed” 不显示为通过；verified test/check/build/review receipt 分别显示准确状态与未知项。
-- [ ] [AC-005] commit intent 绑定精确路径和状态；确认前零 stage/commit，确认后只提交预览路径并记录真实 commit SHA。
-- [ ] [AC-006] push intent 只允许 origin/current branch；upstream、force、detached HEAD、未知 tracking 或状态漂移均阻塞且无远端副作用。
-- [ ] [AC-007] draft PR 只有在 branch 已推送且 GitHub/gh 可用时创建；失败或未观察到 URL/number 时不记录成功。
-- [ ] [AC-008] merge 必须通过已存在 PR、checks 通过和单独确认；不能复用 PR 创建确认，也不能本地直接 push main。
-- [ ] [AC-009] 任一确认后修改 HEAD/index/worktree/candidate digest/branch/upstream/origin/remote ref/registry generation，或改变 PR head/base/checks/mergeability，原 intent 失效且 action 要求重新预览确认。
-- [ ] [AC-010] action 取消、超时、命令失败和“push 成功但 PR 创建失败”均逐项报告已发生/未发生，不显示整体完成。
-- [ ] [AC-011] `/deliver release` 只显示 readiness 与待决清单，测试中断言没有 release、tag、npm publish、迁移或基础设施命令。
-- [ ] [AC-012] Session receipt 和默认输出不含绝对路径、remote credentials、diff、命令输出、PR body、Prompt 或 tool result。
-- [ ] [AC-013] 没有 registry sealed plan、verified evidence 或 clean scoped diff 时，控制台保持只读并准确显示阻塞原因，不猜成功。
-- [ ] [AC-014] fake Git/gh runner 和临时 bare remote 覆盖 commit/push/PR/merge 正常流、状态漂移、失败和清理；测试不得访问真实 remote。
-- [ ] [AC-015] 80×24 TUI 中摘要可读，高影响预览通过显式 details/confirmation 展开，不挤入默认单行执行状态。
+- [x] [AC-001] startup 与普通 turn 不运行 Git；显式 `/deliver status` 才读取一次 bounded 交付快照。
+- [x] [AC-002] untrusted project、Git root 越界、symlink escape 或无法证明 origin 时所有 mutation action 拒绝，且不读取 diff 正文。
+- [x] [AC-003] 当前 plan 观察到 A/B 并记录 post-mutation digest，但另一 Session 随后改写 B、工作树另有用户文件 C 时，commit preview 只含 digest 仍匹配的 A，把 B/C 列为 excluded；不能 stage B/C。
+- [x] [AC-004] declared “tests passed” 不显示为通过；verified test/check/build/review receipt 分别显示准确状态与未知项。
+- [x] [AC-005] commit intent 绑定精确路径和状态；确认前零 stage/commit，确认后只提交预览路径并记录真实 commit SHA。
+- [x] [AC-006] push intent 只允许 origin/current branch；upstream、force、detached HEAD、未知 tracking 或状态漂移均阻塞且无远端副作用。
+- [x] [AC-007] draft PR 只有在 branch 已推送且 GitHub/gh 可用时创建；失败或未观察到 URL/number 时不记录成功。
+- [x] [AC-008] merge 必须通过已存在 PR、checks 通过和单独确认；不能复用 PR 创建确认，也不能本地直接 push main。
+- [x] [AC-009] 任一确认后修改 HEAD/index/worktree/candidate digest/branch/upstream/origin/remote ref/registry generation，或改变 PR head/base/checks/mergeability，原 intent 失效且 action 要求重新预览确认。
+- [x] [AC-010] action 取消、超时、命令失败和“push 成功但 PR 创建失败”均逐项报告已发生/未发生，不显示整体完成。
+- [x] [AC-011] `/deliver release` 只显示 readiness 与待决清单，测试中断言没有 release、tag、npm publish、迁移或基础设施命令。
+- [x] [AC-012] Session receipt 和默认输出不含绝对路径、remote credentials、diff、命令输出、PR body、Prompt 或 tool result。
+- [x] [AC-013] 没有 registry sealed plan、verified evidence 或 clean scoped diff 时，控制台保持只读并准确显示阻塞原因，不猜成功。
+- [x] [AC-014] fake Git/gh runner 和临时 bare remote 覆盖 commit/push/PR/merge 正常流、状态漂移、失败和清理；测试不得访问真实 remote。
+- [x] [AC-015] 80×24 TUI 中摘要可读，高影响预览通过显式 details/confirmation 展开，不挤入默认单行执行状态。
 
 ## 依赖
 
-- Feature 4 `structured-execution-registry` 的 sealed plan、mutation paths 与 evidence provenance。
+- Feature 4 `structured-execution-registry` 已由 T-009 完成并合并；其 sealed plan、mutation paths 与 evidence provenance 是本 Feature 的事实源。
+- `open-source-runtime-boundaries` T-024 P1 QA 已完成，DeliveryPort 在 canonical-source 最小 capability facade 上扩展。
+- Feature 5 `safe-pause-resume` T-009 最终 QA 已完成，Delivery confirmation 不与 pause lease 重复演化。
 - Pi trusted-project、extension command UI 和 Node child process 能力。
 - Git；PR/merge V1 可选依赖本机 `gh`，缺失时 fail closed。
 - 项目既有 Git/发布规则仍是权威约束。

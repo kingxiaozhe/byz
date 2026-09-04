@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "task_id": "T-006",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/confirmation-presenter.js",
+    "packages/byz/src/conversation/conversation-controller.js",
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/src/conversation/conversation-presenter.js",
+    "packages/byz/src/conversation/footer-presenter.js",
+    "packages/byz/src/conversation/interaction-policy.js",
+    "packages/byz/src/conversation/language-catalog.js",
+    "packages/byz/src/conversation/progress-projector.js",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "df9f088c003f98685fca835b0eb3d3c56ae15e87fe5b82776c650b91a693c853",
+  "verification": [
+    {"command":"npm run check","status":"passed","evidence":"Formatting, architecture, type, dependency and browser checks passed."},
+    {"command":"npm --prefix packages/byz run build","status":"passed","evidence":"Production package image rebuilt."},
+    {"command":"node --test packages/byz/test/conversation.test.mjs packages/byz/test/architecture.test.mjs","status":"passed","evidence":"54/54 focused tests passed."},
+    {"command":"npm --prefix packages/byz test","status":"passed","evidence":"280 tests passed with one platform-specific skip."}
+  ],
+  "evidence": [
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-006-r1.md",
+    "conversation-extension now owns every ConversationPort event and command registration.",
+    "conversation-controller exposes only named state-coordination methods and contains no port registration or port bundle reference.",
+    "progress-projector imports LANGUAGE_ZH and direct default calls are covered.",
+    "Structural compact filtering preserves ordinary technical text without keyword rewriting."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

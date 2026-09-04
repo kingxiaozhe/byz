@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "task_id": "T-008",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/agent/src/agent-loop.ts",
+    "packages/agent/src/types.ts",
+    "packages/agent/test/agent-loop.test.ts",
+    "packages/byz/scripts/check-architecture.mjs",
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/cli.js",
+    "packages/byz/src/conversation/confirmation-presenter.js",
+    "packages/byz/src/conversation/conversation-controller.js",
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/src/conversation/conversation-presenter.js",
+    "packages/byz/src/conversation/language-catalog.js",
+    "packages/byz/src/conversation/turn-timing.js",
+    "packages/byz/src/execution/pause-controller.js",
+    "packages/byz/src/execution/pause-extension.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/conversation.test.mjs",
+    "packages/byz/test/pause-controller.test.mjs",
+    "packages/byz/test/pause-extension.test.mjs",
+    "packages/byz/test/pause-presentation.test.mjs",
+    "packages/coding-agent/src/core/agent-session.ts",
+    "packages/coding-agent/src/core/extensions/index.ts",
+    "packages/coding-agent/src/core/extensions/runner.ts",
+    "packages/coding-agent/src/core/extensions/types.ts",
+    "packages/coding-agent/test/suite/model-request-gate.test.ts",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-007-tui-abort.txt",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-agent.log",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-byz.log",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-check.log",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-coding-agent.log",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-focused.log",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-noninteractive.txt",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-qa.md",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-tui-paused.txt",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-tui-requested.txt",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-tui-resumed.txt"
+  ],
+  "implementation_sha256": "bef5ff0f929e64db743dc8b7094e888bd19271d1cb120caa55cd968c18014278",
+  "verification": [
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Exact log attached; all checks passed with no fixes."
+    },
+    {
+      "command": "agent-loop focused",
+      "status": "passed",
+      "evidence": "24/24; exact log attached."
+    },
+    {
+      "command": "coding-agent gate/compaction/settled focused",
+      "status": "passed",
+      "evidence": "33/33; exact log attached."
+    },
+    {
+      "command": "BYZ focused",
+      "status": "passed",
+      "evidence": "78/78; exact log attached."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "316 passed, one platform skip; exact log attached."
+    },
+    {
+      "command": "80x24 faux TUI and noninteractive CLI",
+      "status": "passed",
+      "evidence": "Requested, paused, resume, abort, version and workflow status captures attached."
+    }
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-r1.md",
+    "Complete inherited T-007 implementation and tests are included in the content-bound scope.",
+    "Requested capture shows a real running stage, not paused; paused capture suppresses pre-hook tool noise; resume and abort close safely.",
+    "Exact command logs make every summarized QA count independently inspectable.",
+    "Approved v7 semantic manifest matches all Feature 1-6 specs."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

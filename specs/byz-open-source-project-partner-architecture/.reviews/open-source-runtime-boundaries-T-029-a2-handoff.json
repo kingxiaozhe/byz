@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "task_id": "T-029",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-controller.js",
+    "packages/byz/src/conversation/conversation-preferences.js",
+    "packages/byz/src/conversation/language-catalog.js",
+    "packages/byz/test/conversation-preferences.test.mjs",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "5c5fa163d2caa59a4332be7e9512b4098a966009a71cedcf2dcdd6de3b14c7d7",
+  "verification": [
+    {"command":"npm run check","status":"passed","evidence":"Formatting, architecture, type, dependency and browser checks passed."},
+    {"command":"npm --prefix packages/byz run build","status":"passed","evidence":"Production package image rebuilt."},
+    {"command":"node --test packages/byz/test/conversation-preferences.test.mjs packages/byz/test/conversation.test.mjs","status":"passed","evidence":"42/42 focused tests passed."},
+    {"command":"npm --prefix packages/byz test","status":"passed","evidence":"291 tests passed with one platform-specific skip."}
+  ],
+  "evidence": [
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-029-r1.md",
+    "Claims include owner PID; live/unknown owners return busy, while an absent owner claim is finalized and the new caller advances the next revision.",
+    "Live same-field contention has one success and one explicit failure; dead-owner claim recovery reaches revision 2 without a permanent lock.",
+    "Legacy language and detailMode are salvaged independently while any invalid known field keeps the aggregate diagnostic corrupt.",
+    "One deterministic corrupt slot is accepted only when it is a bounded regular non-symlink and is repaired to mode 0600; oversized or non-regular slots are not trusted.",
+    "The approved non-permission-sandbox threat boundary, first-run semantics, parent fsync, independent fields and default warnings remain covered."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

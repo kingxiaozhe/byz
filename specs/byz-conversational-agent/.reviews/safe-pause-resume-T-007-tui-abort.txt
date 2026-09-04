@@ -1,0 +1,24 @@
+ run the abort pause test
+
+
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working
+
+ Pause requested; waiting for a safe boundary.
+
+ Error: This operation was aborted
+
+ Done · 0m 22s · Tokens 5.5k
+ BYZ thought for 0m 08s · 1 tool (1 failed) · paused 0m 13s
+
+────────────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────────────
+pi  cm/runtime-boundary-p1--7a33ed19  left 92%  ↑5.3k  ↓1…  faux-1  thinking off

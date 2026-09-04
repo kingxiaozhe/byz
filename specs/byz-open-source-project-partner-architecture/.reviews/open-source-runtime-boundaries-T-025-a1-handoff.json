@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "task_id": "T-025",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/scripts/check-architecture.mjs",
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/cli.js",
+    "packages/byz/src/fast-session.js",
+    "packages/byz/src/prewalk.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/fast-switch.test.mjs",
+    "packages/byz/test/prewalk.test.mjs"
+  ],
+  "implementation_sha256": "bc24f965451cb60cccd38d18129e5bd883f726083cfb858bdc3d94505abe2118",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Production BYZ package image rebuilt from T-025 source."
+    },
+    {
+      "command": "node --test packages/byz/test/architecture.test.mjs packages/byz/test/fast-switch.test.mjs packages/byz/test/prewalk.test.mjs",
+      "status": "passed",
+      "evidence": "64/64 focused tests passed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "259 tests passed with one platform-specific skip."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency/import/lock checks, architecture gate, tsgo, and browser smoke passed."
+    }
+  ],
+  "evidence": [
+    "Feature call arguments now resolve to one const port-bundle declaration per composition scope, initialized by the exact local Pi adapter import; forged, shadowed, forwarded, mutable, reassigned, and duplicate bundle sources are rejected.",
+    "Feature creator provenance follows named imports, namespace property/static element access, namespace aliases, destructuring aliases, and local variable aliases.",
+    "Adapter mutation checks reject direct and computed Reflect.set writes of statically forbidden raw capability keys, including globalThis Reflect access.",
+    "The production diagnostics composition now materializes one source-bound port bundle before injecting its diagnostics slice.",
+    "Inherited Session-lineage model handles, Fast identity restore, Prewalk trust recheck, alias-container detection, and direct/static raw-write checks remain covered."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

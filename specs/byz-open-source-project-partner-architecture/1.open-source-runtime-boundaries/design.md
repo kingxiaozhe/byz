@@ -14,6 +14,12 @@
 | 2026-08-30 | v8 | 让 release dry-run 成为 CI 唯一制品生产者，并在进程身份锁内完成最终制品围栏 |
 | 2026-08-31 | v9 | 收紧 managed-resource 生命周期：普通 Pi 保持既有 precedence，BYZ 显式声明覆盖顺序，启动期 managed theme 失败关闭 |
 | 2026-08-31 | v10 | 将透明 Pi API 代理改为显式最小能力 facade，并要求 Adapter 转换生命周期事件与命令上下文 |
+| 2026-09-02 | v11 | 以 T-023 接管 T-022 当前代码，关闭符号别名、跨 Session model reference 与异步 Prewalk trust 漂移 |
+| 2026-09-02 | v12 | 以 T-025 接管 T-023 当前代码，补齐真实 port source binding、namespace creator resolution 与 Reflect.set raw-write 检查 |
+| 2026-09-02 | v13 | 以 T-026 接管 T-025 当前代码，绑定 canonical creator source/re-export chain 并补齐 Reflect.defineProperty |
+| 2026-09-02 | v14 | 以 T-027 接管 T-005 当前代码，为 update 输出溢出增加有界 TERM→KILL 终止协议 |
+| 2026-09-03 | v15 | 以 T-028 接管 T-007，采用字段分区原子 cell 替代共享持久锁 |
+| 2026-09-03 | v16 | 以 T-029 接管 T-028，收口首次启动与 claim 语义并明确非权限沙箱边界 |
 
 ## 项目架构
 
@@ -110,6 +116,8 @@ interface ByzCommand {
 
 Command 实现不得直接写 `process.exitCode`。Pi passthrough 只接收未被 BYZ 消费的参数，并保留 `--` 语义。
 
+update 子进程的 stdout/stderr 进入固定字节上限的 collector，不得继承终端输出。任一 stream 溢出后立即封存已接受内容并启动有界终止状态机：发送 SIGTERM，短 deadline 后仍未 close 则发送 SIGKILL，再以最终 deadline 保证 Promise settle；`kill()` 返回 false、抛错、`error`/`close` 乱序或后代持有 pipe 都不能制造无界等待。结果保留已完成 step 的输出和当前失败原因，只有 CLI 统一发布。
+
 ### 模块 4：Pi Adapter 与通用 managed resources
 
 将 BYZ 直接使用的 Pi 接口集中到 `adapters/pi`。Adapter 是唯一可以持有完整 Pi Extension API 的位置；它必须构造普通对象形式的显式 ports，不得用透明 `Proxy`、泛型原样返回或公开 `raw/context/api` 等逃逸属性。组合根可以在内部持有完整 port bundle，但向 diagnostics、workflow、Fast、Prewalk 和 Conversation 注入时必须按各功能声明的接口选取最小 capability slice。
@@ -126,6 +134,13 @@ Adapter 负责把 Pi 生命周期事件转换为产品无关的判别联合事�
 - `productProfile` 继续由 runtime launch adapter 注入，普通 Pi 默认值保持不变。
 
 架构检查同时验证静态依赖方向和组合根装配：Domain/Application 只能导入 domain/ports；BYZ 功能 factory 不得接受完整 Pi Extension API；回归 fixture 必须证明 facade 没有未声明 Pi capability，并证明 event/command context 转换仍能驱动现有行为。
+
+`[v13 修改]` T-026 接管 T-025 已成立的 Session lineage、Fast reload、Prewalk trust、exact port source、namespace alias、Windows path 与 raw-write 防线，并补充以下最终边界：
+
+- 把模型的可持久 identity 与可执行 handle 分开。Fast controller 只保存 bounded `{provider,id}` identity；每次 restore 都通过当前 command/event context 的 registry 取得当前 Session-lineage handle，再交给同一 port 的 `setModel`。Adapter projector/brand 只存在于一次 `createPiExtensionPorts` lineage 内，不使用 module-global WeakMap，也不接受旧 lineage 或另一 live Session 的 handle。
+- Architecture gate 使用 TypeScript Program/type-checker 沿 alias 与 re-export 链解析 feature creator 的原始 export symbol，并把其 declaration source file 与每个 feature 的 canonical module allowlist 对比；named import、局部/container alias、namespace property、static element 和 re-export alias 使用同一 provenance，其他模块的同名 export 不分类。所有 factory 调用只允许在 composition root，参数必须解析到当前 scope 唯一、不可重赋值且 initializer 是 canonical `createPiExtensionPorts(pi)` 的 port-bundle symbol；shadow、reassignment 或伪造同名对象全部拒绝。Adapter AST 同时拒绝 direct/computed Proxy、property/method/get/set accessor、静态 computed key、direct assignment、`Object.defineProperty`、`Reflect.set` 与 `Reflect.defineProperty` 中的 `raw|pi|api|context` 逃逸。
+- Prewalk 在 awaited realpath 返回后重新读取 project trust 和 built-in tool identity，并在消费 armed target、调用 Fast handoff前最后检查一次；trust 在路径校验期间撤销时保持 armed target 不被应用并安全取消。
+- Execution 继续使用已合并的专用 closed port。后续 Pause/Delivery 只能通过新增显式最小 port 接入，不得重新扩张 Conversation 或通用 raw context。
 
 Pi Core 的产品专属名称改为通用 managed extension 能力：
 
@@ -158,7 +173,7 @@ turn-timing.ts                  单调计时
 
 不再通过替换 `model/tool/workflow` 单词修改普通技术正文。Presenter 根据结构化 message category 决定隐藏进度、工具和高级控制。
 
-Conversation preferences 使用通用原子 JSON store：schema 校验、临时文件、rename、`0700/0600`、损坏文件隔离和可诊断默认值。写入必须持有跨进程锁并在锁内重读合并，或使用 revision/CAS 拒绝陈旧更新，防止两个 BYZ 进程分别保存语言和详情模式时丢字段。同步读取只允许发生在 session 初始化，不进入高频事件路径。
+Conversation preferences 使用字段分区原子 JSON cell：`language` 与 `detailMode` 各自拥有完整 schema、revision 和独立 destination，分别通过同目录 mode-0600 临时文件、fsync、rename 与父目录 fsync 发布。两个进程修改不同字段时没有共同可覆盖 pathname，因此不需要可能在崩溃后残留的共享锁。同字段 next-revision claim 在发布前 fsync directory；若 live claim 已存在，竞争调用明确返回 busy，不帮助并覆盖活 writer。首次创建每一级 managed 子目录时 fsync 已打开的原 parent，且不得 chmod 已存在的非 managed ancestor。读取使用 no-follow descriptor、前后 file identity 与 maximum+1 字节上限；预存 symlink/non-regular/oversize 或可观察 identity 变化失败关闭。损坏 cell 从已打开 descriptor 的有界字节写入一个幂等 forensic slot，不 rename 当前 pathname。旧 `conversation.json` 只作为只读迁移 baseline；任一 cell 存在后对应字段以 cell 为准。同步读取只允许发生在 session 初始化，不进入高频事件路径；写入路径使用异步 descriptor I/O。默认组合根展示固定 corrupt/unavailable 诊断。由于 BYZ 不是权限沙箱，跨平台实现不承诺阻止任意同用户 Shell 在两次系统调用之间替换并恢复 pathname；需要该保证时必须在外部 sandbox/container 中运行。
 
 ## 接口契约
 
@@ -245,7 +260,7 @@ release dry-run 的机器可读结果是 CI artifact step 与后续步骤之间�
 
 | 改动位置 | 直接调用方 | 可能受影响的老功能 | 回归保护 |
 | --- | --- | --- | --- |
-| `packages/byz/src/cli.js`、`packages/byz/src/*.js` | `byz` bin、BYZ tests | update、workflow、Fast、Prewalk、diagnostics | BYZ package tests + packed CLI smoke |
+| `packages/byz/src/cli.js`、`packages/byz/src/*.js` | `byz` bin、BYZ tests | update、workflow、Fast、Prewalk、diagnostics、Execution | BYZ package tests + packed CLI smoke |
 | `packages/byz/src/conversation/**` | interactive BYZ extension | 欢迎、进度、Footer、语言、详情、确认 | conversation tests + faux provider TUI tests |
 | `packages/byz/package.json`、`packages/byz/scripts/build*.mjs`、`packages/byz/scripts/pack.mjs`、`scripts/byz-release.mjs` | npm workspace links、`build:byz*`、release workflow | CLI/exports、runtime assets、docs、examples、workflows、dry-run/publish artifact | production-build fixture、public package and packed-runtime tests |
 | `packages/coding-agent/src/core/resource-loader.ts` | session service/resource reload | 普通 Pi additional/discovered precedence、managed 多 owner snapshot、workflow switching | Pi 默认 collision regression + workflow-switch integration tests |
@@ -260,6 +275,9 @@ release dry-run 的机器可读结果是 CI artifact step 与后续步骤之间�
 | 边界位置 | 先在 `packages/byz` 内分层 | 避免过早增加 workspace release 复杂度 |
 | Pi 专属 hook | 泛化后同步迁移 | 降低长期 fork delta，不保留未公开内部兼容包袱 |
 | Pi Adapter 形态 | 显式 plain-object ports + 组合根按功能裁剪 | 透明 Proxy 只改变调用路径而不收窄能力，无法建立可审计的运行时依赖边界 |
+| Model capability lineage | identity 可保存，handle 只能由当前 context/port 解析 | 同时支持 reload 恢复并拒绝另一 live Session 的引用 |
+| Composition gate | canonical source-file/export symbol + alias/re-export chain + exact port-source binding + Reflect mutation 检查 | 导入拼写会同时漏掉 re-export alias 并误报无关同名模块；Reflect.defineProperty 与 Reflect.set 具有相同 raw escape 语义 |
+| Prewalk trust | awaited path/tool 检查后、handoff 前重新验证 | 防止 realpath 期间撤销 trust 后仍消费 armed handoff |
 | Resource precedence | 普通 Pi 使用兼容默认值；BYZ 通过产品无关配置显式选择 `before` | 防止产品覆盖语义泄漏为全局 Pi 行为，同时支持静态和动态 workflow 冲突策略 |
 | Managed themes | startup/reload/command 全部在状态变化前明确拒绝 | managed capability 只承诺 skills/prompts；静默过滤会制造成功假象和部分更新 |
 | 命令处理 | Registry + CommandResult | 便于测试、扩展和统一退出语义 |

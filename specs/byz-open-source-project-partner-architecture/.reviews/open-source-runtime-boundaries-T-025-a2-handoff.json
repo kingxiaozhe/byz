@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "task_id": "T-025",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/scripts/check-architecture.mjs",
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/cli.js",
+    "packages/byz/src/fast-session.js",
+    "packages/byz/src/prewalk.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/fast-switch.test.mjs",
+    "packages/byz/test/prewalk.test.mjs"
+  ],
+  "implementation_sha256": "5e6ee6a0d5c59116bb22d7820e0cb3ce1c69cffe0a1f2ab7f77f5f05fbd5796f",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Production package image rebuilt after attempt-2 corrections."
+    },
+    {
+      "command": "node --test packages/byz/test/architecture.test.mjs packages/byz/test/fast-switch.test.mjs packages/byz/test/prewalk.test.mjs",
+      "status": "passed",
+      "evidence": "66/66 focused tests passed, including Windows-relative path and resolved-name isolation regressions."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "261 tests passed with one platform-specific skip."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency/import/lock checks, architecture gate, tsgo, and browser smoke passed."
+    }
+  ],
+  "evidence": [
+    "Architecture report paths are normalized with the host path separator before comparison with the portable composition path, preserving Windows behavior.",
+    "Name-only feature and creator fallbacks now apply only when the TypeScript checker has no symbol; resolved unrelated parameters, functions, and locals require proven tracked origin.",
+    "Feature call arguments remain bound to one exact const Pi port source per composition scope, and namespace/static creator plus Reflect.set hostile fixtures remain closed.",
+    "Inherited model lineage, Fast reload, Prewalk trust, alias-container, and raw-write regressions remain green."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

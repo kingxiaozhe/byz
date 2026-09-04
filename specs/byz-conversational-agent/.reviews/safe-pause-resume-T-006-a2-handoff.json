@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "task_id": "T-006",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/agent/src/agent-loop.ts",
+    "packages/agent/src/types.ts",
+    "packages/agent/test/agent-loop.test.ts",
+    "packages/coding-agent/src/core/agent-session.ts",
+    "packages/coding-agent/src/core/extensions/index.ts",
+    "packages/coding-agent/src/core/extensions/runner.ts",
+    "packages/coding-agent/src/core/extensions/types.ts",
+    "packages/coding-agent/test/suite/model-request-gate.test.ts",
+    "packages/byz/scripts/check-architecture.mjs",
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/cli.js",
+    "packages/byz/src/conversation/confirmation-presenter.js",
+    "packages/byz/src/conversation/conversation-controller.js",
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/src/conversation/conversation-presenter.js",
+    "packages/byz/src/conversation/language-catalog.js",
+    "packages/byz/src/conversation/turn-timing.js",
+    "packages/byz/src/execution/pause-controller.js",
+    "packages/byz/src/execution/pause-extension.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/conversation.test.mjs",
+    "packages/byz/test/pause-controller.test.mjs",
+    "packages/byz/test/pause-extension.test.mjs"
+  ],
+  "implementation_sha256": "af31f073164a6d8c689ddcd8a4dfaed7dd30ba27513dddf53e7ad5ce59616509",
+  "verification": [
+    {"command":"npm run check","status":"passed","evidence":"All repository checks passed with no fixes."},
+    {"command":"agent-loop focused","status":"passed","evidence":"23/23 passed, including tool_batch_start ordering."},
+    {"command":"coding-agent gate/compaction/settled focused","status":"passed","evidence":"33/33 passed."},
+    {"command":"BYZ pause/controller/conversation/architecture focused","status":"passed","evidence":"77/77 passed."},
+    {"command":"npm --prefix packages/byz test","status":"passed","evidence":"315 tests passed with one platform-specific skip."}
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-006-r1.md",
+    "Complete parallel tool batches are emitted before the first awaited preparation hook and admitted without truncation; later calls in the same batch cannot deadlock.",
+    "Registry snapshot failures publish a bounded registry_unavailable closure receipt and leave the controller running/resumable state clean.",
+    "Model gate tests cover normal and automatic retry, manual and automatic compaction, branch summary, branch summary retry, cancellation, and no-handler authentication compatibility.",
+    "Conversation retains timing/UI across agent_end into compaction/agent_settled; pause duration remains separate.",
+    "Requested cancel and all settlement/shutdown/reload closures retain bounded audit facts and reasons."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}
