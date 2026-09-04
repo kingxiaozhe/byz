@@ -9,6 +9,8 @@ import {
 	tryParseByzInvocation,
 } from "./bootstrap.js";
 import { createConversationExtension } from "./conversation/conversation-extension.js";
+import { createDeliveryExtension } from "./delivery/delivery-extension.js";
+import { checkGitHubCli, readGitHubPr } from "./delivery/github-pr.js";
 import { createDiagnosticsExtension } from "./diagnostics/diagnostics-extension.js";
 import { createDiagnosticsRecorder } from "./diagnostics/recorder.js";
 import { bucketDuration, mapMode, mapRecoveryDegradeReason } from "./diagnostics/schema.js";
@@ -112,12 +114,18 @@ try {
 						readRegistrySnapshot: () => executionRegistry.consumer.snapshot(),
 					});
 					const pauseExtension = createPauseExtension({ controller: pauseController });
+					const deliveryExtension = createDeliveryExtension({
+						checkGitHub: checkGitHubCli,
+						executionRegistry: executionRegistry.consumer,
+						readPr: readGitHubPr,
+					});
 					const conversationExtension = createConversationExtension({
 						executionRegistry: executionRegistry.consumer,
 						pauseController,
 					});
 					executionExtension(ports.execution);
 					pauseExtension(ports.pause);
+					deliveryExtension(ports.delivery);
 					conversationExtension(ports.conversation);
 					recoveryExtension(ports.recovery);
 					workflowExtension(ports.workflow);
