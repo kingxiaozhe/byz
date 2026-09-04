@@ -673,9 +673,68 @@ describe("agentLoop with AgentMessage", () => {
 		});
 
 		expect(parallelObserved).toBe(true);
+		const batchIndex = events.findIndex((event) => event.type === "tool_batch_start");
+		const firstStartIndex = events.findIndex((event) => event.type === "tool_execution_start");
+		expect(batchIndex).toBeGreaterThanOrEqual(0);
+		expect(batchIndex).toBeLessThan(firstStartIndex);
+		expect(events[batchIndex]).toEqual({
+			type: "tool_batch_start",
+			toolCalls: [
+				{ toolCallId: "tool-1", toolName: "echo" },
+				{ toolCallId: "tool-2", toolName: "echo" },
+			],
+		});
 		expect(toolExecutionEndIds).toEqual(["tool-2", "tool-1"]);
 		expect(toolResultIds).toEqual(["tool-1", "tool-2"]);
 		expect(turnToolResultIds).toEqual(["tool-1", "tool-2"]);
+	});
+
+	it("emits the complete 129-call parallel batch before the first preparation event", async () => {
+		const toolSchema = Type.Object({ value: Type.String() });
+		const tool: AgentTool<typeof toolSchema, { value: string }> = {
+			name: "echo",
+			label: "Echo",
+			description: "Echo tool",
+			parameters: toolSchema,
+			async execute(_toolCallId, params) {
+				return { content: [{ type: "text", text: params.value }], details: { value: params.value } };
+			},
+		};
+		const context: AgentContext = { systemPrompt: "", messages: [], tools: [tool] };
+		const config: AgentLoopConfig = {
+			model: createModel(),
+			convertToLlm: identityConverter,
+			toolExecution: "parallel",
+		};
+		let callIndex = 0;
+		const stream = agentLoop([createUserMessage("many tools")], context, config, undefined, () => {
+			const mock = new MockAssistantStream();
+			queueMicrotask(() => {
+				const message =
+					callIndex === 0
+						? createAssistantMessage(
+								Array.from({ length: 129 }, (_, index) => ({
+									type: "toolCall" as const,
+									id: `tool-${index + 1}`,
+									name: "echo",
+									arguments: { value: String(index + 1) },
+								})),
+								"toolUse",
+							)
+						: createAssistantMessage([{ type: "text", text: "done" }]);
+				mock.push({ type: "done", reason: callIndex === 0 ? "toolUse" : "stop", message });
+				callIndex += 1;
+			});
+			return mock;
+		});
+		const events: AgentEvent[] = [];
+		for await (const event of stream) events.push(event);
+		const batchIndex = events.findIndex((event) => event.type === "tool_batch_start");
+		const startIndex = events.findIndex((event) => event.type === "tool_execution_start");
+		const batch = events[batchIndex];
+		expect(batchIndex).toBeLessThan(startIndex);
+		expect(batch?.type === "tool_batch_start" ? batch.toolCalls : []).toHaveLength(129);
+		expect(events.filter((event) => event.type === "tool_execution_end")).toHaveLength(129);
 	});
 
 	it("should inject queued messages after all tool calls complete", async () => {
@@ -1189,6 +1248,7 @@ describe("agentLoop with AgentMessage", () => {
 			"message_end",
 			"message_start",
 			"message_end",
+			"tool_batch_start",
 			"tool_execution_start",
 			"tool_execution_end",
 			"message_start",

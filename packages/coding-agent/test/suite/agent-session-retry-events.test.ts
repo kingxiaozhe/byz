@@ -288,6 +288,7 @@ describe("AgentSession retry and event characterization", () => {
 			"message_start:assistant",
 			"message_update",
 			"message_end:assistant",
+			"tool_batch_start",
 			"tool_execution_start:echo",
 			"tool_execution_end:echo",
 			"message_start:toolResult",

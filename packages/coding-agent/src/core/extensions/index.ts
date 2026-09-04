@@ -153,12 +153,13 @@ export type {
 	SetModelHandler,
 	SetThinkingLevelHandler,
 	TerminalInputHandler,
+	// Events - Tool Execution
+	ToolBatchStartEvent,
 	// Events - Tool
 	ToolCallEvent,
 	ToolCallEventResult,
 	// Tools
 	ToolDefinition,
-	// Events - Tool Execution
 	ToolExecutionEndEvent,
 	// Tool execution mode
 	ToolExecutionMode,

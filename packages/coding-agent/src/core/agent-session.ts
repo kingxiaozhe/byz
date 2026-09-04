@@ -86,6 +86,7 @@ import {
 	type SessionCompactFailedEvent,
 	type SessionStartEvent,
 	type ShutdownHandler,
+	type ToolBatchStartEvent,
 	type ToolDefinition,
 	type ToolExecutionEndEvent,
 	type ToolExecutionStartEvent,
@@ -358,6 +359,7 @@ export class AgentSession {
 	private _baseToolDefinitions: Map<string, ToolDefinition> = new Map();
 	private _cwd: string;
 	private _extensionRunnerRef?: { current?: ExtensionRunner };
+	private _baseStreamFunction: Agent["streamFunction"];
 	private _initialActiveToolNames?: string[];
 	private _allowedToolNames?: Set<string>;
 	private _excludedToolNames?: Set<string>;
@@ -386,6 +388,7 @@ export class AgentSession {
 
 	constructor(config: AgentSessionConfig) {
 		this.agent = config.agent;
+		this._baseStreamFunction = config.agent.streamFunction;
 		this.sessionManager = config.sessionManager;
 		this.settingsManager = config.settingsManager;
 		this._scopedModels = config.scopedModels ?? [];
@@ -403,6 +406,7 @@ export class AgentSession {
 		// Always subscribe to agent events for internal handling
 		// (session persistence, extensions, auto-compaction, retry logic)
 		this._unsubscribeAgent = this.agent.subscribe(this._handleAgentEvent);
+		this._installAgentModelRequestGate();
 		this._installAgentToolHooks();
 		this._installAgentNextTurnRefresh();
 
@@ -459,7 +463,7 @@ export class AgentSession {
 		headers?: Record<string, string>;
 		env?: Record<string, string>;
 	}> {
-		if (this.agent.streamFunction === streamSimple) {
+		if (this._baseStreamFunction === streamSimple) {
 			return this._getRequiredRequestAuth(model);
 		}
 
@@ -476,6 +480,23 @@ export class AgentSession {
 		} catch {
 			return { model };
 		}
+	}
+
+	private _installAgentModelRequestGate(): void {
+		const gatedStreamFunction: Agent["streamFunction"] = async (model, context, options) => {
+			const runner = this._extensionRunnerRef?.current;
+			if (runner?.hasHandlers("model_request_gate")) {
+				await runner.emitModelRequestGate();
+			}
+			return this._baseStreamFunction(model, context, options);
+		};
+		Object.defineProperty(this.agent, "streamFunction", {
+			configurable: true,
+			get: () => gatedStreamFunction,
+			set: (streamFunction: Agent["streamFunction"]) => {
+				this._baseStreamFunction = streamFunction;
+			},
+		});
 	}
 
 	/**
@@ -803,6 +824,12 @@ export class AgentSession {
 						: replacement;
 				this._replaceMessageInPlace(event.message, normalized);
 			}
+		} else if (event.type === "tool_batch_start") {
+			const extensionEvent: ToolBatchStartEvent = {
+				type: "tool_batch_start",
+				toolCalls: event.toolCalls,
+			};
+			await this._extensionRunner.emit(extensionEvent);
 		} else if (event.type === "tool_execution_start") {
 			const extensionEvent: ToolExecutionStartEvent = {
 				type: "tool_execution_start",

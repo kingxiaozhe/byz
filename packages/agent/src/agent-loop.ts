@@ -496,6 +496,10 @@ async function executeToolCallsParallel(
 ): Promise<ExecutedToolCallBatch> {
 	const finalizedCalls: FinalizedToolCallEntry[] = [];
 
+	await emit({
+		type: "tool_batch_start",
+		toolCalls: toolCalls.map((toolCall) => ({ toolCallId: toolCall.id, toolName: toolCall.name })),
+	});
 	for (const toolCall of toolCalls) {
 		await emit({
 			type: "tool_execution_start",

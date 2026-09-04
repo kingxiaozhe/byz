@@ -728,6 +728,11 @@ export interface BeforeProviderHeadersEvent {
 	headers: ProviderHeaders;
 }
 
+/** Fired immediately before each model stream function invocation without exposing its payload. */
+export interface ModelRequestGateEvent {
+	type: "model_request_gate";
+}
+
 /** Fired after a provider response is received and before the response stream is consumed. */
 export interface AfterProviderResponseEvent {
 	type: "after_provider_response";
@@ -796,6 +801,12 @@ export interface MessageUpdateEvent {
 export interface MessageEndEvent {
 	type: "message_end";
 	message: AgentMessage;
+}
+
+/** Fired before a parallel tool batch begins preparation; contains identities only. */
+export interface ToolBatchStartEvent {
+	type: "tool_batch_start";
+	toolCalls: Array<{ toolCallId: string; toolName: string }>;
 }
 
 /** Fired when a tool starts executing */
@@ -1092,6 +1103,7 @@ export type ExtensionEvent =
 	| ResourcesDiscoverEvent
 	| SessionEvent
 	| ContextEvent
+	| ModelRequestGateEvent
 	| BeforeProviderRequestEvent
 	| BeforeProviderHeadersEvent
 	| AfterProviderResponseEvent
@@ -1104,6 +1116,7 @@ export type ExtensionEvent =
 	| MessageStartEvent
 	| MessageUpdateEvent
 	| MessageEndEvent
+	| ToolBatchStartEvent
 	| ToolExecutionStartEvent
 	| ToolExecutionUpdateEvent
 	| ToolExecutionEndEvent
@@ -1279,6 +1292,7 @@ export interface ExtensionAPI {
 	on(event: "session_before_tree", handler: ExtensionHandler<SessionBeforeTreeEvent, SessionBeforeTreeResult>): void;
 	on(event: "session_tree", handler: ExtensionHandler<SessionTreeEvent>): void;
 	on(event: "context", handler: ExtensionHandler<ContextEvent, ContextEventResult>): void;
+	on(event: "model_request_gate", handler: ExtensionHandler<ModelRequestGateEvent>): void;
 	on(
 		event: "before_provider_request",
 		handler: ExtensionHandler<BeforeProviderRequestEvent, BeforeProviderRequestEventResult>,
@@ -1294,6 +1308,7 @@ export interface ExtensionAPI {
 	on(event: "message_start", handler: ExtensionHandler<MessageStartEvent>): void;
 	on(event: "message_update", handler: ExtensionHandler<MessageUpdateEvent>): void;
 	on(event: "message_end", handler: ExtensionHandler<MessageEndEvent, MessageEndEventResult>): void;
+	on(event: "tool_batch_start", handler: ExtensionHandler<ToolBatchStartEvent>): void;
 	on(event: "tool_execution_start", handler: ExtensionHandler<ToolExecutionStartEvent>): void;
 	on(event: "tool_execution_update", handler: ExtensionHandler<ToolExecutionUpdateEvent>): void;
 	on(event: "tool_execution_end", handler: ExtensionHandler<ToolExecutionEndEvent>): void;

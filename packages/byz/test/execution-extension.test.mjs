@@ -62,7 +62,16 @@ test("registers one closed execution tool and returns only bounded results", asy
 	assert.deepEqual(open, {
 		accepted: true,
 		planId: "plan-1",
-		counts: { blocked: 0, cancelled: 0, completed: 0, declaredEvidence: 0, observedEvidence: 0, verifiedEvidence: 0 },
+		counts: {
+			blocked: 0,
+			cancelled: 0,
+			completed: 0,
+			declaredEvidence: 0,
+			observedEvidence: 0,
+			verifiedEvidence: 0,
+			verifiedFailedEvidence: 0,
+			verifiedPassedEvidence: 0,
+		},
 	});
 	assert.doesNotMatch(JSON.stringify(open), /private|Users|command/);
 	const bad = await harness.getTool()({ action: "task_start", planId: open.planId, taskId: "missing" });
@@ -222,6 +231,8 @@ test("does not let categorized command success or model declarations become veri
 		declaredEvidence: 1,
 		observedEvidence: 3,
 		verifiedEvidence: 0,
+		verifiedFailedEvidence: 0,
+		verifiedPassedEvidence: 0,
 	});
 	assert.deepEqual(
 		harness.entries
@@ -303,7 +314,20 @@ test("accepts verified evidence only through a fully bound trusted verifier", as
 		}).accepted,
 		true,
 	);
-	assert.equal(harness.registry.snapshot().plan.counts.verifiedEvidence, 1);
+	assert.equal(
+		harness.registry.recordVerifiedEvidence({
+			source: "cm-workflow",
+			generation: 1,
+			planId,
+			taskId: "A",
+			testCaseId: "TC-003",
+			outcome: "passed",
+			category: "test",
+		}).accepted,
+		true,
+	);
+	assert.equal(harness.registry.snapshot().plan.counts.verifiedEvidence, 2);
+	assert.deepEqual(harness.registry.snapshot().plan.counts.verifiedPassedCategories, ["test"]);
 });
 
 test("rejects malformed tool-call identities before pairing or persistence", async () => {

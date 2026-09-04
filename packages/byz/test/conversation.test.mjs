@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -17,8 +17,10 @@ import {
 	formatDecision,
 	parseConversationControl,
 } from "../src/conversation/interaction-policy.js";
+import { createProgressState, summarizeGoal } from "../src/conversation/progress-projector.js";
 import { classifyRequest, createRoutingPolicy, parseSessionPreference } from "../src/conversation/routing-policy.js";
 import { createTurnTiming, formatElapsed } from "../src/conversation/turn-timing.js";
+import { createPauseController } from "../src/execution/pause-controller.js";
 
 function fauxProviderConfig(faux) {
 	const model = faux.getModel();
@@ -88,10 +90,69 @@ test("maps structural conversation states to readable, low-noise output", () => 
 	);
 	assert.deepEqual(
 		policy.presentAssistantMessage({ content: [{ type: "text", text: "model step 1 complete" }], role: "assistant" }),
-		{ content: [{ type: "text", text: "内部设置 内部设置 complete" }], role: "assistant" },
+		{ content: [{ type: "text", text: "model step 1 complete" }], role: "assistant" },
 	);
 	policy.setDetailEnabled(true);
 	assert.equal(policy.present("advanced-control", "Fast"), "Fast");
+});
+
+test("conversation lifecycle, controller, projectors, presenters, footer, and language catalog are separated", async () => {
+	const directory = new URL("../src/conversation/", import.meta.url);
+	for (const file of [
+		"conversation-controller.js",
+		"progress-projector.js",
+		"conversation-presenter.js",
+		"confirmation-presenter.js",
+		"footer-presenter.js",
+		"language-catalog.js",
+	]) {
+		await readFile(new URL(file, directory), "utf8");
+	}
+	const extension = await readFile(new URL("conversation-extension.js", directory), "utf8");
+	const controller = await readFile(new URL("conversation-controller.js", directory), "utf8");
+	const policy = await readFile(new URL("interaction-policy.js", directory), "utf8");
+	assert.doesNotMatch(extension, /node:fs/);
+	assert.match(extension, /ports\.on\("tool_execution_start"/);
+	assert.match(extension, /ports\.registerCommand\("details"/);
+	assert.doesNotMatch(controller, /\bports\b|registerCommand/);
+	assert.doesNotMatch(policy, /INTERNAL_TERMS|\.replace\(/);
+});
+
+test("conversation extension delegates registered lifecycle handlers to the controller API", () => {
+	const handlers = Object.fromEntries(
+		[
+			"onAgentEnd",
+			"onAgentSettled",
+			"onAgentStart",
+			"onBeforeAgentStart",
+			"onMessageEnd",
+			"onMessageUpdate",
+			"onSessionShutdown",
+			"onSessionStart",
+			"onThinkingLevelSelect",
+			"onToolExecutionEnd",
+			"onToolExecutionStart",
+		].map((name) => [name, () => name]),
+	);
+	handlers.handleDetailsCommand = () => "details";
+	handlers.handleLanguageCommand = () => "language";
+	const events = new Map();
+	const commands = new Map();
+	createConversationExtension({ controllerFactory: () => handlers })({
+		on: (name, handler) => events.set(name, handler),
+		registerCommand: (name, command) => commands.set(name, command),
+	});
+	assert.equal(events.get("session_start"), handlers.onSessionStart);
+	assert.equal(events.get("before_agent_start"), handlers.onBeforeAgentStart);
+	assert.equal(events.get("tool_execution_start"), handlers.onToolExecutionStart);
+	assert.equal(events.get("session_shutdown"), handlers.onSessionShutdown);
+	assert.equal(commands.get("details").handler instanceof Function, true);
+	assert.equal(commands.get("language").handler instanceof Function, true);
+});
+
+test("progress projector defaults are valid without controller-provided language", () => {
+	assert.equal(createProgressState().language, "zh");
+	assert.equal(summarizeGoal(""), "当前任务");
 });
 
 test("recognizes natural language detail and decision choices", () => {
@@ -156,10 +217,13 @@ test("turn timing uses a monotonic clock and separates active stages from confir
 	now = 10_000;
 	timing.resumeAfterConfirmation();
 	now = 12_000;
+	assert.equal(timing.pause("pause"), true);
+	now = 20_000;
+	assert.equal(timing.resume("pause"), true);
 	timing.transition("command");
-	now = 13_000;
+	now = 21_000;
 	timing.transition("inspect");
-	now = 15_000;
+	now = 23_000;
 	const result = timing.finish();
 	assert.deepEqual(result.stages, [
 		{ stage: "goal", milliseconds: 2_000 },
@@ -167,8 +231,10 @@ test("turn timing uses a monotonic clock and separates active stages from confir
 		{ stage: "command", milliseconds: 1_000 },
 	]);
 	assert.equal(result.activeMs, 10_000);
-	assert.equal(result.waitingMs, 5_000);
-	assert.equal(result.totalMs, 15_000);
+	assert.equal(result.confirmationWaitingMs, 5_000);
+	assert.equal(result.pauseWaitingMs, 8_000);
+	assert.equal(result.waitingMs, 13_000);
+	assert.equal(result.totalMs, 23_000);
 	assert.equal(timing.finish(), result);
 	assert.equal(formatElapsed(187_999), "3分07秒");
 	assert.equal(formatElapsed(187_999, "en"), "3m 07s");
@@ -895,6 +961,97 @@ test("confirmation input and fallback time count only as waiting", async () => {
 	await handlers.get("agent_end")({}, ctx);
 	assert.match(notifications.at(-1), /^完成 · 0分13秒 · Token —$/m);
 	assert.match(notifications.at(-1), /BYZ 思考了 0分05秒 · 等待 0分08秒/);
+});
+
+test("pause input inside confirmation stays modal and never creates a second gate", async () => {
+	const handlers = new Map();
+	const notifications = [];
+	const answers = ["/pause", "确认"];
+	let confirmationPresenter;
+	let fallbackCalls = 0;
+	const pauseController = createPauseController();
+	pauseController.startRun();
+	createConversationExtension({ pauseController })({
+		on: (name, handler) => handlers.set(name, handler),
+		registerCommand() {},
+	});
+	const ctx = {
+		ui: {
+			input: async () => answers.shift(),
+			notify: (message) => notifications.push(message),
+			setConfirmationPresenter: (presenter) => {
+				confirmationPresenter = presenter;
+			},
+			setFooter() {},
+			setMessagePresenter() {},
+			setTitle() {},
+			setToolExecutionVisible() {},
+		},
+	};
+	await handlers.get("session_start")({}, ctx);
+	assert.equal(
+		await confirmationPresenter({
+			title: "确认",
+			message: "测试",
+			confirm: async () => {
+				fallbackCalls += 1;
+				return false;
+			},
+		}),
+		true,
+	);
+	assert.equal(fallbackCalls, 0);
+	assert.equal(pauseController.snapshot().state, "running");
+	assert.equal(pauseController.isConfirmationActive(), false);
+	assert.ok(notifications.some((message) => /Pause is unavailable/.test(message)));
+});
+
+test("completion reports pause separately from model and confirmation time", async () => {
+	let now = 0;
+	const pauseController = createPauseController({ now: () => now });
+	const handlers = new Map();
+	const notifications = [];
+	createConversationExtension({
+		now: () => now,
+		pauseController,
+		setInterval: () => 1,
+		clearInterval() {},
+	})({
+		on: (name, handler) => handlers.set(name, handler),
+		registerCommand() {},
+	});
+	const ctx = {
+		ui: {
+			input: async () => undefined,
+			notify: (message) => notifications.push(message),
+			setConfirmationPresenter() {},
+			setFooter() {},
+			setMessagePresenter() {},
+			setTitle() {},
+			setToolExecutionVisible() {},
+			setWorkingMessage() {},
+		},
+	};
+	pauseController.startRun();
+	await handlers.get("session_start")({}, ctx);
+	await handlers.get("before_agent_start")({ prompt: "pause timing", systemPrompt: "base" }, ctx);
+	await handlers.get("agent_start")({}, ctx);
+	now = 10_000;
+	await handlers.get("agent_end")({}, ctx);
+	pauseController.request();
+	assert.equal(
+		notifications.some((message) => /thought for|思考了/.test(message)),
+		false,
+	);
+	const gate = pauseController.reachBoundary("model");
+	await new Promise((resolve) => setImmediate(resolve));
+	now = 18_000;
+	pauseController.resume();
+	await gate;
+	now = 20_000;
+	await handlers.get("agent_settled")({}, ctx);
+	assert.match(notifications.at(-1), /暂停 0分08秒|paused 0m 08s/);
+	assert.match(notifications.at(-1), /BYZ 思考了 0分12秒|BYZ thought for 0m 12s/);
 });
 
 test("session shutdown clears timing without rendering a completion summary", async () => {
