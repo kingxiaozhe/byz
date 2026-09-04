@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "task_id": "T-006",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/agent/src/agent-loop.ts",
+    "packages/agent/src/types.ts",
+    "packages/coding-agent/src/core/agent-session.ts",
+    "packages/coding-agent/src/core/extensions/index.ts",
+    "packages/coding-agent/src/core/extensions/runner.ts",
+    "packages/coding-agent/src/core/extensions/types.ts",
+    "packages/coding-agent/test/suite/model-request-gate.test.ts",
+    "packages/byz/scripts/check-architecture.mjs",
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/cli.js",
+    "packages/byz/src/conversation/confirmation-presenter.js",
+    "packages/byz/src/conversation/conversation-controller.js",
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/src/conversation/conversation-presenter.js",
+    "packages/byz/src/conversation/language-catalog.js",
+    "packages/byz/src/conversation/turn-timing.js",
+    "packages/byz/src/execution/pause-controller.js",
+    "packages/byz/src/execution/pause-extension.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/conversation.test.mjs",
+    "packages/byz/test/pause-controller.test.mjs",
+    "packages/byz/test/pause-extension.test.mjs"
+  ],
+  "implementation_sha256": "cf336de5aee4609671a95cf95ba17853dbf0611274760a963df3ebc348c39318",
+  "verification": [
+    {"command":"npm run check","status":"passed","evidence":"All repository checks passed with no warnings."},
+    {"command":"coding-agent focused model gate/compaction/settled tests","status":"passed","evidence":"31/31 passed."},
+    {"command":"BYZ pause/controller/conversation/architecture focused tests","status":"passed","evidence":"76/76 passed."},
+    {"command":"npm --prefix packages/byz test","status":"passed","evidence":"314 tests passed with one platform-specific skip."}
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-implementation-r1.md",
+    "Product-neutral payload-free model_request_gate covers normal/retry/manual compaction/branch summarization and preserves stream auth identity/no-handler behavior.",
+    "Product-neutral payload-free tool_batch_start admits complete parallel preparation batches before any awaited hook, preventing mid-batch pause deadlock.",
+    "Pre-aborted signals, observer errors and registry snapshot failures return typed cancellation without stranded gates; stale generations and confirmation leases are fenced.",
+    "Conversation timing survives agent_end into compaction/settlement and separates pause from model and confirmation time.",
+    "Requested cancel, shutdown, settle, reload and resume receipts preserve bounded boundary/plan/task/duration facts; status uses plan.active.id.",
+    "PausePort strips tool inputs/results and extra receipt fields; only /pause is registered, leaving Pi /resume unchanged."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

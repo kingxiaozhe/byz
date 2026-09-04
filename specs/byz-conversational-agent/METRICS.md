@@ -22,3 +22,5 @@
 | T-004 | 4.structured-execution-registry | 2 | 1：补齐八十列极限状态行预算 | 合并至 Feature QA | 0 |
 | T-005 | 4.structured-execution-registry | 2 | 5：补齐真实终端、生命周期收口、共享消费者及精确命令凭证 | BLOCKED，由 T-009 替代 | 1：批准替代任务 T-009 |
 | T-009 | 4.structured-execution-registry | 1 | 0 | PASS（8/8、真实 80×24 双场景、13/13 命令组） | 0 |
+| T-009 | 5.safe-pause-resume | 精简前完整链 | 多轮拦截后由最终替代任务收口 | PASS（Agent 24/24、coding-agent 33/33、BYZ 316/1 skip、80×24） | 0（批量授权内） |
+| T-007 | 6.delivery-console | 1 次最终独立审查 | 5：repository、App check、分类证据、end event、隔离/TUI | PASS（BYZ 338/1 skip、仓库回归、bare origin/fake gh、80×24） | 1：批准精简收尾 |

@@ -17,6 +17,7 @@ const COMMAND_CATEGORIES = new Set(["test", "check", "build", "git", "generic"])
 const OBSERVED_CATEGORIES = new Set([...TOOL_CATEGORIES, ...COMMAND_CATEGORIES]);
 const EVIDENCE_BASES = new Set(["declared", "latest_observed"]);
 const VERIFIED_OUTCOMES = new Set(["passed", "failed"]);
+const VERIFIED_CATEGORIES = new Set(["test", "check", "build", "review", "qa"]);
 
 function createEmptyState(generation = 0) {
 	return {
@@ -55,13 +56,41 @@ function taskCounts(plan) {
 }
 
 function evidenceCounts(plan) {
-	const counts = { declaredEvidence: 0, observedEvidence: 0, verifiedEvidence: 0 };
+	const counts = {
+		declaredEvidence: 0,
+		observedEvidence: 0,
+		verifiedEvidence: 0,
+		verifiedPassedEvidence: 0,
+		verifiedFailedEvidence: 0,
+		verifiedPassedCategories: new Set(),
+		verifiedFailedCategories: new Set(),
+	};
 	for (const receipt of plan.evidence) {
 		if (receipt.provenance === "declared") counts.declaredEvidence += 1;
 		if (receipt.provenance === "observed") counts.observedEvidence += 1;
-		if (receipt.provenance === "verified") counts.verifiedEvidence += 1;
+		if (receipt.provenance === "verified") {
+			counts.verifiedEvidence += 1;
+			if (receipt.outcome === "passed") {
+				counts.verifiedPassedEvidence += 1;
+				if (VERIFIED_CATEGORIES.has(receipt.category)) counts.verifiedPassedCategories.add(receipt.category);
+			}
+			if (receipt.outcome === "failed") {
+				counts.verifiedFailedEvidence += 1;
+				if (VERIFIED_CATEGORIES.has(receipt.category)) counts.verifiedFailedCategories.add(receipt.category);
+			}
+		}
 	}
-	return counts;
+	const verifiedPassedCategories = [...counts.verifiedPassedCategories].sort();
+	const verifiedFailedCategories = [...counts.verifiedFailedCategories].sort();
+	return {
+		declaredEvidence: counts.declaredEvidence,
+		observedEvidence: counts.observedEvidence,
+		verifiedEvidence: counts.verifiedEvidence,
+		verifiedPassedEvidence: counts.verifiedPassedEvidence,
+		verifiedFailedEvidence: counts.verifiedFailedEvidence,
+		...(verifiedPassedCategories.length > 0 ? { verifiedPassedCategories } : {}),
+		...(verifiedFailedCategories.length > 0 ? { verifiedFailedCategories } : {}),
+	};
 }
 
 function snapshotState(state) {
@@ -222,12 +251,17 @@ function addObservedEvidence(state, payload) {
 }
 
 function addVerifiedEvidence(state, payload) {
-	if (!hasExactKeys(payload, ["source", "taskId", "testCaseId", "outcome"])) return reject("invalid_record");
+	if (
+		!hasExactKeys(payload, ["source", "taskId", "testCaseId", "outcome"]) &&
+		!hasExactKeys(payload, ["source", "taskId", "testCaseId", "outcome", "category"])
+	)
+		return reject("invalid_record");
 	if (
 		!isBoundedId(payload.source) ||
 		!isBoundedId(payload.taskId) ||
 		!isTestCaseId(payload.testCaseId) ||
-		!VERIFIED_OUTCOMES.has(payload.outcome)
+		!VERIFIED_OUTCOMES.has(payload.outcome) ||
+		(payload.category !== undefined && !VERIFIED_CATEGORIES.has(payload.category))
 	) {
 		return reject("invalid_record");
 	}
@@ -473,7 +507,10 @@ export function createExecutionRegistry(options = {}) {
 	}
 
 	function recordVerifiedEvidence(receipt) {
-		if (!hasExactKeys(receipt, ["source", "generation", "planId", "taskId", "testCaseId", "outcome"])) {
+		if (
+			!hasExactKeys(receipt, ["source", "generation", "planId", "taskId", "testCaseId", "outcome"]) &&
+			!hasExactKeys(receipt, ["source", "generation", "planId", "taskId", "testCaseId", "outcome", "category"])
+		) {
 			return reject("unverified_receipt");
 		}
 		if (
@@ -484,7 +521,8 @@ export function createExecutionRegistry(options = {}) {
 			!isBoundedId(receipt.taskId) ||
 			!state.plan?.tasks.has(receipt.taskId) ||
 			!isTestCaseId(receipt.testCaseId) ||
-			!VERIFIED_OUTCOMES.has(receipt.outcome)
+			!VERIFIED_OUTCOMES.has(receipt.outcome) ||
+			(receipt.category !== undefined && !VERIFIED_CATEGORIES.has(receipt.category))
 		) {
 			return reject("unverified_receipt");
 		}
@@ -504,12 +542,21 @@ export function createExecutionRegistry(options = {}) {
 				taskId: receipt.taskId,
 				testCaseId: receipt.testCaseId,
 				outcome: receipt.outcome,
+				...(receipt.category ? { category: receipt.category } : {}),
 			},
 		});
 	}
 
 	const consumer = deepFreeze({
 		snapshot: () => snapshotState(state),
+		hasTask(planId, taskId, generation) {
+			return (
+				state.availability === "available" &&
+				state.generation === generation &&
+				state.plan.id === planId &&
+				state.plan.tasks.has(taskId)
+			);
+		},
 		subscribe(listener) {
 			if (typeof listener !== "function") throw new TypeError("Execution registry subscriber must be a function.");
 			subscribers.add(listener);

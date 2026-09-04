@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "task_id": "T-023",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/scripts/check-architecture.mjs",
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/fast-session.js",
+    "packages/byz/src/prewalk.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/fast-switch.test.mjs",
+    "packages/byz/test/prewalk.test.mjs"
+  ],
+  "implementation_sha256": "79f550452681ac8f76afe36a821fb3e2c918c8ff5ac03c49496483747d6cb35d",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Production BYZ package image rebuilt from the attempt-2 source."
+    },
+    {
+      "command": "node --test packages/byz/test/architecture.test.mjs packages/byz/test/fast-switch.test.mjs packages/byz/test/prewalk.test.mjs",
+      "status": "passed",
+      "evidence": "62/62 focused tests passed, including seven alias-container forms, post-creation raw writes, adapter lineage, reload, and trust-race behavior."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "257 BYZ package tests passed with one platform-specific skip."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency/import/lock checks, architecture gate, tsgo, and browser smoke all passed."
+    }
+  ],
+  "evidence": [
+    "Attempt 2 rejects storage or forwarding of a feature callable in the composition root before it can be recovered through object, shorthand, destructuring, array, helper, or bind aliases.",
+    "Adapter checks now reject every assignment operator on statically named raw escape properties and static defineProperty calls in addition to declaration/accessor forms.",
+    "The round-one runtime lineage and Prewalk trust fixes remain unchanged and covered by focused and package regressions.",
+    "Both accepted round-one findings have direct negative fixtures and the final architecture gate passes against the production source tree."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

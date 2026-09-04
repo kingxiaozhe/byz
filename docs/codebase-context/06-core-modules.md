@@ -14,7 +14,9 @@ This is not a browser component application. Terminal UI primitives live in `pac
 | Modes | interactive, print, json-event, rpc | `packages/coding-agent/src/modes/**` | User/runtime interface |
 | BYZ workflow layer | workflow selection, updates, release contract | `packages/byz/src/**`, `packages/byz/scripts/**` | BYZ product |
 | BYZ conversation shell | goal-first presentation, delayed single-line execution status, paired in-flight tool counts, current-turn observed Token headline, model/tool/wait timing, confirmation accounting | `packages/byz/src/conversation/**` | Interactive UX |
-| BYZ execution registry | closed managed plans, legal task transitions, provenance-separated evidence, Session receipt replay, deeply frozen consumer snapshots | `packages/byz/src/execution/**`, `packages/byz/src/adapters/pi/pi-execution-*.ts` | Reliable execution progress |
+| BYZ execution registry | closed managed plans, legal task transitions, category-aware verified evidence, Session receipt replay, deeply frozen consumer snapshots | `packages/byz/src/execution/**`, `packages/byz/src/adapters/pi/pi-execution-*.ts` | Reliable execution progress |
+| BYZ safe pause | generation-bound model/tool gates, parallel drain, typed resume/abort, stale receipts and pause timing | `packages/byz/src/execution/pause-*.js`, `packages/agent/src/agent-loop.ts` | Safe pause/resume |
+| BYZ delivery console | current-plan digest scope, bounded Git snapshots, one-time intents, exact commit/origin push, repository-bound GitHub PR and read-only release readiness | `packages/byz/src/delivery/**` | Controlled delivery |
 | BYZ local diagnostics | closed event schema, bounded recorder/Worker shards, summaries, safe export, update-health comparison | `packages/byz/src/diagnostics/**` | Local diagnostics |
 | BYZ project recovery | strict CM state projection, bounded project-local evidence reads, recovery status/details presentation | `packages/byz/src/recovery/**` | Trusted CM recovery |
 
@@ -32,6 +34,8 @@ This is not a browser component application. Terminal UI primitives live in `pac
 | SQLite backend | persistent sessions/search/facts | repo/storage/search | `packages/session-backends/sqlite-node/src/sqlite/**` |
 | BYZ diagnostics config | enable/detail/retention/generation state | atomic local read/write/clear | `packages/byz/src/diagnostics/config.js` |
 | BYZ execution registry | current plan, ordered task states, bounded evidence and in-flight bindings; persisted only as existing Session custom entries | propose/append/commit, replay, snapshot, subscribe | `packages/byz/src/execution/execution-registry.js` |
+| BYZ pause controller | current generation gate, admitted tools, confirmation lease and bounded pause facts | request/drain/resume/abort/close | `packages/byz/src/execution/pause-controller.js` |
+| BYZ delivery state | current Session scope receipts, active one-time intent and action/cleanup latch; Git remains authoritative | observe/replay/snapshot/confirm/execute | `packages/byz/src/delivery/**` |
 
 ## 复杂页面精读（3–5 个）
 

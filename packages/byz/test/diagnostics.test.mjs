@@ -54,12 +54,6 @@ async function waitFor(probe, timeoutMs = 2_000) {
 	throw new Error("condition was not observed before timeout");
 }
 
-function captureOutput() {
-	const stdout = [];
-	const stderr = [];
-	return { stdout, stderr, options: { stdout: (line) => stdout.push(line), stderr: (line) => stderr.push(line) } };
-}
-
 test("diagnostic schema accepts only closed low-cardinality projections", () => {
 	const valid = validateDiagnosticEvent("byz.tool.execution", {
 		tool: "read",
@@ -193,26 +187,24 @@ test("real worker writes a private per-process shard without keeping the process
 
 test("diagnostics commands persist state, reject unsafe arguments, and clear by generation", () =>
 	withTempDirectory(async (home) => {
-		const output = captureOutput();
-		process.exitCode = undefined;
-		assert.equal(await handleDiagnosticsCommand(["diagnostics", "disable"], { home, ...output.options }), true);
+		assert.equal((await handleDiagnosticsCommand(["diagnostics", "disable"], { home })).status, "handled");
 		assert.equal(readDiagnosticsConfig(home).enabled, false);
-		await handleDiagnosticsCommand(["diagnostics", "record", "--for", "30m"], { home, ...output.options });
+		await handleDiagnosticsCommand(["diagnostics", "record", "--for", "30m"], { home });
 		assert.equal(isDetailMode(readDiagnosticsConfig(home)), true);
 		await mkdir(join(home, "events", "1"), { recursive: true });
 		await writeFile(join(home, "events", "1", "fixture.jsonl"), "{}\n");
-		await handleDiagnosticsCommand(["diagnostics", "clear"], { home, ...output.options });
-		assert.equal(process.exitCode, 1);
-		process.exitCode = undefined;
-		await handleDiagnosticsCommand(["diagnostics", "clear", "--confirm"], { home, ...output.options });
+		const clearWithoutConfirmation = await handleDiagnosticsCommand(["diagnostics", "clear"], { home });
+		assert.equal(clearWithoutConfirmation.exitCode, 1);
+		await handleDiagnosticsCommand(["diagnostics", "clear", "--confirm"], { home });
 		assert.equal(readDiagnosticsConfig(home).generation, 2);
 		await assert.rejects(readdir(join(home, "events")));
-		process.exitCode = undefined;
-		await handleDiagnosticsCommand(["diagnostics", "export"], { home, version: "0.1.10", ...output.options });
-		assert.equal(process.exitCode, 1);
-		assert.match(output.stdout.at(-1), /aggregate counts/);
+		const exportWithoutConfirmation = await handleDiagnosticsCommand(["diagnostics", "export"], {
+			home,
+			version: "0.1.10",
+		});
+		assert.equal(exportWithoutConfirmation.exitCode, 1);
+		assert.match(exportWithoutConfirmation.stdout.at(-1), /aggregate counts/);
 		await assert.rejects(readdir(join(home, "exports")));
-		process.exitCode = undefined;
 	}));
 
 test("generation change stops an active old worker from recreating cleared data", () =>
@@ -265,9 +257,8 @@ test("summary tolerates malformed and incomplete rows without exposing their tex
 			duration_bucket: "<10ms",
 		});
 		await writeFile(join(directory, "fixture.jsonl"), `${JSON.stringify(valid)}\nnot-json\n{`);
-		const output = captureOutput();
-		await handleDiagnosticsCommand(["diagnostics", "summary", "--since", "1d"], { home, ...output.options });
-		const rendered = output.stdout.join("\n");
+		const result = await handleDiagnosticsCommand(["diagnostics", "summary", "--since", "1d"], { home });
+		const rendered = result.stdout.join("\n");
 		assert.match(rendered, /"eventCount": 1/);
 		assert.match(rendered, /"unavailable": 2/);
 		assert.doesNotMatch(rendered, /not-json/);
@@ -360,7 +351,8 @@ test("BYZ CLI and complete source-tree build wire diagnostics without replacing 
 	const cli = await readFile(new URL("../src/cli.js", import.meta.url), "utf8");
 	const build = await readFile(new URL("../scripts/build.mjs", import.meta.url), "utf8");
 	const manifest = JSON.parse(await readFile(new URL("../build-manifest.json", import.meta.url), "utf8"));
-	assert.match(cli, /handleDiagnosticsCommand\(commandArgs/);
+	assert.match(cli, /createByzCommandRegistry/);
+	assert.match(cli, /publishCommandResult\(commandResult/);
 	assert.match(cli, /extensionFactories: \[diagnosticsExtension\]/);
 	assert.match(cli, /managedExtensionFactories:/);
 	assert.match(cli, /resourcePrecedence: "before"/);

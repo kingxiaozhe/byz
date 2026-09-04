@@ -5,6 +5,11 @@
 | 日期 | 版本 | 说明 |
 | --- | --- | --- |
 | 2026-09-02 | v1 | 初始设计；生产 release 只读 |
+| 2026-09-02 | v2 | 依赖已合并的 Feature 4 T-009，并在 Runtime Boundary 与 Safe Pause 后实施 |
+| 2026-09-02 | v3 | Runtime Boundary 前置更新为人工批准的 T-025 source-binding 替代任务 |
+| 2026-09-02 | v4 | Runtime Boundary 前置更新为人工批准的 T-026 canonical-provenance 替代任务 |
+| 2026-09-03 | v5 | 前置更新为 Runtime Boundary T-024 与 Safe Pause T-009 最终 QA |
+| 2026-09-03 | v6 | T-007 收口 start/end scope、每副作用复核、required-check 与完整证据链 |
 
 ## 项目架构
 
@@ -14,7 +19,9 @@
 
 ## 波及面
 
-- Feature 4 registry：提供 current sealed plan、generation、task/evidence provenance；不新增 mutation API。
+- `open-source-runtime-boundaries` T-026：先关闭 canonical creator/re-export provenance、无关同名 import 误报与 `Reflect.defineProperty` 三项最终边界，并保留跨 Session model reference、Prewalk trust check/use、port source 和 composition alias 防线；本 Feature 只在该边界上新增最小 DeliveryPort。
+- Feature 5 Safe Pause：先稳定 shared confirmation lease、Agent running/settled 与 command modal 语义；Delivery action confirmation 复用这些边界但不能恢复 pause gate。
+- Feature 4 registry T-009：提供 current sealed plan、generation、task/evidence provenance；不新增 mutation API。
 - 新增 `packages/byz/src/delivery/**`：scope tracker、git projection、intent state、action runner、delivery extension。
 - `packages/byz/src/adapters/pi/pi-runtime-adapter.ts`：新增 trusted DeliveryPort，投影 project trust/UI/Session receipt 与参数数组 exec；不开放任意 shell 字符串。
 - `packages/byz/src/application/ports/runtime.ts`：定义 closed Git/gh request/response 类型。
@@ -163,3 +170,4 @@ DeliveryPort 仅允许 fixed subcommands、project trust、closed Session entrie
 | merge | 仅 PR 通道 | 尊重 checks/branch protection，不 direct main |
 | release | V1 只读 | 生产发布需要独立 smoke 与人工流程 |
 | persistence | Session receipt；Git 为真相 | 可审计但不建立第二 Git 状态源 |
+| 执行顺序 | Runtime Boundary T-026 → Safe Pause QA → Delivery | 先稳定 canonical-source capability 与 confirmation 生命周期，避免 Delivery 扩大旧边界或重复返工 |

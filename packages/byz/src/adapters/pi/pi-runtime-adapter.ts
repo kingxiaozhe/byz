@@ -1,12 +1,16 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import type {
 	ByzEvent,
 	CommandDefinition,
 	ConversationContext,
+	DeliveryContext,
 	DiagnosticsContext,
 	Disposable,
 	FastContext,
-	ModelReference,
+	ModelHandle,
 	NotificationLevel,
+	PauseContext,
 	PiFeaturePorts,
 	PrewalkContext,
 	RecoveryContext,
@@ -18,6 +22,10 @@ import type {
 	WorkflowContext,
 } from "../../application/ports/runtime.ts";
 import { createPiExecutionPort } from "./pi-execution-adapter.ts";
+
+const execFileAsync = promisify(execFile);
+const DELIVERY_OUTPUT_LIMIT = 256 * 1024;
+const DELIVERY_FORBIDDEN_ARGS = new Set(["-f", "--force", "--force-with-lease", "--no-verify", "--admin"]);
 
 type ProductProfileOptions = { productProfile?: RuntimeProductProfile };
 type PiHandler = (event: unknown, context: PiContextLike) => unknown | Promise<unknown>;
@@ -67,6 +75,7 @@ interface PiContextLike {
 	isIdle?(): boolean;
 	isProjectTrusted?(): boolean;
 	replaceManagedResources?(resources: { promptPaths?: string[]; skillPaths?: string[] }): Promise<void>;
+	signal?: AbortSignal;
 }
 
 interface PiExtensionApiLike {
@@ -82,6 +91,7 @@ interface PiExtensionApiLike {
 	getThinkingLevel(): ThinkingLevel;
 	setModel(model: PiModel): Promise<boolean>;
 	setThinkingLevel(level: ThinkingLevel): void;
+	appendEntry?(customType: string, data?: unknown): void;
 }
 
 const DIAGNOSTICS_EVENTS = new Set([
@@ -97,6 +107,19 @@ const DIAGNOSTICS_EVENTS = new Set([
 const WORKFLOW_EVENTS = new Set(["resources_discover"]);
 const FAST_EVENTS = new Set(["model_select", "thinking_level_select", "session_start"]);
 const PREWALK_EVENTS = new Set(["tool_result"]);
+const DELIVERY_EVENTS = new Set(["session_start", "tool_execution_start", "tool_execution_end"]);
+const PAUSE_EVENTS = new Set([
+	"session_start",
+	"agent_start",
+	"agent_end",
+	"agent_settled",
+	"model_request_gate",
+	"tool_batch_start",
+	"tool_call",
+	"tool_execution_start",
+	"tool_execution_end",
+	"session_shutdown",
+]);
 const RECOVERY_EVENTS = new Set(["session_start", "session_shutdown"]);
 const RECOVERY_SESSION_START_REASONS = new Set<RecoverySessionStartReason>([
 	"startup",
@@ -109,6 +132,7 @@ const CONVERSATION_EVENTS = new Set([
 	"session_start",
 	"thinking_level_select",
 	"agent_start",
+	"agent_settled",
 	"tool_execution_start",
 	"tool_execution_end",
 	"message_update",
@@ -117,7 +141,6 @@ const CONVERSATION_EVENTS = new Set([
 	"session_shutdown",
 	"before_agent_start",
 ]);
-const MODEL_REFERENCE_IDENTITIES = new WeakMap<ModelReference, { provider: string; id: string }>();
 function asRecord(value: unknown): Record<string, unknown> {
 	return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }
@@ -288,29 +311,24 @@ function createConversationUi(context: PiContextLike) {
 	});
 }
 
-function createModelProjector(resolveCurrent: (provider: string, id: string) => PiModel | undefined) {
-	const references = new WeakMap<PiModel, ModelReference>();
-	const models = new WeakMap<ModelReference, PiModel>();
+function createModelProjector() {
+	const references = new WeakMap<PiModel, ModelHandle>();
+	const models = new WeakMap<ModelHandle, PiModel>();
 
 	return {
-		project(model: PiModel | undefined): ModelReference | undefined {
+		project(model: PiModel | undefined): ModelHandle | undefined {
 			if (!model) return undefined;
 			const existing = references.get(model);
 			if (existing) return existing;
-			const reference = Object.freeze({ provider: model.provider, id: model.id });
-			references.set(model, reference);
-			models.set(reference, model);
-			MODEL_REFERENCE_IDENTITIES.set(reference, { provider: model.provider, id: model.id });
-			return reference;
+			const handle = Object.freeze({ provider: model.provider, id: model.id });
+			references.set(model, handle);
+			models.set(handle, model);
+			return handle;
 		},
-		resolve(model: ModelReference): PiModel {
-			const local = models.get(model);
-			if (local) return local;
-			const identity = MODEL_REFERENCE_IDENTITIES.get(model);
-			const current = identity ? resolveCurrent(identity.provider, identity.id) : undefined;
-			if (!current) throw new Error("Model reference was not created by the Pi adapter or is no longer available.");
-			models.set(model, current);
-			return current;
+		resolve(handle: ModelHandle): PiModel {
+			const model = models.get(handle);
+			if (!model) throw new Error("Model handle was not created by the current Pi adapter lineage.");
+			return model;
 		},
 	};
 }
@@ -328,7 +346,7 @@ function createFastContext(
 			find(provider: string, modelId: string) {
 				return modelProjector.project(context.modelRegistry?.find(provider, modelId));
 			},
-			hasConfiguredAuth(model: ModelReference) {
+			hasConfiguredAuth(model: ModelHandle) {
 				return context.modelRegistry?.hasConfiguredAuth(modelProjector.resolve(model)) ?? false;
 			},
 		}),
@@ -350,6 +368,52 @@ function createPrewalkContext(context: PiContextLike): PrewalkContext {
 		},
 		isProjectTrusted() {
 			return context.isProjectTrusted?.() ?? false;
+		},
+	});
+}
+
+function createDeliveryContext(context: PiContextLike): DeliveryContext {
+	return Object.freeze({
+		cwd: context.cwd ?? process.cwd(),
+		ui: createNotifyUi(context),
+		input(prompt: string, title?: string) {
+			return context.ui?.input?.(prompt, title) ?? Promise.resolve(undefined);
+		},
+		isIdle() {
+			return context.isIdle?.() ?? false;
+		},
+		isProjectTrusted() {
+			return context.isProjectTrusted?.() ?? false;
+		},
+		readDeliveryScopeEntries() {
+			return Object.freeze(
+				(context.sessionManager?.getEntries?.() ?? []).flatMap((value) => {
+					const entry = asRecord(value);
+					return entry.type === "custom" && entry.customType === "byz.delivery.scope.v1"
+						? [Object.freeze(asRecord(entry.data))]
+						: [];
+				}),
+			);
+		},
+	});
+}
+
+function createPauseContext(context: PiContextLike): PauseContext {
+	return Object.freeze({
+		signal: context.signal,
+		ui: createNotifyUi(context),
+		isIdle() {
+			return context.isIdle?.() ?? false;
+		},
+		readPauseEntries() {
+			return Object.freeze(
+				(context.sessionManager?.getEntries?.() ?? []).flatMap((value) => {
+					const entry = asRecord(value);
+					return entry.type === "custom" && entry.customType === "byz.pause.v1"
+						? [Object.freeze(asRecord(entry.data))]
+						: [];
+				}),
+			);
 		},
 	});
 }
@@ -433,6 +497,10 @@ function projectEvent(
 ): ByzEvent {
 	const event = asRecord(value);
 	switch (eventName) {
+		case "session_start":
+			return Object.freeze({ type: eventName, reason: event.reason });
+		case "session_shutdown":
+			return Object.freeze({ type: eventName, reason: event.reason });
 		case "resources_discover":
 			return Object.freeze({ type: eventName, reason: event.reason });
 		case "agent_end":
@@ -450,14 +518,49 @@ function projectEvent(
 			});
 		case "after_provider_response":
 			return Object.freeze({ type: eventName, status: event.status });
-		case "tool_execution_start":
+		case "tool_execution_start": {
+			const args = asRecord(event.args);
 			return Object.freeze({
 				type: eventName,
 				toolCallId: event.toolCallId,
 				toolName: event.toolName,
+				...(feature === "delivery"
+					? {
+							path:
+								typeof args.path === "string"
+									? args.path
+									: typeof args.file_path === "string"
+										? args.file_path
+										: undefined,
+						}
+					: {}),
 			});
+		}
 		case "tool_execution_end": {
+			if (feature === "pause") {
+				return Object.freeze({
+					type: eventName,
+					toolCallId: event.toolCallId,
+					toolName: event.toolName,
+					isError: event.isError,
+				});
+			}
 			const args = asRecord(event.args);
+			if (feature === "delivery") {
+				const path =
+					typeof args.path === "string"
+						? args.path
+						: typeof args.file_path === "string"
+							? args.file_path
+							: undefined;
+				return Object.freeze({
+					type: eventName,
+					toolCallId: event.toolCallId,
+					toolName: event.toolName,
+					outcome: event.isError === false ? "success" : event.isError === true ? "failure" : "unknown",
+					path,
+				});
+			}
 			const projectedArgs: Record<string, string> = {};
 			for (const field of ["path", "file_path", "command"]) {
 				if (typeof args[field] === "string") projectedArgs[field] = args[field];
@@ -470,6 +573,20 @@ function projectEvent(
 				isError: event.isError,
 			});
 		}
+		case "tool_batch_start":
+			return Object.freeze({
+				type: eventName,
+				toolCalls: Object.freeze(
+					(Array.isArray(event.toolCalls) ? event.toolCalls : []).flatMap((value) => {
+						const tool = asRecord(value);
+						return typeof tool.toolCallId === "string" && typeof tool.toolName === "string"
+							? [Object.freeze({ toolCallId: tool.toolCallId, toolName: tool.toolName })]
+							: [];
+					}),
+				),
+			});
+		case "tool_call":
+			return Object.freeze({ type: eventName, toolCallId: event.toolCallId, toolName: event.toolName });
 		case "tool_result": {
 			const input = asRecord(event.input);
 			return Object.freeze({
@@ -604,16 +721,159 @@ function registerRecoveryCommand(
 	});
 }
 
+function isAllowedDeliveryProcess(program: string, args: string[]): boolean {
+	if (
+		(program !== "git" && program !== "gh") ||
+		args.length === 0 ||
+		args.some(
+			(arg) =>
+				typeof arg !== "string" ||
+				arg.length > 1024 ||
+				/[\u0000\r\n]/.test(arg) ||
+				DELIVERY_FORBIDDEN_ARGS.has(arg) ||
+				arg.startsWith("--force=") ||
+				arg.startsWith("+"),
+		)
+	) {
+		return false;
+	}
+	const joined = args.join(" ");
+	if (program === "git") {
+		if (joined === "rev-parse --show-toplevel" || joined === "rev-parse HEAD") return true;
+		if (joined === "rev-parse --abbrev-ref --symbolic-full-name @{upstream}") return true;
+		if (args[0] === "rev-parse" && args.length === 2) {
+			if (/^[0-9a-f]{40}\^$/.test(args[1])) return true;
+			if (/^:[^\u0000\r\n]+$/.test(args[1])) return true;
+			if (/^[0-9a-f]{40}:[^\u0000\r\n]+$/.test(args[1])) return true;
+		}
+		if (joined === "symbolic-ref --quiet --short HEAD") return true;
+		if (joined === "status --porcelain=v1 -z --untracked-files=all") return true;
+		if (joined === "remote get-url origin") return true;
+		if (/^ls-remote --heads origin refs\/heads\/[A-Za-z0-9._/-]+$/.test(joined)) return true;
+		if (args[0] === "add" && args[1] === "--" && args.length > 2) return true;
+		if (joined === "diff --cached --name-only -z") return true;
+		if (args[0] === "hash-object" && args[1] === "--" && args.length === 3) return true;
+		if (
+			args[0] === "commit" &&
+			args[1] === "--only" &&
+			args[2] === "-m" &&
+			args.length > 5 &&
+			args[4] === "--" &&
+			args[3].length > 0 &&
+			args[3].length <= 120
+		)
+			return true;
+		if (/^diff-tree --no-commit-id --name-only -r -z [0-9a-f]{40}$/.test(joined)) return true;
+		if (
+			args[0] === "push" &&
+			args.length === 3 &&
+			args[1] === "origin" &&
+			/^([A-Za-z0-9][A-Za-z0-9._/-]*):\1$/.test(args[2])
+		)
+			return true;
+		return false;
+	}
+	if (joined === "auth status --hostname github.com" || joined === "repo view --json nameWithOwner") return true;
+	if (
+		/^api repos\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/branches\/[A-Za-z0-9._/-]+\/protection\/required_status_checks$/.test(
+			joined,
+		) ||
+		/^api repos\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/commits\/[0-9a-f]{40}\/check-runs$/.test(joined)
+	)
+		return true;
+	if (args[0] !== "pr") return false;
+	const safeRepository = (value: string) => /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value);
+	if (args[1] === "create") {
+		return (
+			args.length === 13 &&
+			args[2] === "--repo" &&
+			safeRepository(args[3]) &&
+			args[4] === "--draft" &&
+			args[5] === "--base" &&
+			/^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/.test(args[6]) &&
+			args[7] === "--head" &&
+			/^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/.test(args[8]) &&
+			args[9] === "--title" &&
+			args[10].length > 0 &&
+			args[10].length <= 120 &&
+			args[11] === "--body-file" &&
+			/(?:^|[/\\])byz-delivery-pr-[^/\\]+[/\\]body\.md$/.test(args[12])
+		);
+	}
+	if (args[1] === "view") {
+		return (
+			(args.length === 6 &&
+				args[2] === "--repo" &&
+				safeRepository(args[3]) &&
+				args[4] === "--json" &&
+				[
+					"number,headRefOid,baseRefOid,baseRefName,mergeable,statusCheckRollup,state",
+					"number,url,headRefOid,baseRefName,isDraft",
+				].includes(args[5])) ||
+			(args.length === 7 &&
+				/^\d+$/.test(args[2]) &&
+				args[3] === "--repo" &&
+				safeRepository(args[4]) &&
+				args[5] === "--json" &&
+				args[6] === "state,mergedAt")
+		);
+	}
+	return (
+		args[1] === "merge" &&
+		args.length === 6 &&
+		/^\d+$/.test(args[2]) &&
+		args[3] === "--repo" &&
+		safeRepository(args[4]) &&
+		args[5] === "--squash"
+	);
+}
+
+async function executeDeliveryProcess(
+	program: "git" | "gh",
+	args: string[],
+	options: { cwd: string; timeoutMs: number },
+) {
+	if (
+		!isAllowedDeliveryProcess(program, args) ||
+		!Number.isSafeInteger(options.timeoutMs) ||
+		options.timeoutMs < 1 ||
+		options.timeoutMs > 60_000
+	) {
+		throw new Error("Delivery process request is not allowlisted.");
+	}
+	const env = Object.fromEntries(
+		["PATH", "HOME", "XDG_CONFIG_HOME", "GH_HOST", "GH_TOKEN", "GITHUB_TOKEN", "SSH_AUTH_SOCK"].flatMap((key) =>
+			typeof process.env[key] === "string" ? [[key, process.env[key]]] : [],
+		),
+	);
+	try {
+		const result = await execFileAsync(program, args, {
+			cwd: options.cwd,
+			encoding: "utf8",
+			env,
+			maxBuffer: DELIVERY_OUTPUT_LIMIT,
+			timeout: options.timeoutMs,
+		});
+		return Object.freeze({ exitCode: 0, stderr: result.stderr, stdout: result.stdout, timedOut: false });
+	} catch (error) {
+		const failure = error as { code?: unknown; killed?: boolean; stderr?: unknown; stdout?: unknown };
+		return Object.freeze({
+			exitCode: Number.isSafeInteger(failure.code) ? (failure.code as number) : 1,
+			stderr: typeof failure.stderr === "string" ? failure.stderr.slice(0, DELIVERY_OUTPUT_LIMIT) : "",
+			stdout: typeof failure.stdout === "string" ? failure.stdout.slice(0, DELIVERY_OUTPUT_LIMIT) : "",
+			timedOut: failure.killed === true,
+		});
+	}
+}
+
 export function createPiExtensionPorts(pi: PiExtensionApiLike): PiFeaturePorts {
-	let currentFastContext: PiContextLike | undefined;
-	const modelProjector = createModelProjector((provider, id) => currentFastContext?.modelRegistry?.find(provider, id));
+	const modelProjector = createModelProjector();
 	const diagnosticsContext = (context: PiContextLike) => createDiagnosticsContext(context, modelProjector);
-	const fastContext = (context: PiContextLike) => {
-		currentFastContext = context;
-		return createFastContext(context, modelProjector);
-	};
+	const fastContext = (context: PiContextLike) => createFastContext(context, modelProjector);
 	const prewalkContext = (context: PiContextLike) => createPrewalkContext(context);
 	const conversationContext = (context: PiContextLike) => createConversationContext(context, modelProjector);
+	const pauseContext = (context: PiContextLike) => createPauseContext(context);
+	const deliveryContext = (context: PiContextLike) => createDeliveryContext(context);
 
 	const diagnostics = Object.freeze({
 		on: createEventPort(pi, "diagnostics", DIAGNOSTICS_EVENTS, modelProjector, diagnosticsContext),
@@ -638,7 +898,7 @@ export function createPiExtensionPorts(pi: PiExtensionApiLike): PiFeaturePorts {
 		getThinkingLevel() {
 			return pi.getThinkingLevel();
 		},
-		setModel(model: ModelReference) {
+		async setModel(model: ModelHandle) {
 			return pi.setModel(modelProjector.resolve(model));
 		},
 		setThinkingLevel(level: ThinkingLevel) {
@@ -664,8 +924,136 @@ export function createPiExtensionPorts(pi: PiExtensionApiLike): PiFeaturePorts {
 		},
 	});
 	const execution = createPiExecutionPort(pi);
+	const delivery = Object.freeze({
+		on: createEventPort(pi, "delivery", DELIVERY_EVENTS, modelProjector, deliveryContext),
+		exec: executeDeliveryProcess,
+		registerCommand(name: string, command: CommandDefinition<DeliveryContext>) {
+			registerCommand(pi, "delivery", new Set(["deliver"]), name, command, deliveryContext);
+		},
+		appendScope(entryValue: unknown) {
+			if (!pi.appendEntry) throw new Error("Pi Session entry capability is unavailable.");
+			const entry = asRecord(entryValue);
+			if (
+				entry.schemaVersion !== 1 ||
+				!Number.isSafeInteger(entry.sequence) ||
+				(entry.sequence as number) < 1 ||
+				(entry.sequence as number) > 128 ||
+				!Number.isSafeInteger(entry.generation) ||
+				(entry.generation as number) < 1 ||
+				typeof entry.path !== "string" ||
+				entry.path.startsWith("/") ||
+				entry.path.length > 512 ||
+				/[\u0000-\u001f\u007f]/.test(entry.path) ||
+				!/^[0-9a-f]{64}$/.test(String(entry.digest)) ||
+				typeof entry.planId !== "string" ||
+				typeof entry.taskId !== "string"
+			) {
+				throw new Error("BYZ delivery scope receipt is invalid.");
+			}
+			pi.appendEntry("byz.delivery.scope.v1", {
+				schemaVersion: 1,
+				digest: entry.digest,
+				generation: entry.generation,
+				path: entry.path,
+				planId: entry.planId,
+				sequence: entry.sequence,
+				taskId: entry.taskId,
+			});
+		},
+		appendResult(entryValue: unknown) {
+			if (!pi.appendEntry) throw new Error("Pi Session entry capability is unavailable.");
+			const entry = asRecord(entryValue);
+			const actions = new Set(["commit", "push", "pr", "merge"]);
+			const outcomes = new Set(["success", "failed", "partial", "cancelled", "stale"]);
+			const sideEffects = new Set([
+				"index_attempted",
+				"index_changed",
+				"commit",
+				"remote_branch_observed",
+				"push_attempted",
+				"draft_pr_observed",
+				"pr_create_attempted",
+				"pr_merged",
+				"merge_attempted",
+				"cleanup_failed",
+			]);
+			if (
+				!actions.has(entry.action as string) ||
+				!outcomes.has(entry.outcome as string) ||
+				(entry.preFingerprint !== undefined && !/^[0-9a-f]{64}$/.test(String(entry.preFingerprint))) ||
+				(entry.postFingerprint !== undefined && !/^[0-9a-f]{64}$/.test(String(entry.postFingerprint))) ||
+				(entry.generation !== undefined &&
+					(!Number.isSafeInteger(entry.generation) || (entry.generation as number) < 1)) ||
+				(entry.prNumber !== undefined &&
+					(!Number.isSafeInteger(entry.prNumber) || (entry.prNumber as number) < 1)) ||
+				(entry.sideEffects !== undefined &&
+					(!Array.isArray(entry.sideEffects) ||
+						entry.sideEffects.length > 16 ||
+						new Set(entry.sideEffects).size !== entry.sideEffects.length ||
+						entry.sideEffects.some((value) => !sideEffects.has(value))))
+			) {
+				throw new Error("BYZ delivery result receipt is invalid.");
+			}
+			pi.appendEntry("byz.delivery.v1", {
+				schemaVersion: 1,
+				action: entry.action,
+				outcome: entry.outcome,
+				...(Number.isSafeInteger(entry.generation) ? { generation: entry.generation } : {}),
+				...(typeof entry.preFingerprint === "string" ? { preFingerprint: entry.preFingerprint } : {}),
+				...(typeof entry.postFingerprint === "string" ? { postFingerprint: entry.postFingerprint } : {}),
+				...(Array.isArray(entry.sideEffects) ? { sideEffects: entry.sideEffects } : {}),
+				...(typeof entry.commitSha === "string" && /^[0-9a-f]{40}$/.test(entry.commitSha)
+					? { commitSha: entry.commitSha }
+					: {}),
+				...(Number.isSafeInteger(entry.prNumber) ? { prNumber: entry.prNumber } : {}),
+				...(typeof entry.remoteOid === "string" && /^[0-9a-f]{40}$/.test(entry.remoteOid)
+					? { remoteOid: entry.remoteOid }
+					: {}),
+			});
+		},
+	});
+	const pause = Object.freeze({
+		on: createEventPort(pi, "pause", PAUSE_EVENTS, modelProjector, pauseContext),
+		registerCommand(name: string, command: CommandDefinition<PauseContext>) {
+			registerCommand(pi, "pause", new Set(["pause"]), name, command, pauseContext);
+		},
+		appendEntry(entryValue: unknown) {
+			if (!pi.appendEntry) throw new Error("Pi Session entry capability is unavailable.");
+			const entry = asRecord(entryValue);
+			const states = new Set(["requested", "paused", "resuming", "running", "idle", "stale"]);
+			const boundaries = new Set(["model", "tool"]);
+			const durations = new Set(["<1s", "<10s", "<1m", ">=1m"]);
+			const reasons = new Set(["registry_unavailable", "completed_before_pause", "cancelled", "shutdown", "reload"]);
+			const validId = (value: unknown): value is string =>
+				typeof value === "string" && value.length > 0 && value.length <= 128 && /^[A-Za-z0-9._:-]+$/.test(value);
+			if (
+				entry.schemaVersion !== 1 ||
+				!Number.isSafeInteger(entry.generation) ||
+				(entry.generation as number) < 0 ||
+				!states.has(entry.state as string) ||
+				!durations.has(entry.durationBucket as string) ||
+				(entry.boundary !== undefined && !boundaries.has(entry.boundary as string)) ||
+				(entry.reason !== undefined && !reasons.has(entry.reason as string)) ||
+				(entry.planId !== undefined && !validId(entry.planId)) ||
+				(entry.taskId !== undefined && !validId(entry.taskId))
+			) {
+				throw new Error("BYZ pause receipt is invalid.");
+			}
+			const projected = Object.freeze({
+				schemaVersion: 1,
+				generation: entry.generation,
+				state: entry.state,
+				durationBucket: entry.durationBucket,
+				...(entry.boundary ? { boundary: entry.boundary } : {}),
+				...(entry.planId ? { planId: entry.planId } : {}),
+				...(entry.reason ? { reason: entry.reason } : {}),
+				...(entry.taskId ? { taskId: entry.taskId } : {}),
+			});
+			pi.appendEntry("byz.pause.v1", projected);
+		},
+	});
 
-	return Object.freeze({ diagnostics, recovery, workflow, fast, prewalk, conversation, execution });
+	return Object.freeze({ diagnostics, recovery, workflow, fast, prewalk, conversation, execution, pause, delivery });
 }
 
 export function createPiRuntimeAdapter<TOptions extends ProductProfileOptions>(

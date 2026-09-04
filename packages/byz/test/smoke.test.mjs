@@ -164,6 +164,14 @@ test("rejects duplicate or valued Fast options", () => {
 	assert.throws(() => prepareFastRuntimeArgs(["--fast=on"]), /does not accept a value/);
 });
 
+test("maps BYZ option errors through the CLI command result boundary", async () => {
+	const homeDir = await mkdtemp(join(tmpdir(), "byz-home-"));
+	const result = runByz(["--fast", "--fast"], homeDir);
+	assert.equal(result.status, 1);
+	assert.equal(result.stdout, "");
+	assert.match(result.stderr, /--fast may only be specified once/);
+});
+
 test("does not reorder Pi-owned commands in Fast mode", async () => {
 	const homeDir = await mkdtemp(join(tmpdir(), "byz-home-"));
 	const result = runByz(["--fast", "auth", "--help"], homeDir);

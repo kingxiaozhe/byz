@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "task_id": "T-007",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-controller.js",
+    "packages/byz/src/conversation/conversation-preferences.js",
+    "packages/byz/test/conversation-preferences.test.mjs",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "48181e536ea994754d2202d0ebb7e9ba449580568a8a81c8cfec14a347964703",
+  "verification": [
+    {"command":"npm run check","status":"passed","evidence":"Formatting, architecture, type, dependency and browser checks passed."},
+    {"command":"npm --prefix packages/byz run build","status":"passed","evidence":"Production package image rebuilt."},
+    {"command":"node --test packages/byz/test/conversation-preferences.test.mjs packages/byz/test/conversation.test.mjs","status":"passed","evidence":"37/37 focused tests passed."},
+    {"command":"npm --prefix packages/byz test","status":"passed","evidence":"286 tests passed with one platform-specific skip."}
+  ],
+  "evidence": [
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-007-r1.md",
+    "Sync initialization and async locked rereads use no-follow descriptors, post-open file identity checks and maximum+1 byte reads.",
+    "Corrupt forensic copies are made from the diagnosed descriptor bytes and never rename a possibly newer pathname.",
+    "Complete owner metadata is installed atomically; PID plus process-start identity permits dead/PID-reused owner recovery while unknown/live owners fail closed.",
+    "Release is owner-token fenced; stale/released token tombstones prevent an old observer from renaming a new lock.",
+    "Existing directory/file modes are repaired, versioned schema fields are complete, undefined updates fail, parent directory is fsynced, and controller diagnostics are surfaced.",
+    "Focused tests include real concurrent processes, SIGKILL owner recovery, strict migration/permissions, corruption and symlink cases."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

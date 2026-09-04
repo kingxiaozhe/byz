@@ -46,7 +46,31 @@
 - Tool observations bind stable `toolCallId` to the active task at start and pair once at end. Parallel, out-of-order, duplicate, unknown and lifecycle-closed observations stay bounded and never persist raw arguments, commands, paths, results or free-form errors.
 - Provenance remains `declared`, categorized `observed`, or fully bound `verified`. Natural language and successful command classification cannot grant verified status.
 - Lifecycle end, cancellation, errors, compaction, reload and shutdown persist bounded failure closure receipts for in-flight work without completing tasks. Session append failure keeps the binding retryable.
-- Consumers receive deeply frozen plain data only. The registry does not create project/global state, parse model prose, authorize tools, or implement Feature 5/6 behavior.
+- Consumers receive deeply frozen plain data only. The registry does not create project/global state, parse model prose, or authorize tools. Verified receipts may carry a closed test/check/build/review/QA category for downstream readiness gates.
+
+## BYZ safe pause and resume
+
+**线路**：`/pause` request → generation-bound model/tool admission gate → already admitted parallel tool drain → paused confirmation state → `/pause resume` or `/pause abort` → bounded Session receipt and independent pause timing.
+
+**关键规则**：
+
+- A pause occurs only before a model request or tool batch admission; it never interrupts an already admitted side effect.
+- Parallel tools drain as one batch, including more than 128 calls, before one shared paused gate; stale generations cannot resume newer work.
+- Delivery/other confirmation dialogs remain modal and cannot create a nested pause lease. Pi Session `/resume` is not replaced.
+- Compact UI reports only closed pause state and bounded registry identity; pause wait is excluded from model/tool/confirmation time.
+
+## BYZ delivery console
+
+**线路**：successful edit/write start/end pair → post-mutation digest Session receipt → explicit `/deliver` Git snapshot → category-aware readiness → one-time action confirmation → state revalidation → fixed argv Git/gh action → observed result receipt.
+
+**关键规则**：
+
+- Startup and ordinary turns run zero Git. Delivery is trusted-project-only and explicit status/release remain read-only.
+- Commit scope is the intersection of current-plan observed paths, matching post-mutation digests and current unstaged tracked changes. Unobserved, changed-again, staged, untracked, conflicted and symlink-escaped paths never enter the commit.
+- Commit/push/draft-PR/merge each use a separate five-minute intent bound to the full local/remote/PR fingerprint. Commit rechecks exact staged paths and blobs; push is origin/current-branch only.
+- GitHub actions carry the sanitized origin repository. Merge requires exact PR repository/head/base, mergeability, and every protected check context with its required GitHub App identity.
+- Git/gh capability calls use a closed argv allowlist and reject force/admin/no-verify forms. Receipts omit commands, outputs, diffs, bodies, credentials and absolute paths.
+- `/deliver release` only reports pending readiness. The console is a workflow gate, not an OS permission sandbox.
 
 ## BYZ local diagnostics
 

@@ -12,10 +12,13 @@ function hasBuiltinWriteTools(ports) {
 	});
 }
 
-async function isWorkspacePath(cwd, inputPath) {
+async function isWorkspacePath(cwd, inputPath, resolveRealpath) {
 	if (typeof inputPath !== "string" || inputPath.length === 0) return false;
 	try {
-		const [workspaceRoot, targetPath] = await Promise.all([realpath(cwd), realpath(resolve(cwd, inputPath))]);
+		const [workspaceRoot, targetPath] = await Promise.all([
+			resolveRealpath(cwd),
+			resolveRealpath(resolve(cwd, inputPath)),
+		]);
 		const relativePath = relative(workspaceRoot, targetPath);
 		return (
 			relativePath.length > 0 &&
@@ -28,8 +31,9 @@ async function isWorkspacePath(cwd, inputPath) {
 	}
 }
 
-export function createPrewalkExtension({ fastController }) {
+export function createPrewalkExtension({ fastController, resolveRealpath = realpath }) {
 	if (!fastController) throw new Error("Prewalk requires the Fast session controller.");
+	if (typeof resolveRealpath !== "function") throw new Error("Prewalk requires a realpath resolver.");
 
 	return function prewalkExtension(ports) {
 		let state = "idle";
@@ -98,8 +102,13 @@ export function createPrewalkExtension({ fastController }) {
 				return;
 			}
 			if (!hasBuiltinWriteTools(ports)) return;
-			if (!(await isWorkspacePath(ctx.cwd, event.input?.path))) return;
+			if (!(await isWorkspacePath(ctx.cwd, event.input?.path, resolveRealpath))) return;
 			if (state !== "armed" || !target) return;
+			if (!ctx.isProjectTrusted()) {
+				cancel(ctx, "Prewalk: canceled because project trust is no longer active.");
+				return;
+			}
+			if (!hasBuiltinWriteTools(ports) || state !== "armed" || !target) return;
 
 			const consumedTarget = target;
 			state = "switching";

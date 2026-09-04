@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -41,6 +41,7 @@ function createPrewalkHarness({
 	idle = true,
 	trusted = true,
 	tools,
+	resolveRealpath,
 } = {}) {
 	const commands = new Map();
 	const handlers = new Map();
@@ -113,7 +114,7 @@ function createPrewalkHarness({
 		env: configuredModel ? { BYZ_FAST_MODEL: configuredModel } : {},
 	});
 	fastController.extension(pi);
-	createPrewalkExtension({ fastController })(pi);
+	createPrewalkExtension({ fastController, resolveRealpath })(pi);
 
 	return {
 		context,
@@ -420,6 +421,55 @@ test("prewalk rejects symlink escapes and rechecks built-in tool identity before
 	} finally {
 		await rm(root, { force: true, recursive: true });
 		await rm(outside, { force: true, recursive: true });
+	}
+});
+
+test("prewalk rechecks trust after asynchronous workspace validation", async () => {
+	const root = await mkdtemp(join(tmpdir(), "byz-prewalk-trust-race-"));
+	let releaseChecks;
+	let checksEntered;
+	const checkGate = new Promise((resolve) => {
+		releaseChecks = resolve;
+	});
+	const entered = new Promise((resolve) => {
+		checksEntered = resolve;
+	});
+	let checkCount = 0;
+	try {
+		const target = join(root, "target.txt");
+		await writeFile(target, "changed\n");
+		const harness = createPrewalkHarness({
+			cwd: root,
+			async resolveRealpath(path) {
+				checkCount += 1;
+				if (checkCount === 2) checksEntered();
+				await checkGate;
+				return realpath(path);
+			},
+		});
+		await harness.runPrewalk();
+		const result = harness.toolResult("write", target);
+		await entered;
+		harness.state.trusted = false;
+		releaseChecks();
+		await result;
+
+		assert.equal(harness.state.model, ORIGINAL_MODEL);
+		assert.equal(harness.state.thinking, "high");
+		assert.equal(harness.state.modelChanges, 0);
+		assert.equal(
+			harness.notifications.at(-1).message,
+			"Prewalk: canceled because project trust is no longer active.",
+		);
+		harness.state.trusted = true;
+		await harness.runPrewalk("status");
+		assert.equal(harness.notifications.at(-1).message, "Prewalk: not armed.");
+		await harness.toolResult("write", target);
+		assert.equal(harness.state.modelChanges, 0);
+		assert.equal(harness.state.thinkingChanges, 0);
+	} finally {
+		releaseChecks?.();
+		await rm(root, { force: true, recursive: true });
 	}
 });
 

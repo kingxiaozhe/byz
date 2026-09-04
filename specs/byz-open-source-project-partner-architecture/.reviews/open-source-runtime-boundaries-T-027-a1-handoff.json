@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "task_id": "T-027",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/update.js",
+    "packages/byz/test/update.test.mjs"
+  ],
+  "implementation_sha256": "8360766b3208efcf032114c8e11602fb61c1ed138a2e259792e313c37eecc830",
+  "verification": [
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Formatting, architecture, type, dependency and browser checks passed."
+    },
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Production package image rebuilt."
+    },
+    {
+      "command": "node --test packages/byz/test/update.test.mjs packages/byz/test/command-registry.test.mjs packages/byz/test/smoke.test.mjs",
+      "status": "passed",
+      "evidence": "52/52 focused tests passed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "275 tests passed with one platform-specific skip."
+    }
+  ],
+  "evidence": [
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-005-r2.md",
+    "Overflow starts a bounded SIGTERM-to-SIGKILL sequence and a final deadline settles the result even without close.",
+    "kill false and thrown kill operations accelerate or annotate force termination without extending the bound.",
+    "Both stdout and stderr overflow tests exercise missing close, and a multi-step test retains prior successful output before a later failure."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

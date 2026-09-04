@@ -8,11 +8,13 @@ import {
 	createPiRuntimeAdapter,
 } from "../.byz-output/current/dist/adapters/pi/pi-runtime-adapter.js";
 import { createConversationExtension } from "../.byz-output/current/dist/conversation/conversation-extension.js";
+import { createDeliveryExtension } from "../.byz-output/current/dist/delivery/delivery-extension.js";
 import { createDiagnosticsExtension } from "../.byz-output/current/dist/diagnostics/diagnostics-extension.js";
+import { createPauseExtension } from "../.byz-output/current/dist/execution/pause-extension.js";
 import { createFastSessionController } from "../.byz-output/current/dist/fast-session.js";
 import { createPrewalkExtension } from "../.byz-output/current/dist/prewalk.js";
 import { createWorkflowSwitchExtension } from "../.byz-output/current/dist/workflow-switch.js";
-import { checkArchitecture } from "../scripts/check-architecture.mjs";
+import { checkArchitecture, normalizeArchitectureRelativePath } from "../scripts/check-architecture.mjs";
 
 async function withFixture(run) {
 	const root = await mkdtemp(join(tmpdir(), "byz-architecture-"));
@@ -63,6 +65,7 @@ test("Pi extension adapter exposes only feature-scoped capability facades", asyn
 		},
 	};
 	let selectedModel;
+	const appendedEntries = [];
 	const pi = {
 		secretPiCapability() {},
 		on(name, handler) {
@@ -74,6 +77,7 @@ test("Pi extension adapter exposes only feature-scoped capability facades", asyn
 		getAllTools: () => [{ name: "edit", sourceInfo: { source: "builtin", path: "<builtin:edit>" } }],
 		getThinkingLevel: () => "high",
 		setThinkingLevel() {},
+		appendEntry: (customType, data) => appendedEntries.push({ customType, data }),
 		setModel: async (model) => {
 			selectedModel = model;
 			return true;
@@ -89,6 +93,8 @@ test("Pi extension adapter exposes only feature-scoped capability facades", asyn
 		"prewalk",
 		"conversation",
 		"execution",
+		"pause",
+		"delivery",
 	]);
 	for (const featurePorts of Object.values(ports)) {
 		assert.equal("secretPiCapability" in featurePorts, false);
@@ -108,7 +114,131 @@ test("Pi extension adapter exposes only feature-scoped capability facades", asyn
 	assert.deepEqual(Object.keys(ports.prewalk), ["on", "registerCommand", "getAllTools"]);
 	assert.deepEqual(Object.keys(ports.conversation), ["on", "registerCommand"]);
 	assert.deepEqual(Object.keys(ports.execution), ["on", "registerTool", "appendEntry"]);
+	assert.deepEqual(Object.keys(ports.pause), ["on", "registerCommand", "appendEntry"]);
+	assert.deepEqual(Object.keys(ports.delivery), ["on", "exec", "registerCommand", "appendScope", "appendResult"]);
+	for (const args of [
+		["push", "--force"],
+		["push", "-f", "origin", "feature:feature"],
+		["push", "origin", "+feature:feature"],
+		["config", "--global", "user.name", "unsafe"],
+	]) {
+		await assert.rejects(ports.delivery.exec("git", args, { cwd: "/workspace", timeoutMs: 1_000 }), /allowlisted/);
+	}
+	await assert.rejects(
+		ports.delivery.exec("npm", ["auth", "status", "--hostname", "github.com"], {
+			cwd: "/workspace",
+			timeoutMs: 1_000,
+		}),
+		/allowlisted/,
+	);
+	await assert.rejects(
+		ports.delivery.exec("gh", ["pr", "create", "--draft", "--repo", "other/repo"], {
+			cwd: "/workspace",
+			timeoutMs: 1_000,
+		}),
+		/allowlisted/,
+	);
 	assert.throws(() => ports.diagnostics.on("project_trust", () => {}), /does not allow event/);
+	assert.throws(() => ports.pause.on("before_provider_request", () => {}), /does not allow event/);
+	ports.pause.appendEntry({
+		schemaVersion: 1,
+		generation: 2,
+		state: "paused",
+		boundary: "model",
+		durationBucket: "<1s",
+		planId: "plan-1",
+		taskId: "task-1",
+		raw: "drop",
+	});
+	assert.deepEqual(appendedEntries, [
+		{
+			customType: "byz.pause.v1",
+			data: {
+				schemaVersion: 1,
+				generation: 2,
+				state: "paused",
+				boundary: "model",
+				durationBucket: "<1s",
+				planId: "plan-1",
+				taskId: "task-1",
+			},
+		},
+	]);
+	ports.delivery.appendResult({
+		action: "push",
+		outcome: "partial",
+		generation: 2,
+		preFingerprint: "a".repeat(64),
+		postFingerprint: "b".repeat(64),
+		sideEffects: ["push_attempted"],
+		raw: "drop",
+	});
+	assert.deepEqual(appendedEntries.at(-1), {
+		customType: "byz.delivery.v1",
+		data: {
+			schemaVersion: 1,
+			action: "push",
+			outcome: "partial",
+			generation: 2,
+			preFingerprint: "a".repeat(64),
+			postFingerprint: "b".repeat(64),
+			sideEffects: ["push_attempted"],
+		},
+	});
+	let deliveryEvent;
+	ports.delivery.on("tool_execution_end", (event) => {
+		deliveryEvent = event;
+	});
+	await handlers.get("tool_execution_end")(
+		{
+			type: "tool_execution_end",
+			toolCallId: "delivery-1",
+			toolName: "write",
+			args: { path: "proof.txt", secret: "drop" },
+			isError: false,
+		},
+		rawContext,
+	);
+	assert.deepEqual(deliveryEvent, {
+		type: "tool_execution_end",
+		toolCallId: "delivery-1",
+		toolName: "write",
+		outcome: "success",
+		path: "proof.txt",
+	});
+	let pauseEvent;
+	let pauseContext;
+	ports.pause.on("tool_call", (event, context) => {
+		pauseEvent = event;
+		pauseContext = context;
+	});
+	await handlers.get("tool_call")(
+		{ type: "tool_call", toolCallId: "call-1", toolName: "bash", input: { command: "secret" } },
+		rawContext,
+	);
+	assert.deepEqual(pauseEvent, { type: "tool_call", toolCallId: "call-1", toolName: "bash" });
+	assert.deepEqual(Object.keys(pauseContext).sort(), ["isIdle", "readPauseEntries", "signal", "ui"]);
+	let pauseToolEnd;
+	ports.pause.on("tool_execution_end", (event) => {
+		pauseToolEnd = event;
+	});
+	await handlers.get("tool_execution_end")(
+		{
+			type: "tool_execution_end",
+			toolCallId: "call-1",
+			toolName: "bash",
+			args: { command: "secret", path: "/private" },
+			result: "secret result",
+			isError: false,
+		},
+		rawContext,
+	);
+	assert.deepEqual(pauseToolEnd, {
+		type: "tool_execution_end",
+		toolCallId: "call-1",
+		toolName: "bash",
+		isError: false,
+	});
 
 	let diagnosticContext;
 	ports.diagnostics.on("before_provider_request", (_event, context) => {
@@ -613,8 +743,20 @@ test("all BYZ extension factories mount through their assigned feature ports", (
 	fastController.extension(ports.fast);
 	createPrewalkExtension({ fastController })(ports.prewalk);
 	createConversationExtension()(ports.conversation);
+	createPauseExtension()(ports.pause);
+	createDeliveryExtension({
+		executionRegistry: { hasTask: () => false, snapshot: () => ({ availability: "empty", generation: 0 }) },
+	})(ports.delivery);
 
-	assert.deepEqual([...commands.keys()].sort(), ["details", "fast", "language", "prewalk", "workflow"]);
+	assert.deepEqual([...commands.keys()].sort(), [
+		"deliver",
+		"details",
+		"fast",
+		"language",
+		"pause",
+		"prewalk",
+		"workflow",
+	]);
 	assert.ok(handlers.get("session_start").length >= 2);
 	assert.ok(handlers.get("tool_result").length === 1);
 	assert.ok(handlers.get("resources_discover").length === 1);
@@ -645,11 +787,13 @@ test("all BYZ extension factories mount through their assigned feature ports", (
 test("BYZ composition root injects one feature slice into each extension", async () => {
 	const cli = await readFile(new URL("../src/cli.js", import.meta.url), "utf8");
 	assert.doesNotMatch(cli, /createPiExtensionAdapter/);
-	assert.match(cli, /diagnosticsFeature\(createPiExtensionPorts\(pi\)\.diagnostics\)/);
+	assert.match(cli, /const ports = createPiExtensionPorts\(pi\);\s+diagnosticsFeature\(ports\.diagnostics\)/);
 	assert.match(cli, /createExecutionRegistry\(\{/);
 	assert.match(cli, /ports\.execution\.appendEntry\(receipt\)/);
 	assert.match(cli, /executionRegistry: executionRegistry\.consumer/);
 	assert.match(cli, /executionExtension\(ports\.execution\)/);
+	assert.match(cli, /pauseExtension\(ports\.pause\)/);
+	assert.match(cli, /deliveryExtension\(ports\.delivery\)/);
 	assert.match(cli, /conversationExtension\(ports\.conversation\)/);
 	assert.match(cli, /recoveryExtension\(ports\.recovery\)/);
 	assert.ok(
@@ -682,6 +826,46 @@ test("Pi runtime adapter applies the BYZ product profile at the composition boun
 		},
 	]);
 });
+
+test("normalizes platform-relative composition paths", () => {
+	assert.equal(normalizeArchitectureRelativePath("src\\cli.js", "\\"), "src/cli.js");
+	assert.equal(normalizeArchitectureRelativePath("src/cli.js", "/"), "src/cli.js");
+});
+
+test("ignores unrelated resolved symbols that reuse feature names", () =>
+	withFixture(async (root) => {
+		await writeFile(
+			join(root, "src", "cli.js"),
+			[
+				'import { createPiExtensionPorts } from "./adapters/pi/pi-runtime-adapter.js";',
+				"const ports = createPiExtensionPorts(pi);",
+				"diagnosticsFeature(ports.diagnostics);",
+				"conversationExtension(ports.conversation);",
+				"executionExtension(ports.execution);",
+				"workflowExtension(ports.workflow);",
+				"fastController.extension(ports.fast);",
+				"prewalkExtension(ports.prewalk);",
+			].join("\n"),
+		);
+		await writeFile(
+			join(root, "src", "unrelated-helper.js"),
+			"export function createConversationExtension() { return (value) => value; }\n",
+		);
+		await writeFile(
+			join(root, "src", "unrelated.js"),
+			[
+				'import { createConversationExtension as makeOrdinary } from "./unrelated-helper.js";',
+				"export function run(conversationExtension) { conversationExtension('ordinary'); }",
+				"function createConversationExtension() { return (value) => value; }",
+				"const ordinary = createConversationExtension();",
+				"const importedOrdinary = makeOrdinary();",
+				"ordinary('value');",
+				"importedOrdinary('value');",
+			].join("\n"),
+		);
+
+		assert.deepEqual(await checkArchitecture({ packageRoot: root }), []);
+	}));
 
 test("accepts domain and application code that depends only on local ports", () =>
 	withFixture(async (root) => {
@@ -718,16 +902,32 @@ test("rejects public raw Pi escape properties from adapter facades", () =>
 	withFixture(async (root) => {
 		await writeFile(
 			join(root, "src", "adapters", "pi", "runtime.ts"),
-			"export const adapt = (pi) => ({ raw: pi });\n",
+			[
+				'const transparent = globalThis["Proxy"];',
+				'export const adapt = (pi) => ({ get raw() { return pi; }, set context(value) {}, ["api"]: pi });',
+				'export function mutate(facade, pi) { facade.pi = pi; facade["context"] = pi; facade.raw ??= pi; Object.defineProperty(facade, "api", { value: pi }); Reflect.set(facade, "context", pi); globalThis["Reflect"]["set"](facade, "raw", pi); Reflect.defineProperty(facade, "api", { value: pi }); globalThis["Reflect"]["defineProperty"](facade, "context", { value: pi }); (Reflect.defineProperty)(facade, "pi", { value: pi }); }',
+				"export const proxy = transparent;",
+			].join("\n"),
 		);
 		const violations = await checkArchitecture({ packageRoot: root });
-		assert.deepEqual(violations, [
-			{
-				file: "src/adapters/pi/runtime.ts",
-				specifier: "raw",
-				reason: "raw Pi escape property",
-			},
-		]);
+		assert.deepEqual(
+			violations.map(({ specifier, reason }) => ({ specifier, reason })),
+			[
+				{ specifier: "Proxy", reason: "transparent Pi capability" },
+				{ specifier: "raw", reason: "raw Pi escape property" },
+				{ specifier: "context", reason: "raw Pi escape property" },
+				{ specifier: "api", reason: "raw Pi escape property" },
+				{ specifier: "pi", reason: "raw Pi escape property" },
+				{ specifier: "context", reason: "raw Pi escape property" },
+				{ specifier: "raw", reason: "raw Pi escape property" },
+				{ specifier: "api", reason: "raw Pi escape property" },
+				{ specifier: "context", reason: "raw Pi escape property" },
+				{ specifier: "raw", reason: "raw Pi escape property" },
+				{ specifier: "api", reason: "raw Pi escape property" },
+				{ specifier: "context", reason: "raw Pi escape property" },
+				{ specifier: "pi", reason: "raw Pi escape property" },
+			],
+		);
 	}));
 
 test("rejects raw Pi injection at the BYZ composition root", () =>
@@ -735,7 +935,9 @@ test("rejects raw Pi injection at the BYZ composition root", () =>
 		await writeFile(
 			join(root, "src", "cli.js"),
 			[
-				"diagnosticsFeature(createPiExtensionPorts(pi).diagnostics);",
+				'import { createPiExtensionPorts } from "./adapters/pi/pi-runtime-adapter.js";',
+				"const ports = createPiExtensionPorts(pi);",
+				"diagnosticsFeature(ports.diagnostics);",
 				"conversationExtension(pi);",
 				"executionExtension(ports.execution);",
 				"workflowExtension(ports.workflow);",
@@ -751,6 +953,209 @@ test("rejects raw Pi injection at the BYZ composition root", () =>
 				reason: "raw or incorrect feature capability composition",
 			},
 		]);
+	}));
+
+test("rejects feature factory calls through local aliases", () =>
+	withFixture(async (root) => {
+		await mkdir(join(root, "src", "conversation"), { recursive: true });
+		await writeFile(
+			join(root, "src", "conversation", "conversation-extension.js"),
+			"export function createConversationExtension() { return () => {}; }\n",
+		);
+		const prefix = [
+			'import { createPiExtensionPorts } from "./adapters/pi/pi-runtime-adapter.js";',
+			'import { createConversationExtension as makeConversation } from "./conversation/conversation-extension.js";',
+			"const ports = createPiExtensionPorts(pi);",
+			"const feature = makeConversation();",
+			"diagnosticsFeature(ports.diagnostics);",
+			"feature(ports.conversation);",
+			"executionExtension(ports.execution);",
+			"workflowExtension(ports.workflow);",
+			"fastController.extension(ports.fast);",
+			"prewalkExtension(ports.prewalk);",
+		];
+		for (const alias of [
+			"const mount = feature; mount(pi);",
+			"const bag = { mount: feature }; bag.mount(pi);",
+			"const mount = feature; const bag = { mount }; bag.mount(pi);",
+			"const { mount } = { mount: feature }; mount(pi);",
+			"const mount = [feature][0]; mount(pi);",
+			"function invoke(fn, arg) { fn(arg); } invoke(feature, pi);",
+			"const mount = feature.bind(null); mount(pi);",
+		]) {
+			await writeFile(join(root, "src", "cli.js"), [...prefix, alias].join("\n"));
+			const violations = await checkArchitecture({ packageRoot: root });
+			assert.equal(
+				violations.some(({ reason }) => reason === "feature capability stored or forwarded outside composition"),
+				true,
+				alias,
+			);
+		}
+	}));
+
+test("rejects forged, shadowed, aliased, or reassignable feature port bundle sources", () =>
+	withFixture(async (root) => {
+		const prefix = [
+			'import { createPiExtensionPorts as makePorts } from "./adapters/pi/pi-runtime-adapter.js";',
+			"const trustedPorts = makePorts(pi);",
+			"diagnosticsFeature(trustedPorts.diagnostics);",
+			"executionExtension(trustedPorts.execution);",
+			"workflowExtension(trustedPorts.workflow);",
+			"fastController.extension(trustedPorts.fast);",
+			"prewalkExtension(trustedPorts.prewalk);",
+		];
+		for (const composition of [
+			"const forgedPorts = { conversation: pi }; conversationExtension(forgedPorts.conversation);",
+			"{ const trustedPorts = { conversation: pi }; conversationExtension(trustedPorts.conversation); }",
+			"let mutablePorts = makePorts(pi); mutablePorts = { conversation: pi }; conversationExtension(mutablePorts.conversation);",
+			"const reassignedPorts = makePorts(pi); reassignedPorts = { conversation: pi }; conversationExtension(reassignedPorts.conversation);",
+			"const duplicatePorts = makePorts(pi); conversationExtension(duplicatePorts.conversation);",
+			"const forwardedPorts = trustedPorts; conversationExtension(forwardedPorts.conversation);",
+		]) {
+			await writeFile(join(root, "src", "cli.js"), [...prefix, composition].join("\n"));
+			const violations = await checkArchitecture({ packageRoot: root });
+			assert.equal(
+				violations.some(({ reason }) => reason === "raw or incorrect feature capability composition"),
+				true,
+				composition,
+			);
+		}
+	}));
+
+test("rejects a same-named port creator imported from an unrelated module", () =>
+	withFixture(async (root) => {
+		await mkdir(join(root, "src", "conversation"), { recursive: true });
+		await writeFile(
+			join(root, "src", "conversation", "conversation-extension.js"),
+			"export function createConversationExtension() { return () => {}; }\n",
+		);
+		await writeFile(
+			join(root, "src", "unrelated-ports.js"),
+			"export function createPiExtensionPorts(pi) { return { conversation: pi }; }\n",
+		);
+		await writeFile(
+			join(root, "src", "cli.js"),
+			[
+				'import { createPiExtensionPorts } from "./unrelated-ports.js";',
+				'import { createConversationExtension } from "./conversation/conversation-extension.js";',
+				"const ports = createPiExtensionPorts(pi);",
+				"const conversationExtension = createConversationExtension();",
+				"conversationExtension(ports.conversation);",
+			].join("\n"),
+		);
+		const violations = await checkArchitecture({ packageRoot: root });
+		assert.equal(
+			violations.some(({ reason }) => reason === "raw or incorrect feature capability composition"),
+			true,
+		);
+	}));
+
+test("resolves namespace and static element feature creators", () =>
+	withFixture(async (root) => {
+		await mkdir(join(root, "src", "conversation"), { recursive: true });
+		await writeFile(
+			join(root, "src", "conversation", "conversation-extension.js"),
+			"export function createConversationExtension() { return () => {}; }\n",
+		);
+		for (const { setup, creator } of [
+			{ setup: "", creator: "features.createConversationExtension" },
+			{ setup: "", creator: 'features["createConversationExtension"]' },
+			{ setup: "const namespaceAlias = features;", creator: "namespaceAlias.createConversationExtension" },
+			{
+				setup: "const { createConversationExtension: makeConversation } = features;",
+				creator: "makeConversation",
+			},
+		]) {
+			const prefix = [
+				'import { createPiExtensionPorts } from "./adapters/pi/pi-runtime-adapter.js";',
+				'import * as features from "./conversation/conversation-extension.js";',
+				"const ports = createPiExtensionPorts(pi);",
+				"diagnosticsFeature(ports.diagnostics);",
+				"executionExtension(ports.execution);",
+				"workflowExtension(ports.workflow);",
+				"fastController.extension(ports.fast);",
+				"prewalkExtension(ports.prewalk);",
+				setup,
+				`const mountedConversation = ${creator}();`,
+			];
+			await writeFile(join(root, "src", "cli.js"), [...prefix, "mountedConversation(pi);"].join("\n"));
+			const violations = await checkArchitecture({ packageRoot: root });
+			assert.equal(
+				violations.some(
+					({ specifier, reason }) =>
+						specifier === "mountedConversation(pi)" &&
+						reason === "raw or incorrect feature capability composition",
+				),
+				true,
+				creator,
+			);
+
+			await writeFile(
+				join(root, "src", "cli.js"),
+				[...prefix, "mountedConversation(ports.conversation);"].join("\n"),
+			);
+			assert.deepEqual(await checkArchitecture({ packageRoot: root }), [], creator);
+		}
+	}));
+
+test("follows re-export aliases to the canonical feature creator", () =>
+	withFixture(async (root) => {
+		await mkdir(join(root, "src", "conversation"), { recursive: true });
+		await writeFile(
+			join(root, "src", "conversation", "conversation-extension.js"),
+			"export function createConversationExtension() { return () => {}; }\n",
+		);
+		await writeFile(
+			join(root, "src", "conversation-reexport.js"),
+			'export { createConversationExtension as makeConversation } from "./conversation/conversation-extension.js";\n',
+		);
+		const prefix = [
+			'import { createPiExtensionPorts } from "./adapters/pi/pi-runtime-adapter.js";',
+			'import { makeConversation } from "./conversation-reexport.js";',
+			"const ports = createPiExtensionPorts(pi);",
+			"diagnosticsFeature(ports.diagnostics);",
+			"executionExtension(ports.execution);",
+			"workflowExtension(ports.workflow);",
+			"fastController.extension(ports.fast);",
+			"prewalkExtension(ports.prewalk);",
+			"const mountedConversation = makeConversation();",
+		];
+		await writeFile(join(root, "src", "cli.js"), [...prefix, "mountedConversation(pi);"].join("\n"));
+		const violations = await checkArchitecture({ packageRoot: root });
+		assert.equal(
+			violations.some(
+				({ specifier, reason }) =>
+					specifier === "mountedConversation(pi)" && reason === "raw or incorrect feature capability composition",
+			),
+			true,
+		);
+
+		await writeFile(join(root, "src", "cli.js"), [...prefix, "mountedConversation(ports.conversation);"].join("\n"));
+		assert.deepEqual(await checkArchitecture({ packageRoot: root }), []);
+
+		await writeFile(
+			join(root, "src", "cli.js"),
+			[
+				'import { createPiExtensionPorts } from "./adapters/pi/pi-runtime-adapter.js";',
+				'import * as reexported from "./conversation-reexport.js";',
+				"const ports = createPiExtensionPorts(pi);",
+				"diagnosticsFeature(ports.diagnostics);",
+				"executionExtension(ports.execution);",
+				"workflowExtension(ports.workflow);",
+				"fastController.extension(ports.fast);",
+				"prewalkExtension(ports.prewalk);",
+				'const mountedConversation = reexported["makeConversation"]();',
+				"mountedConversation(pi);",
+			].join("\n"),
+		);
+		const namespaceViolations = await checkArchitecture({ packageRoot: root });
+		assert.equal(
+			namespaceViolations.some(
+				({ specifier, reason }) =>
+					specifier === "mountedConversation(pi)" && reason === "raw or incorrect feature capability composition",
+			),
+			true,
+		);
 	}));
 
 test("rejects Pi, adapter, filesystem, and SQLite imports from protected layers", () =>

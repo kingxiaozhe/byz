@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "task_id": "T-026",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/scripts/check-architecture.mjs",
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/cli.js",
+    "packages/byz/src/fast-session.js",
+    "packages/byz/src/prewalk.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/fast-switch.test.mjs",
+    "packages/byz/test/prewalk.test.mjs"
+  ],
+  "implementation_sha256": "2995e2f8d227abcaf55f3a32009eecdd35c258c7ead3fbcf2e422d31c14f65f1",
+  "verification": [
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Production package image rebuilt from T-026 source."
+    },
+    {
+      "command": "node --test packages/byz/test/architecture.test.mjs packages/byz/test/fast-switch.test.mjs packages/byz/test/prewalk.test.mjs",
+      "status": "passed",
+      "evidence": "67/67 focused tests passed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "262 tests passed with one platform-specific skip."
+    },
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome made no fixes; dependency/import/lock checks, architecture gate, tsgo, and browser smoke passed."
+    }
+  ],
+  "evidence": [
+    "Feature creator classification follows the TypeScript alias chain to the original symbol and requires its declaration to match the creator's canonical source file.",
+    "Named, namespace, static-element, local and re-export aliases resolve through the same canonical provenance; unrelated same-name local and imported functions remain unclassified.",
+    "Reflect.defineProperty, Reflect.set, Object.defineProperty and their supported static/computed forms reject raw, pi, api and context keys, including parenthesized call targets.",
+    "All architecture report paths use portable separators, and inherited exact port-source, Session-lineage, Fast reload and Prewalk trust defenses remain covered."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

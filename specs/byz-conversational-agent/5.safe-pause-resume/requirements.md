@@ -9,13 +9,21 @@
 - 项目名: pi-monorepo
 - 架构类型: npm workspace monorepo；BYZ CLI/TUI 产品层 + Pi agent loop
 - 交付形态: 本地终端 CLI
-- 本批执行: 否；依赖 Feature 4 稳定后另行批准
+- 优先级: P1（本轮最高）
+- 执行状态: v8 T-009 已由用户批量授权并执行
 
 ## 需求版本
 
 | 日期 | 版本 | 说明 |
 | --- | --- | --- |
 | 2026-09-02 | v1 | 初始需求；确认采用 `/pause resume` 避免 `/resume` 冲突 |
+| 2026-09-02 | v2 | Feature 4 已由 T-009 完成并合并；纳入 P1，增加 Runtime Boundary 前置门禁 |
+| 2026-09-02 | v3 | Runtime Boundary 前置由达到审查上限的 T-023 更新为人工批准的替代任务 T-025 |
+| 2026-09-02 | v4 | Runtime Boundary 前置更新为人工批准的 T-026 canonical-provenance 替代任务 |
+| 2026-09-03 | v5 | T-006 接管两轮整体审查剩余的并行批次、异常安全、compaction timing 与 receipt 门禁 |
+| 2026-09-03 | v6 | T-007 接管 T-006 的 PausePort privacy 与 post-agent_end compaction timing 缺口 |
+| 2026-09-03 | v7 | T-008 根据真实 TUI 证据移除 paused 阶段的 pre-hook tool 假运行提示 |
+| 2026-09-03 | v8 | T-009 重建完整隔离 QA image，关闭证据复制门禁 |
 
 ## 范围
 
@@ -55,24 +63,25 @@
 
 ## 验收标准
 
-- [ ] [AC-001] Agent idle 时 `/pause` 返回“没有正在执行的任务”，下一回合正常启动且不会自动暂停。
-- [ ] [AC-002] Provider streaming 时请求 pause，不中断当前响应；普通下一轮、自动 retry、compaction 或 summarization 到达统一 model request gate 后均先进入 paused，期间没有新 Provider request。
-- [ ] [AC-003] 工具 A 已通过 tool_call 但尚未发出 execution_start、工具 B 已运行时请求 pause，A/B 均正常结束且没有第三个工具被放行，admitted 与 in-flight 集合清空后才显示 paused。
-- [ ] [AC-004] paused 后 `/pause resume` 恰好释放当前 gate 一次并继续同一 plan/task；重复 resume 为安全 no-op。
-- [ ] [AC-005] `/pause status` 准确区分 requested 与 paused；有 registry active task 时显示安全 ID/count，没有时省略。
-- [ ] [AC-006] `/resume` 仍打开 Pi 历史 Session selector，不触发 execution resume。
-- [ ] [AC-007] 10 秒 model、5 秒 tool、8 秒 pause、4 秒 confirmation 的轨迹分别归入正确计时，BYZ 模型活跃时间不含后三者。
-- [ ] [AC-008] pause requested 跨过带 will-retry/compaction/queued continuation 的 agent_end 仍保持；agent_settled、abort、reload、shutdown 以 cancelled outcome 释放 gate，旧 continuation 不能启动 action 或污染下一 turn。
-- [ ] [AC-009] 真正进入 paused 时冻结的是全部 admitted tool 收口后的 registry task/evidence snapshot；同一 Session 进程重启后历史 paused receipt 显示 stale，不声称可以继续不存在的 Provider/tool 调用。
-- [ ] [AC-010] confirmation waiting 中 modal 输入 `/pause` 不建立嵌套 gate、不触发 fallback confirm，并继续原 confirmation；完成 confirmation 后 timing 和状态正常恢复。
-- [ ] [AC-011] pause/resume 不改变 registry task 状态、completed count 或 evidence count。
-- [ ] [AC-012] 默认紧凑输出不包含命令、参数、路径、Prompt、响应正文或 tool result；details 也只显示 bounded pause receipt。
-- [ ] [AC-013] 没有新增 timer、网络、项目存储或 diagnostics payload；Session custom entry 为唯一可选审计落点。
-- [ ] [AC-014] faux provider、并行工具和 80×24 TUI 验证 pause requested、paused、resume、abort 与非交互隔离全部通过。
+- [x] [AC-001] Agent idle 时 `/pause` 返回“没有正在执行的任务”，下一回合正常启动且不会自动暂停。
+- [x] [AC-002] Provider streaming 时请求 pause，不中断当前响应；普通下一轮、自动 retry、compaction 或 summarization 到达统一 model request gate 后均先进入 paused，期间没有新 Provider request。
+- [x] [AC-003] 工具 A 已通过 tool_call 但尚未发出 execution_start、工具 B 已运行时请求 pause，A/B 均正常结束且没有第三个工具被放行，admitted 与 in-flight 集合清空后才显示 paused。
+- [x] [AC-004] paused 后 `/pause resume` 恰好释放当前 gate 一次并继续同一 plan/task；重复 resume 为安全 no-op。
+- [x] [AC-005] `/pause status` 准确区分 requested 与 paused；有 registry active task 时显示安全 ID/count，没有时省略。
+- [x] [AC-006] `/resume` 仍打开 Pi 历史 Session selector，不触发 execution resume。
+- [x] [AC-007] 10 秒 model、5 秒 tool、8 秒 pause、4 秒 confirmation 的轨迹分别归入正确计时，BYZ 模型活跃时间不含后三者。
+- [x] [AC-008] pause requested 跨过带 will-retry/compaction/queued continuation 的 agent_end 仍保持；agent_settled、abort、reload、shutdown 以 cancelled outcome 释放 gate，旧 continuation 不能启动 action 或污染下一 turn。
+- [x] [AC-009] 真正进入 paused 时冻结的是全部 admitted tool 收口后的 registry task/evidence snapshot；同一 Session 进程重启后历史 paused receipt 显示 stale，不声称可以继续不存在的 Provider/tool 调用。
+- [x] [AC-010] confirmation waiting 中 modal 输入 `/pause` 不建立嵌套 gate、不触发 fallback confirm，并继续原 confirmation；完成 confirmation 后 timing 和状态正常恢复。
+- [x] [AC-011] pause/resume 不改变 registry task 状态、completed count 或 evidence count。
+- [x] [AC-012] 默认紧凑输出不包含命令、参数、路径、Prompt、响应正文或 tool result；details 也只显示 bounded pause receipt。
+- [x] [AC-013] 没有新增 timer、网络、项目存储或 diagnostics payload；Session custom entry 为唯一可选审计落点。
+- [x] [AC-014] faux provider、并行工具和 80×24 TUI 验证 pause requested、paused、resume、abort 与非交互隔离全部通过。
 
 ## 依赖
 
-- Feature 4 `structured-execution-registry` 的 live snapshot 和 Session receipt。
+- Feature 4 `structured-execution-registry` 已由 T-009 完成并合并；其 live snapshot 和 Session receipt 是本 Feature 的事实源。
+- `open-source-runtime-boundaries` T-024 P1 QA 已完成，PausePort 在 canonical-source、session-lineage 隔离的最小 capability facade 上扩展。
 - Pi extension command 在 streaming 期间立即执行的能力。
 - Pi `context`/`tool_call` 等可 await 的安全边界、AbortSignal 与 session lifecycle。
 - Turn timing 需扩展为 confirmation/pause 两种等待原因。

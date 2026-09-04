@@ -1,0 +1,14 @@
+    ✓ user ~/plugins/zero-workflow/skills/zw-writer/SKILL.md
+    ✗ ~/.agents/skills/zw-writer/SKILL.md (skipped)
+
+
+ Warning: tmux extended-keys is off. Modified Enter keys may not work. Add `set
+ -g extended-keys on` to ~/.tmux.conf and restart tmux.
+
+ Delivery push cancelled; no action was performed.
+
+────────────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────────────
+/private/tmp/byz-delivery-ui (feature)
+$0.000 (sub) 0.0%/272k (auto)              (openai-codex) gpt-5.6-terra • medium

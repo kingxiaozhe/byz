@@ -876,6 +876,16 @@ export class ExtensionRunner {
 		return result as RunnerEmitResult<TEvent>;
 	}
 
+	async emitModelRequestGate(): Promise<void> {
+		const event = { type: "model_request_gate" } as const;
+		const context = this.createContext();
+		for (const extension of this.extensions) {
+			for (const handler of extension.handlers.get("model_request_gate") ?? []) {
+				await handler(event, context);
+			}
+		}
+	}
+
 	async emitMessageEnd(event: MessageEndEvent): Promise<AgentMessage | undefined> {
 		const ctx = this.createContext();
 		let currentMessage = event.message;

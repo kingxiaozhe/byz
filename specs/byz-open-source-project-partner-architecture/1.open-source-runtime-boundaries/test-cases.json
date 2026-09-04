@@ -41,7 +41,7 @@
         "AC-003"
       ],
       "taskIds": [
-        "T-022",
+        "T-026",
         "T-010"
       ],
       "title": "BYZ Domain 和 Application 不依赖 Pi 实现",
@@ -96,7 +96,7 @@
         "AC-006"
       ],
       "taskIds": [
-        "T-005",
+        "T-027",
         "T-010"
       ],
       "title": "BYZ 命令统一返回 CommandResult",
@@ -109,7 +109,8 @@
       "expected": [
         "每个命令返回统一 status/exitCode/stdout/stderr",
         "只有 CLI 组合根修改进程退出状态",
-        "双横线参数保持原顺序"
+        "双横线参数保持原顺序",
+        "update 输出溢出、kill 失败或无 close 时在固定 deadline 内失败，保留前序 step 输出且不绕过 CLI"
       ],
       "cleanup": []
     },
@@ -148,7 +149,7 @@
         "AC-008"
       ],
       "taskIds": [
-        "T-007",
+        "T-029",
         "T-010"
       ],
       "title": "Conversation 偏好并发写入不丢字段",
@@ -162,7 +163,7 @@
         "提供损坏 JSON 再初始化"
       ],
       "expected": [
-        "两个字段都被保留或陈旧写入明确失败",
+        "language/detail 独立原子 cell 使两个字段都被保留，且不产生持久共享锁",
         "文件权限为当前用户私有",
         "损坏配置被隔离并产生可诊断默认状态"
       ],
@@ -437,7 +438,7 @@
         "AC-020"
       ],
       "taskIds": [
-        "T-022",
+        "T-026",
         "T-006",
         "T-010"
       ],
@@ -456,6 +457,37 @@
         "Pi lifecycle payload 与 command context 在 Adapter 内转换后仍驱动既有 diagnostics、workflow、Fast、Prewalk 和 Conversation 行为",
         "未声明 Pi-only 方法不可访问，managed replacement 对非 workflow 功能不存在或明确拒绝",
         "workflow owner 仍能通过 owner-bound resource port 合法更新自己的 skills/prompts"
+      ],
+      "cleanup": []
+    },
+    {
+      "id": "TC-016",
+      "origin": "generated",
+      "kind": "logic",
+      "blocking": true,
+      "acIds": [
+        "AC-003",
+        "AC-020",
+        "AC-021"
+      ],
+      "taskIds": [
+        "T-026",
+        "T-010",
+        "T-024"
+      ],
+      "title": "最终替代 facade 关闭 canonical creator、port source、reflective mutation、跨 Session handle 与 Prewalk trust 漂移",
+      "preconditions": [
+        "准备 TypeScript Program 可解析的 composition fixtures、两个并行 Session/reload lineage 和可在 realpath await 期间撤销 trust 的 Prewalk harness"
+      ],
+      "steps": [
+        "分别加入局部/container/namespace/re-export feature creator、无关模块同名 creator、shadow 或重赋值的 ports source、computed globalThis Proxy、get/set accessor、静态 computed raw/context 属性、Reflect.set/Reflect.defineProperty raw key 和额外 raw Pi 调用并运行架构门禁",
+        "在 Session A 创建 model handle，分别让 Session B 与 A reload 后尝试恢复，再通过各自当前 context 重新解析 identity",
+        "Prewalk armed 后在异步 realpath 返回前撤销 project trust，并观察 Fast model/thinking 与 armed target"
+      ],
+      "expected": [
+        "canonical creator 的所有 alias、伪造 port source、computed/accessor/Reflect mutation 和额外 raw Pi 调用都由符号/来源解析门禁拒绝；无关同名模块不误报，只有绑定真实 createPiExtensionPorts(pi) source 的合法 composition 通过",
+        "Session B 拒绝 A 的 handle；A reload 不直接接受旧 handle，但经当前 context 重新解析同一 bounded identity 后可恢复",
+        "trust 在路径校验期间撤销后不应用 Fast handoff、不消费为成功，并给出固定安全取消结果"
       ],
       "cleanup": []
     }

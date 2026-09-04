@@ -63,7 +63,7 @@
 
 - Conversation compact/details/completion 只消费可靠冻结事实；无 sealed plan 时继续完整省略 Tasks、total、ordinal 和百分比。
 - 80 列状态预算优先保留阶段、`Step 64/64`、耗时和 Token，不展示任务标题、命令、路径或 raw tool 字段。
-- Feature 5 Safe Pause/Resume 和 Feature 6 Delivery Console 仅保留已审批规格；本批未实现其行为。
+- Feature 5 Safe Pause/Resume 和 Feature 6 Delivery Console 在 Feature 4 交付批次仅保留规格，未实现其行为；后续 v2 已将两者校准为待人审的 P1。
 
 ### 关键文件
 
@@ -88,3 +88,34 @@
 - 真实 80×24 tmux：no-plan 完整省略步骤；faux managed 64-task 流恰有一行 `Step 64/64`，最大 80 Unicode 列。
 - 持久命令凭证：13/13 command groups exit 0；fixture、脚本和 working diff 均有 SHA-256 绑定。
 - AI 测试合同：TC-001 至 TC-008 全部通过；业务验收 AC-001 至 AC-015 无偏差。
+
+## P1 规格校准
+
+### 变更
+
+- Runtime Boundary T-023、T-025 达到两轮审查上限；新增人工批准的 T-026 替代任务，关闭 canonical creator/re-export provenance、无关同名 import 误报与 `Reflect.defineProperty` 三项剩余边界，并作为后续 ports 的前置。
+- Feature 5 Safe Pause/Resume 标记为首个 P1，依赖更新为已完成的 Feature 4 T-009 和 Runtime Boundary T-026。
+- Feature 6 Delivery Console 标记为第二个 P1，在 Runtime Boundary 与 Feature 5 QA 后执行；生产 release 继续只读。
+- Runtime Boundary 的开源治理/许可证任务和原架构 Feature 2–4 保持 deferred，不纳入本轮。
+
+### 状态
+
+- 三项 P1 规格均为 `awaiting_review`；本轮未启动编码、远端 Git 动作或生产发布。
+
+## P1 本地实现完成 — 2026-09-03
+
+### Feature 5: Safe Pause and Resume
+
+- 新增 generation-bound model/tool pause gate、并行工具 drain、`/pause status|resume|abort`、typed cancellation、stale receipts 与独立 pause timing。
+- 最终 QA：Agent 24/24、coding-agent 33/33、BYZ focused 78/78、BYZ package 316 通过/1 skip；80×24 requested/paused/resume/abort 与非交互场景通过。
+
+### Feature 6: Delivery Console
+
+- 新增 `/deliver status|commit|push|pr|merge|release`；startup 零 Git，release 始终只读。
+- commit 仅包含 current-plan observed mutation、匹配 post-mutation digest 且仍为 unstaged diff 的路径；每个动作使用一次性确认并在副作用前重验。
+- GitHub PR/merge 绑定 sanitized origin repository、PR head/base、required check context 与 GitHub App identity；失败、部分成功与 cleanup failure 写入脱敏 Session receipt。
+- 最终 QA：`npm run check` 通过；BYZ package 338 通过/1 platform skip；仓库非 e2e 回归通过，其中 coding-agent 2002 通过/50 skip；隔离 bare-origin + fake-gh 完整链与 80×24 status/release/confirmation/cancel 通过。
+
+### 交付边界
+
+- 未执行远端 commit/push/PR/merge、tag、npm publish、生产迁移或基础设施变更。

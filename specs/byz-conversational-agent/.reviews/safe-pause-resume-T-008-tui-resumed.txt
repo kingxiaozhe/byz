@@ -1,0 +1,24 @@
+ run final pause test
+
+
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working working
+ working working working working working working working working
+
+ Pause: resumed.
+
+ pause resume complete
+
+ Done · 0m 20s · Tokens 6.8k
+ BYZ thought for 0m 08s · 1 tool · paused 0m 11s
+
+────────────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────────────
+pi  cm/runtime-boundary-p1--7a33ed19  left 95%  ↑6.6k  ↓1…  faux-1  thinking off

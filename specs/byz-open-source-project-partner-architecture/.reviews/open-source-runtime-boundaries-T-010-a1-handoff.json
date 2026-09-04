@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "task_id": "T-010",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/command-registry.test.mjs",
+    "packages/byz/test/conversation-preferences.test.mjs",
+    "packages/byz/test/conversation.test.mjs",
+    "packages/byz/test/fast-switch.test.mjs",
+    "packages/byz/test/prewalk.test.mjs",
+    "packages/byz/test/workflow-switch.test.mjs"
+  ],
+  "implementation_sha256": "ff95ec86f254fb69a6997dab5b1807093ac1a6a6f84a2b4cacd76791883560dd",
+  "verification": [
+    {"command":"node --test packages/byz/test/architecture.test.mjs packages/byz/test/command-registry.test.mjs packages/byz/test/conversation-preferences.test.mjs packages/byz/test/conversation.test.mjs packages/byz/test/fast-switch.test.mjs packages/byz/test/prewalk.test.mjs packages/byz/test/workflow-switch.test.mjs","status":"passed","evidence":"130/130 focused integration tests passed."},
+    {"command":"npm run check","status":"passed","evidence":"Root formatting, architecture, type, dependency and browser checks passed before final focused matrix."},
+    {"command":"npm --prefix packages/byz test","status":"passed","evidence":"291 tests passed with one platform-specific skip in the immediately preceding implementation verification."}
+  ],
+  "evidence": [
+    "TC-002/015/016: architecture fixtures cover protected imports, canonical creator aliases/re-exports, exact port source, reflective escapes and minimal facades.",
+    "TC-004: CommandResult/bootstrap tests cover structured output, one-time option parse, CLI exit ownership, double dash and bounded update subprocesses.",
+    "TC-005: Conversation tests cover lifecycle, controller/projectors/presenters, bilingual compact/details, timing, confirmation and unmodified technical text.",
+    "TC-006: preference tests cover different/same-field processes, dead claim recovery, first run, private modes, strict migration, corrupt bounds and symlinks.",
+    "Fast/Prewalk/workflow tests preserve Session lineage, reload identity, trust recheck and managed-owner isolation."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

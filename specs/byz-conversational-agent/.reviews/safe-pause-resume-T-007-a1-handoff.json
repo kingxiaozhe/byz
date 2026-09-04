@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "task_id": "T-007",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/agent/src/agent-loop.ts",
+    "packages/agent/src/types.ts",
+    "packages/agent/test/agent-loop.test.ts",
+    "packages/byz/src/adapters/pi/pi-runtime-adapter.ts",
+    "packages/byz/src/conversation/conversation-controller.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "96f87d4d27bbac9b29e3a163fe1d6fd5688bd48285246f9b1ce4c6c9607b22d2",
+  "verification": [
+    {"command":"npm run check","status":"passed","evidence":"All repository checks passed with no fixes."},
+    {"command":"agent-loop focused","status":"passed","evidence":"24/24 passed including complete 129-call batch emission."},
+    {"command":"coding-agent gate/compaction/settled focused","status":"passed","evidence":"33/33 passed."},
+    {"command":"BYZ pause/controller/conversation/architecture focused","status":"passed","evidence":"77/77 passed."},
+    {"command":"npm --prefix packages/byz test","status":"passed","evidence":"315 tests passed with one platform-specific skip."}
+  ],
+  "evidence": [
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-006-r2.md",
+    "PausePort tool_execution_end receives only toolCallId/toolName/isError; args, command, path and result are absent and tested.",
+    "When a pause controller is configured, Conversation defers completion from every agent_end to agent_settled, so requests made during post-run compaction retain timing and UI.",
+    "The timing regression requests pause after agent_end, pauses at a later model boundary, and confirms separate eight-second pause/model totals at agent_settled.",
+    "Agent production regression emits and executes a complete 129-call parallel batch with tool_batch_start before the first tool start.",
+    "Main-worktree semantic manifest verification matches all Feature 1-6 specs."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

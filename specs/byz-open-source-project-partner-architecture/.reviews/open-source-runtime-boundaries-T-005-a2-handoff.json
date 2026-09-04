@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "task_id": "T-005",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/application/command-registry.js",
+    "packages/byz/src/application/command-result.js",
+    "packages/byz/src/application/ports/runtime.ts",
+    "packages/byz/src/bootstrap.js",
+    "packages/byz/src/cli.js",
+    "packages/byz/src/diagnostics/commands.js",
+    "packages/byz/src/diagnostics/update-integration.js",
+    "packages/byz/src/update.js",
+    "packages/byz/src/workflows.js",
+    "packages/byz/test/command-registry.test.mjs",
+    "packages/byz/test/diagnostics.test.mjs",
+    "packages/byz/test/smoke.test.mjs",
+    "packages/byz/test/update.test.mjs"
+  ],
+  "implementation_sha256": "40b27bce7714cdb0d40792edcbfc9f0638f4a5c2e1e7d9b9a509c07ae1b8354c",
+  "verification": [
+    {
+      "command": "npm run check",
+      "status": "passed",
+      "evidence": "Biome, dependency/import/lock checks, architecture gate, tsgo, and browser smoke passed."
+    },
+    {
+      "command": "npm --prefix packages/byz run build",
+      "status": "passed",
+      "evidence": "Production package image rebuilt from attempt-2 source."
+    },
+    {
+      "command": "node --test packages/byz/test/command-registry.test.mjs packages/byz/test/update.test.mjs packages/byz/test/smoke.test.mjs",
+      "status": "passed",
+      "evidence": "49/49 command/update/CLI tests passed."
+    },
+    {
+      "command": "npm --prefix packages/byz test",
+      "status": "passed",
+      "evidence": "272 tests passed with one platform-specific skip."
+    }
+  ],
+  "evidence": [
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-005-r1.md",
+    "Update subprocess stdout and stderr are piped into bounded 256 KiB collectors instead of inherited process streams.",
+    "Successful and failed child output is retained in CommandResult; failed child exit status is preserved and diagnostics still observe command failure.",
+    "Multi-step update output is accumulated, output overflow kills the child and fails closed, and generic injected runner failures retain the buffered update headline.",
+    "Tests exercise actual spawn stdio options and success/failure output ownership without allowing dependency callbacks to emit output.",
+    "The original registry, one-time Fast/workflow parsing, double-dash passthrough and CLI-only result mapping remain covered."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "task_id": "T-010",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-extension.js",
+    "packages/byz/test/architecture.test.mjs",
+    "packages/byz/test/command-registry.test.mjs",
+    "packages/byz/test/conversation-preferences.test.mjs",
+    "packages/byz/test/conversation.test.mjs",
+    "packages/byz/test/diagnostics.test.mjs",
+    "packages/byz/test/fast-switch.test.mjs",
+    "packages/byz/test/prewalk.test.mjs",
+    "packages/byz/test/update.test.mjs",
+    "packages/byz/test/workflow-switch.test.mjs"
+  ],
+  "implementation_sha256": "fab44958ca3693e2faee58bf33737be9f03eddaaa4117773f993549df167959e",
+  "verification": [
+    {"command":"npm run check","status":"passed","evidence":"Formatting, architecture, type, dependency and browser checks passed."},
+    {"command":"npm --prefix packages/byz run build","status":"passed","evidence":"Production package image rebuilt."},
+    {"command":"node --test packages/byz/test/architecture.test.mjs packages/byz/test/command-registry.test.mjs packages/byz/test/diagnostics.test.mjs packages/byz/test/update.test.mjs packages/byz/test/conversation-preferences.test.mjs packages/byz/test/conversation.test.mjs packages/byz/test/fast-switch.test.mjs packages/byz/test/prewalk.test.mjs packages/byz/test/workflow-switch.test.mjs","status":"passed","evidence":"162/162 focused tests passed."},
+    {"command":"npm --prefix packages/byz test","status":"passed","evidence":"294 tests passed with one platform-specific skip."}
+  ],
+  "evidence": [
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-010-r1.md",
+    "Focused matrix now includes diagnostics and update production success/failure/overflow/termination tests.",
+    "Architecture fixture rejects unrelated same-named createPiExtensionPorts source.",
+    "Successful managed reload produces a new capability and rejects the stale pre-reload token.",
+    "Prewalk trust-race test verifies not-armed status and proves a later valid write cannot consume the canceled target.",
+    "Conversation extension exposes a controllerFactory test seam; executable assertions prove registered event handlers are the controller API methods.",
+    "All TC-002 through TC-006 and TC-015/TC-016 paths are represented in the 162-test focused matrix."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

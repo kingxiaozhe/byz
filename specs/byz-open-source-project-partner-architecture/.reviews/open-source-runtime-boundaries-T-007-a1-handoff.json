@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "task_id": "T-007",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-controller.js",
+    "packages/byz/src/conversation/conversation-preferences.js",
+    "packages/byz/test/conversation-preferences.test.mjs",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "c11751291fda5cd386d31e3ea1d5d89879db0edc3a1295992b67b14c1c876f13",
+  "verification": [
+    {"command":"npm run check","status":"passed","evidence":"Formatting, architecture, type, dependency and browser checks passed."},
+    {"command":"npm --prefix packages/byz run build","status":"passed","evidence":"Production package image rebuilt."},
+    {"command":"node --test packages/byz/test/conversation-preferences.test.mjs packages/byz/test/conversation.test.mjs","status":"passed","evidence":"34/34 focused tests passed."},
+    {"command":"npm --prefix packages/byz test","status":"passed","evidence":"283 tests passed with one platform-specific skip."}
+  ],
+  "evidence": [
+    "Preferences use a strict versioned schema with bounded reads, legacy language/detail migration and monotonic revision.",
+    "Writes acquire an atomic directory lock, reread inside the lock, merge one field and atomically rename a mode-0600 file inside a mode-0700 directory.",
+    "Malformed or oversized regular files are quarantined with a bounded diagnostic state; symlinks and non-regular files fail closed without touching targets.",
+    "Two real Node processes concurrently update separate fields and both values survive with revision 2.",
+    "Controller performs durable remembered updates before publishing saved state; session-only details remain in memory."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

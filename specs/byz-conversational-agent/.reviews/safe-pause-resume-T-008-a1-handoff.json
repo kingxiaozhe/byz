@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "task_id": "T-008",
+  "attempt": 1,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-presenter.js",
+    "packages/byz/test/pause-presentation.test.mjs",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-007-tui-abort.txt",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-qa.md",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-tui-paused.txt",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-tui-resumed.txt"
+  ],
+  "implementation_sha256": "82792e3306a4238eca895428f6bfe660f36a1a991a9d028d0a257a2336d14191",
+  "verification": [
+    {"command":"npm run check","status":"passed","evidence":"All root checks passed with no fixes."},
+    {"command":"Safe Pause focused matrices","status":"passed","evidence":"Agent 24, coding-agent 33, BYZ focused 78 all passed."},
+    {"command":"npm --prefix packages/byz test","status":"passed","evidence":"316 tests passed with one platform-specific skip."},
+    {"command":"80x24 faux-provider TUI","status":"passed","evidence":"Requested, paused, resume, completion timing and abort captured."},
+    {"command":"noninteractive smoke","status":"passed","evidence":"--version and workflow status outputs unchanged."}
+  ],
+  "evidence": [
+    "Truly paused compact presentation suppresses pre-hook inFlight tool noise while requested state remains unchanged.",
+    "TUI paused evidence contains no tool-running claim, resume completes the same turn, and abort releases the gate.",
+    "specs/byz-conversational-agent/.reviews/safe-pause-resume-T-008-qa.md"
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

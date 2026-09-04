@@ -5,10 +5,12 @@ export interface Disposable {
 export type NotificationLevel = "info" | "warning" | "error";
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
-export interface ModelReference {
-	provider: string;
-	id: string;
+export interface ModelIdentity {
+	readonly provider: string;
+	readonly id: string;
 }
+
+export interface ModelHandle extends ModelIdentity {}
 
 export interface ToolDescriptor {
 	name: string;
@@ -33,8 +35,8 @@ export interface ConversationUiPort extends NotifyUiPort {
 }
 
 export interface ModelRegistryPort {
-	find(provider: string, modelId: string): ModelReference | undefined;
-	hasConfiguredAuth(model: ModelReference): boolean;
+	find(provider: string, modelId: string): ModelHandle | undefined;
+	hasConfiguredAuth(model: ModelHandle): boolean;
 }
 
 export interface BaseFeatureContext {
@@ -42,11 +44,11 @@ export interface BaseFeatureContext {
 }
 
 export interface DiagnosticsContext extends BaseFeatureContext {
-	model: ModelReference | undefined;
+	model: ModelHandle | undefined;
 }
 
 export interface FastContext extends BaseFeatureContext {
-	readonly model: ModelReference | undefined;
+	readonly model: ModelHandle | undefined;
 	modelRegistry: ModelRegistryPort;
 	isIdle(): boolean;
 }
@@ -55,6 +57,20 @@ export interface PrewalkContext extends BaseFeatureContext {
 	cwd: string;
 	isIdle(): boolean;
 	isProjectTrusted(): boolean;
+}
+
+export interface PauseContext extends BaseFeatureContext {
+	readonly signal: AbortSignal | undefined;
+	isIdle(): boolean;
+	readPauseEntries(): readonly unknown[];
+}
+
+export interface DeliveryContext extends BaseFeatureContext {
+	cwd: string;
+	isIdle(): boolean;
+	isProjectTrusted(): boolean;
+	input(prompt: string, title?: string): Promise<string | undefined>;
+	readDeliveryScopeEntries(): readonly unknown[];
 }
 
 export type RecoverySessionStartReason = "startup" | "reload" | "new" | "resume" | "fork";
@@ -77,7 +93,7 @@ export interface WorkflowContext extends BaseFeatureContext {
 
 export interface ConversationContext {
 	cwd: string;
-	model: ModelReference | undefined;
+	model: ModelHandle | undefined;
 	thinkingLevel?: ThinkingLevel;
 	ui: ConversationUiPort;
 	sessionManager: {
@@ -109,6 +125,27 @@ export type DiagnosticsPort = EventPort<DiagnosticsContext>;
 export type RecoveryPort = EventPort<RecoveryContext> & CommandRegistrationPort<RecoveryContext>;
 export type WorkflowPort = EventPort<WorkflowContext> & CommandRegistrationPort<WorkflowContext>;
 export type ConversationPort = EventPort<ConversationContext> & CommandRegistrationPort<ConversationContext>;
+export type PausePort = EventPort<PauseContext> &
+	CommandRegistrationPort<PauseContext> & {
+		appendEntry(entry: unknown): void;
+	};
+export interface DeliveryProcessResult {
+	exitCode: number;
+	stdout: string;
+	stderr: string;
+	timedOut: boolean;
+}
+
+export type DeliveryPort = EventPort<DeliveryContext> &
+	CommandRegistrationPort<DeliveryContext> & {
+		appendResult(entry: unknown): void;
+		appendScope(entry: unknown): void;
+		exec(
+			program: "git" | "gh",
+			args: string[],
+			options: { cwd: string; timeoutMs: number },
+		): Promise<DeliveryProcessResult>;
+	};
 
 export interface ExecutionContext {
 	readEntries(): readonly unknown[];
@@ -128,7 +165,7 @@ export interface ExecutionPort extends EventPort<ExecutionContext> {
 
 export interface FastPort extends EventPort<FastContext>, CommandRegistrationPort<FastContext> {
 	getThinkingLevel(): ThinkingLevel;
-	setModel(model: ModelReference): Promise<boolean>;
+	setModel(model: ModelHandle): Promise<boolean>;
 	setThinkingLevel(level: ThinkingLevel): void;
 }
 
@@ -144,11 +181,29 @@ export interface PiFeaturePorts {
 	prewalk: PrewalkPort;
 	conversation: ConversationPort;
 	execution: ExecutionPort;
+	pause: PausePort;
+	delivery: DeliveryPort;
 }
 
 export interface RuntimeProductProfile {
 	showStartupHeader?: boolean;
 	showLoadedResources?: boolean;
+}
+
+export type CommandRuntime = "none" | "pi" | "interactive";
+
+export interface CommandResult {
+	status: "handled" | "passthrough";
+	exitCode: number;
+	stdout: string[];
+	stderr: string[];
+}
+
+export interface ByzCommand<TInput = unknown, TContext = unknown> {
+	id: string;
+	parse(args: readonly string[]): TInput | undefined;
+	execute(input: TInput, context: TContext): Promise<CommandResult>;
+	runtime: CommandRuntime;
 }
 
 export interface RuntimeLaunchPort<TOptions extends object> {

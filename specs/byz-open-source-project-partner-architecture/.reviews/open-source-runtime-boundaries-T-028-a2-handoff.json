@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "task_id": "T-028",
+  "attempt": 2,
+  "status": "ready_for_review",
+  "changed_files": [
+    "packages/byz/src/conversation/conversation-controller.js",
+    "packages/byz/src/conversation/conversation-preferences.js",
+    "packages/byz/src/conversation/language-catalog.js",
+    "packages/byz/test/conversation-preferences.test.mjs",
+    "packages/byz/test/conversation.test.mjs"
+  ],
+  "implementation_sha256": "c5728ed48fee97e0292b991c471c7b75f29525d815983fc11654b730367cacf9",
+  "verification": [
+    {"command":"npm run check","status":"passed","evidence":"Formatting, architecture, type, dependency and browser checks passed."},
+    {"command":"npm --prefix packages/byz run build","status":"passed","evidence":"Production package image rebuilt."},
+    {"command":"node --test packages/byz/test/conversation-preferences.test.mjs packages/byz/test/conversation.test.mjs","status":"passed","evidence":"40/40 focused tests passed."},
+    {"command":"npm --prefix packages/byz test","status":"passed","evidence":"289 tests passed with one platform-specific skip."}
+  ],
+  "evidence": [
+    "specs/byz-open-source-project-partner-architecture/.reviews/open-source-runtime-boundaries-T-028-r1.md",
+    "Linux operations use a held directory descriptor anchor; all platforms retain and recheck directory identity before and after publication so replacement fails before reporting success.",
+    "Each field revision uses a complete fsynced temp hard-linked to one deterministic next-revision claim; losers help finalize the winner then retry, and crash-complete claims are recoverable.",
+    "Same-field real-process writers reach distinct revisions; destination symlinks are rejected and never followed.",
+    "Every newly created directory fsyncs its containing parent; published cells fsync the held cell-directory handle.",
+    "Corrupt isolation uses one deterministic mode-0600 forensic slot per source pathname, bounding repeated startup copies.",
+    "Tests cover different-field and same-field processes, directory replacement, destination replacement, field-specific legacy precedence, repeated corruption and private modes."
+  ],
+  "blockers": [],
+  "scope_deviation": []
+}

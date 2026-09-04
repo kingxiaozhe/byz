@@ -5,6 +5,13 @@
 | 日期 | 版本 | 说明 |
 | --- | --- | --- |
 | 2026-09-02 | v1 | 初始设计；使用 `/pause resume` |
+| 2026-09-02 | v2 | 依赖已合并的 Feature 4 T-009，并要求先完成 session-lineage capability facade |
+| 2026-09-02 | v3 | Runtime Boundary 前置更新为人工批准的 T-025 source-binding 替代任务 |
+| 2026-09-02 | v4 | Runtime Boundary 前置更新为人工批准的 T-026 canonical-provenance 替代任务 |
+| 2026-09-03 | v5 | T-006 采用 payload-free tool batch admission 并关闭第二轮实现审查缺口 |
+| 2026-09-03 | v6 | T-007 收紧 tool end projection，并把 pause-aware completion 延迟到 agent_settled |
+| 2026-09-03 | v7 | T-008 在真正 paused compact 状态隐藏 pre-hook tool running 噪声 |
+| 2026-09-03 | v8 | T-009 使用完整隔离 QA image 绑定最终证据，不改变产品设计 |
 
 ## 项目架构
 
@@ -14,6 +21,7 @@
 
 ## 波及面
 
+- `open-source-runtime-boundaries` T-026：先关闭 canonical creator/re-export provenance、无关同名 import 误报与 `Reflect.defineProperty` 三项最终边界，并保留跨 Session model reference、Prewalk trust check/use、port source 和 composition alias 防线；本 Feature 只在该边界上新增最小 PausePort。
 - `packages/byz/src/execution/execution-registry.js`：只提供冻结 snapshot/subscribe；pause 不修改 registry task/evidence。
 - 新增 `packages/byz/src/execution/pause-controller.js`：管理 requested/paused gate 与 generation。
 - `packages/byz/src/adapters/pi/pi-runtime-adapter.ts`：为 pause port 投影 streaming command context、`context`、`tool_call`、tool lifecycle、AbortSignal 与 Session append；不暴露 raw messages。
@@ -48,7 +56,8 @@ idle → running → requested → paused → resuming → running
 
 新增 pause extension 订阅并补齐一个 product-neutral runtime gate：
 
-- `tool_call`：工具执行前 awaited hook。handler 进入时先加入 generation-bound admitted set；pause request 之前已 admitted 的调用允许继续并直到 matched end 才移除，request 之后到达的调用在 admitted pre-pause batch 清空后进入 gate。只有 resumed outcome 返回 undefined；cancelled 返回 `{ block:true, terminate:true }`。
+- `tool_batch_start`：Pi 在 parallel preparation loop 的首次 await 前一次性投影本批全部 bounded toolCallId/toolName，controller 将 running generation 的整批加入 admitted；不包含参数。这样批次准备期间收到 pause 时，后续同批 `tool_call` 仍可完成 preparation，不会等待前序尚未启动的 executor 形成死锁。
+- `tool_call`：工具执行前 awaited hook。已由同批预 admitted 的调用允许继续并直到 matched end 才移除；request 后新批次到达的调用在旧 admitted/in-flight 清空后进入 gate。只有 resumed outcome 返回 undefined；cancelled 返回 `{ block:true, terminate:true }`。
 - `tool_execution_start/end`：维护 started/in-flight set；end 同时收口对应 admitted ID。进入 paused 必须同时满足 pre-pause admitted 和 in-flight 均为空，解决“hook 已放行但 start 事件尚未观察”的窗口。
 - 新增 payload-free `model_request_gate`：在每次真实 Provider streamFunction 调用前 await，覆盖普通 Agent、自动 retry、auto/manual compaction、branch/session summarization 及各自 retry。该 gate 不暴露或修改 payload；requested 时只有 resumed outcome 才继续，cancelled 抛固定 abort error。
 - `agent_end`：只记录一次 run segment 结束，不清 pause request。
@@ -152,4 +161,5 @@ PausePort 只允许 `/pause`、fixed hooks 和 closed Session entries。raw prov
 | confirmation | shared lease + modal 特判 `/pause` | 防双重 gate 和误触 fallback confirm |
 | 重启恢复 | stale，不恢复调用栈 | Session entry 不能复活 Promise/provider stream |
 | timing | fixed wait reason `pause` | 与模型、工具、confirmation 分账 |
-| registry | 只读 snapshot | pause 不得伪造任务完成或 evidence |
+| registry | 只读 Feature 4 T-009 snapshot | pause 不得伪造任务完成或 evidence |
+| 执行顺序 | Runtime Boundary T-026 完成后再新增 PausePort | 避免在 creator provenance 或 reflective raw mutation 尚未关闭时继续扩展能力 |

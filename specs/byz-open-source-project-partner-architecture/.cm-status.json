@@ -1,1 +1,1 @@
-{"node":"N4","feature":"1.open-source-runtime-boundaries","task":"T-022","detail":"第2轮审查仍有3项边界问题，等待建立替代任务","state":"paused_for_human","at":"07:58:00"}
+{"node":"N3","feature":"1.open-source-runtime-boundaries","task":"T-027","detail":"实现 update 输出溢出的有界 TERM→KILL 终止协议","state":"running","at":"23:48:00"}
