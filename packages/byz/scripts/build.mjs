@@ -156,6 +156,40 @@ async function canRemoveGeneration(outputDir, generationDir, publicationState) {
 	}
 }
 
+const DEFAULT_RETAINED_GENERATIONS = 3;
+
+export function retainedGenerationCount(value = process.env.BYZ_KEEP_GENERATIONS) {
+	if (value === undefined || value === "") return DEFAULT_RETAINED_GENERATIONS;
+	const parsed = Number(value);
+	if (!Number.isSafeInteger(parsed) || parsed < 1) {
+		throw new Error("BYZ_KEEP_GENERATIONS must be a positive integer.");
+	}
+	return parsed;
+}
+
+// Promoted generations used to be kept forever, so .byz-output grew by one package image per build.
+// Previous generations are still retained because a running BYZ process resolves its modules through
+// the generation it started from and loads some of them lazily; deleting that tree underneath it
+// would break the session. Keep the current image plus the most recently built ones.
+export async function pruneSupersededGenerations({ generationsRoot, keep, outputDir }) {
+	const currentGeneration = dirname(await resolveCurrentPackageImage(outputDir));
+	// Resolve the root here so the comparison below cannot miss through a symlinked temp path.
+	const resolvedGenerationsRoot = await realpath(generationsRoot);
+	const candidates = [];
+	for (const entry of await readdir(resolvedGenerationsRoot, { withFileTypes: true })) {
+		if (!entry.isDirectory() || !entry.name.startsWith("generation-")) continue;
+		const path = join(resolvedGenerationsRoot, entry.name);
+		if (path === currentGeneration) continue;
+		candidates.push({ modifiedAt: (await lstat(path)).mtimeMs, path });
+	}
+	candidates.sort((first, second) => second.modifiedAt - first.modifiedAt);
+	const superseded = candidates.slice(Math.max(keep - 1, 0));
+	for (const generation of superseded) {
+		await rm(generation.path, { force: true, recursive: true });
+	}
+	return superseded.map((generation) => generation.path);
+}
+
 async function resolveBundledPackages(packageDir, byzPackageJson, workflowLock) {
 	const packageRequire = createRequire(join(packageDir, "package.json"));
 	const workflows = Object.values(workflowLock.workflows).filter(
@@ -307,6 +341,21 @@ export async function buildByzPackage({
 		}
 	} catch (error) {
 		cleanupFailure = error;
+	}
+	if (!failure && !cleanupFailure && publicationState === "promoted-confirmed") {
+		// Housekeeping only: a successful build must not fail because superseded images stayed behind.
+		try {
+			const pruned = await releaseLock.runExclusive(() =>
+				pruneSupersededGenerations({
+					generationsRoot: releaseLock.generationsRoot,
+					keep: retainedGenerationCount(),
+					outputDir: buildOutputDir,
+				}),
+			);
+			if (pruned.length > 0) console.log(`Removed ${pruned.length} superseded BYZ generation(s).`);
+		} catch (error) {
+			console.warn(`Warning: could not prune superseded BYZ generations: ${error?.message ?? error}`);
+		}
 	}
 	let releaseFailure;
 	let released = false;
