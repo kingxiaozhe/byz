@@ -22,7 +22,7 @@
 import { execSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { findPackageDirectories } from "./package-workspaces.mjs";
+import { findLockstepPackageDirectories } from "./package-workspaces.mjs";
 import { getPublicWorkspacePackages } from "./release-packages.mjs";
 
 const RELEASE_TARGET = process.argv[2];
@@ -152,7 +152,9 @@ function bumpOrSetVersion(target) {
 		}
 
 		console.log(`Setting explicit version (${target})...`);
-		run(`npm version ${target} --workspaces --no-git-tag-version --no-workspaces-update && node scripts/sync-versions.js && npm install --package-lock-only --ignore-scripts`);
+		run(
+			`node scripts/version-lockstep.mjs ${target} --no-git-tag-version --no-workspaces-update && node scripts/sync-versions.js && npm install --package-lock-only --ignore-scripts`,
+		);
 	}
 
 	// npm version can temporarily install the previous workspace versions before
@@ -165,7 +167,7 @@ function bumpOrSetVersion(target) {
 }
 
 function getChangelogs() {
-	return findPackageDirectories()
+	return findLockstepPackageDirectories()
 		.map((directory) => join(directory, "CHANGELOG.md"))
 		.filter((path) => existsSync(path));
 }

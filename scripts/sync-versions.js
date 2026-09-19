@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { findPackageDirectories } from "./package-workspaces.mjs";
+import { INDEPENDENT_PACKAGES, findPackageDirectories } from "./package-workspaces.mjs";
 
 const GENERATED_PACKAGE_SUFFIXES = [join("coding-agent", "install-lock")];
 
@@ -19,16 +19,26 @@ const workspacePackages = findPackageDirectories(packageRoot)
 		return { data: JSON.parse(readFileSync(path, "utf8")), path };
 	});
 const publishedPackages = workspacePackages.filter((pkg) => pkg.data.private !== true);
+// Independently released packages carry their own version line and never join the lockstep check.
+const lockstepPackages = publishedPackages.filter((pkg) => !INDEPENDENT_PACKAGES.has(pkg.data.name));
+const independentPackages = publishedPackages.filter((pkg) => INDEPENDENT_PACKAGES.has(pkg.data.name));
 const versionMap = new Map(workspacePackages.map((pkg) => [pkg.data.name, pkg.data.version]));
 
-console.log("Current versions:");
-for (const pkg of [...publishedPackages].sort((a, b) => a.data.name.localeCompare(b.data.name))) {
-	console.log(`  ${pkg.data.name}: ${pkg.data.version}`);
+function byName(a, b) {
+	return a.data.name.localeCompare(b.data.name);
 }
 
-const versions = new Set(publishedPackages.map((pkg) => pkg.data.version));
+console.log("Current versions:");
+for (const pkg of [...lockstepPackages].sort(byName)) {
+	console.log(`  ${pkg.data.name}: ${pkg.data.version}`);
+}
+for (const pkg of [...independentPackages].sort(byName)) {
+	console.log(`  ${pkg.data.name}: ${pkg.data.version} (independent release, not lockstep)`);
+}
+
+const versions = new Set(lockstepPackages.map((pkg) => pkg.data.version));
 if (versions.size > 1) {
-	console.error("\nERROR: Not all non-private packages have the same version.");
+	console.error("\nERROR: Not all lockstep packages have the same version.");
 	console.error("Expected lockstep versioning. Run one of:");
 	console.error("  npm run version:patch");
 	console.error("  npm run version:minor");
@@ -36,7 +46,7 @@ if (versions.size > 1) {
 	process.exit(1);
 }
 
-console.log("\nAll non-private packages are at the same version (lockstep).");
+console.log("\nAll lockstep packages are at the same version.");
 
 let totalUpdates = 0;
 const updatedPackages = new Set();
