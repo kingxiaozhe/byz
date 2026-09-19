@@ -512,7 +512,8 @@ test("BYZ release workflow cannot invoke Pi publication machinery", async () => 
 		readFile(new URL("./byz-release.mjs", import.meta.url), "utf8"),
 	]);
 	assert.match(workflow, /byz-v\*/);
-	assert.match(workflow, /npm run hydrate:model-data/);
+	// The committed catalog makes the release network-free: it must never hydrate model data.
+	assert.doesNotMatch(workflow, /hydrate:model-data/);
 	assert.match(workflow, /npm run build:byz:offline/);
 	assert.match(workflow, /node scripts\/byz-release\.mjs/);
 	assert.match(workflow, /node scripts\/check-byz-public-package\.mjs/);
@@ -537,7 +538,6 @@ test("BYZ release workflow cannot invoke Pi publication machinery", async () => 
 	assert.match(releaseScript, /publishValidatedByzArtifact/);
 	assert.doesNotMatch(releaseScript, /args: \["--dry-run"\]/);
 	assert.doesNotMatch(releaseScript, /execFileSync\("npm", \["pack"/);
-	assert.ok(workflow.indexOf("npm run hydrate:model-data") < workflow.indexOf("npm run build:byz:offline"));
 	assert.ok(
 		workflow.indexOf("npm@11.16.0") <
 			workflow.indexOf('scripts/byz-release.mjs --tag "$GITHUB_REF_NAME" --pack-destination'),

@@ -8,7 +8,8 @@ dist/
 packages/*/dist/
 packages/*/dist-chrome/
 packages/*/dist-firefox/
-packages/ai/src/providers/data/
+# packages/ai/src/providers/data/ is committed: builds must not depend on a live third-party
+# catalog. Refresh it deliberately with `npm run generate:models` and review the diff.
 packages/ai/src/providers/.model-generation-*/
 *.cpuprofile
 

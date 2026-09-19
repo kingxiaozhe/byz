@@ -40,12 +40,14 @@ const packageRoot = join(__dirname, "..");
 function readGeneratorOptions(args: string[]): {
 	strict: boolean;
 	dataOnly: boolean;
+	allowProviderRemoval: boolean;
 	jsonOnly: boolean;
 	jsonOutputDir: string | undefined;
 	pretty: boolean;
 } {
 	let strict = false;
 	let dataOnly = false;
+	let allowProviderRemoval = false;
 	let jsonOnly = false;
 	let jsonOutputDir: string | undefined;
 	let pretty = false;
@@ -58,6 +60,10 @@ function readGeneratorOptions(args: string[]): {
 		}
 		if (arg === "--data-only") {
 			dataOnly = true;
+			continue;
+		}
+		if (arg === "--allow-provider-removal") {
+			allowProviderRemoval = true;
 			continue;
 		}
 		if (arg === "--json-only") {
@@ -79,7 +85,7 @@ function readGeneratorOptions(args: string[]): {
 
 	if (jsonOnly && !jsonOutputDir) throw new Error("--json-only requires --json-output");
 	if (dataOnly && (jsonOnly || jsonOutputDir)) throw new Error("--data-only cannot be combined with JSON catalog output");
-	return { strict, dataOnly, jsonOnly, jsonOutputDir, pretty };
+	return { strict, dataOnly, allowProviderRemoval, jsonOnly, jsonOutputDir, pretty };
 }
 
 const generatorOptions = readGeneratorOptions(process.argv.slice(2));
@@ -2904,6 +2910,12 @@ async function generateModels() {
 		}
 	}
 
+	// The committed per-provider catalog is grouped by api; the generator works with a flat model map.
+	const readCommittedProviderModels = (root: string, providerId: string): Record<string, Model<any>> => {
+		const path = join(root, "src", "providers", "data", `${providerId}.json`);
+		const groups = JSON.parse(readFileSync(path, "utf8")) as Record<string, Record<string, Model<any>>>;
+		return Object.assign({}, ...Object.values(groups));
+	};
 	const sortedProviderIds = Object.keys(providers).sort();
 	const jsonProviders: Record<string, Record<string, Model<any>>> = {};
 	for (const providerId of sortedProviderIds) {
@@ -2915,13 +2927,23 @@ async function generateModels() {
 
 	const serializeJson = (value: unknown) => `${JSON.stringify(value, null, generatorOptions.pretty ? 2 : undefined)}\n`;
 	const writeJson = (path: string, value: unknown) => writeFileSync(path, serializeJson(value));
-	const generatedDataProviderIds = generatorOptions.dataOnly
-		? readModelDataProviderIds(packageRoot)
-		: sortedProviderIds;
-	const missingProviderIds = generatedDataProviderIds.filter((providerId) => !jsonProviders[providerId]);
-	if (missingProviderIds.length > 0) {
-		throw new Error(`Cannot hydrate missing providers: ${missingProviderIds.join(", ")}`);
+	// A provider we already ship must not disappear just because an upstream catalog stopped listing
+	// it: the committed data, provider source, OAuth wiring and users all still exist. Carry the
+	// committed definition forward so regenerating stays safe, and require --allow-provider-removal to
+	// drop one deliberately. models.dev delisting kimi-for-coding is what this guards against.
+	const committedProviderIds = readModelDataProviderIds(packageRoot);
+	const delistedProviderIds = committedProviderIds.filter((providerId) => !jsonProviders[providerId]);
+	const retainedProviderIds = generatorOptions.allowProviderRemoval ? [] : delistedProviderIds;
+	for (const providerId of retainedProviderIds) {
+		jsonProviders[providerId] = readCommittedProviderModels(packageRoot, providerId);
+		console.warn(`Retaining ${providerId}: upstream no longer lists it, using the committed catalog.`);
 	}
+	if (generatorOptions.allowProviderRemoval && delistedProviderIds.length > 0) {
+		console.warn(`Removing delisted providers: ${delistedProviderIds.join(", ")}. Delete their provider sources too.`);
+	}
+	const generatedDataProviderIds = generatorOptions.dataOnly
+		? committedProviderIds.filter((providerId) => jsonProviders[providerId])
+		: [...new Set([...sortedProviderIds, ...retainedProviderIds])].sort();
 
 	// Only the ignored internal data is grouped by API for type derivation. Public JSON catalog output stays flat.
 	const generatedDataProviders: Record<string, Record<string, Record<string, Model<Api>>>> = {};
@@ -2991,7 +3013,7 @@ async function generateModels() {
 				const catalogConstName = (providerId: string) =>
 					`${providerId.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_MODELS`;
 				const generatedShardFiles = new Set<string>();
-				for (const providerId of sortedProviderIds) {
+				for (const providerId of generatedDataProviderIds) {
 					let output = generatedHeader;
 					output += `import values from "./data/${providerId}.json" with { type: "json" };\n`;
 					output += `import { flattenModelCatalog, type ModelCatalog } from "../model-catalog.ts";\n\n`;
@@ -3006,15 +3028,15 @@ async function generateModels() {
 				}
 
 				let output = generatedHeader;
-				for (const providerId of sortedProviderIds) {
+				for (const providerId of generatedDataProviderIds) {
 					output += `import { ${catalogConstName(providerId)} } from "./providers/${providerId}.models.ts";\n`;
 				}
 				output += `\nexport const MODELS: {\n`;
-				for (const providerId of sortedProviderIds) {
+				for (const providerId of generatedDataProviderIds) {
 					output += `\treadonly ${JSON.stringify(providerId)}: typeof ${catalogConstName(providerId)};\n`;
 				}
 				output += `} = {\n`;
-				for (const providerId of sortedProviderIds) {
+				for (const providerId of generatedDataProviderIds) {
 					output += `\t${JSON.stringify(providerId)}: ${catalogConstName(providerId)},\n`;
 				}
 				output += `};\n`;
@@ -3051,8 +3073,8 @@ async function generateModels() {
 		rmSync(generatorOptions.jsonOutputDir, { recursive: true, force: true });
 		mkdirSync(providerOutputDir, { recursive: true });
 		writeJson(join(generatorOptions.jsonOutputDir, "models.json"), jsonProviders);
-		writeJson(join(generatorOptions.jsonOutputDir, "providers.json"), sortedProviderIds);
-		for (const providerId of sortedProviderIds) {
+		writeJson(join(generatorOptions.jsonOutputDir, "providers.json"), generatedDataProviderIds);
+		for (const providerId of generatedDataProviderIds) {
 			writeJson(join(providerOutputDir, `${providerId}.json`), jsonProviders[providerId]);
 		}
 		console.log(`Generated JSON model catalog under ${generatorOptions.jsonOutputDir}`);
