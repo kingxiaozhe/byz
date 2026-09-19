@@ -5,6 +5,10 @@
 - Project: `pi-monorepo`, a BYZ product layer on a Pi-derived TypeScript coding-agent monorepo.
 - Stack: Node.js `>=22.19.0`, npm workspaces, TypeScript/JavaScript ESM, Biome, tsgo, Vitest, Node test.
 - Version control: `remote` git repository with `origin` and `upstream`; protect other sessions' unstaged/untracked work.
+- CM runtime: `both`, preset `codex-codes` (source: user-level default); declared in `.cm-workflow.yml`. This is an automatic-dispatch preference, not permission to call another provider.
+- Codebase map: existing `docs/codebase-context/` baseline is 2026-08-29; this initialization did not refresh it because the map inventory failed with `init_scan_limit` (10,000 directory entries). Verify relevant code before relying on the map.
+- Verification scope: command declarations and file references are checked against current manifests/source; install, builds, full tests, interactive/provider calls and release execution remain unverified in this initialization. `npm run check` includes `biome check --write` and can modify files.
+- Release lines: Pi packages share one lockstep version (currently `0.84.3`). `@aibyzero/byz` is released independently (currently `0.1.13`) and is held out of the Pi release path by `INDEPENDENT_PACKAGES` in `scripts/package-workspaces.mjs`. The root `pi-monorepo` version (`0.0.3`) is private and never published. See the Releasing section for which command belongs to which line; `packages/byz/README.md` and `.github/workflows/byz-release.yml` document the BYZ path.
 - Delivery shape: CLI/TUI desktop tooling plus BYZ workflow packaging.
 - Install: `npm ci --ignore-scripts`; local dependency refresh: `npm install --ignore-scripts`.
 - Development entry points: `./pi-test.sh` for interactive Pi smoke testing; BYZ build/test commands live under `packages/byz`.
@@ -142,7 +146,18 @@ Attribution:
 
 ## Releasing
 
-**Lockstep versioning**: all packages share one version; every release updates all together. `patch` = fixes + additions, `minor` = breaking changes. No major releases.
+This repository has two independent release lines. Pick the right one before running anything.
+
+| Line | Packages | Version command | Release command | Tag |
+| --- | --- | --- | --- | --- |
+| Pi | every `@earendil-works/pi-*` package | `npm run version:{patch,minor,major}` | `npm run release:{patch,minor,major}` | `vX.Y.Z` |
+| BYZ | `@aibyzero/byz` only | edit `packages/byz/package.json` by hand | push a `byz-vX.Y.Z` tag | `byz-vX.Y.Z` |
+
+Never use a Pi release command to ship BYZ, or the reverse. The Pi tooling reads its package set from `INDEPENDENT_PACKAGES` in `scripts/package-workspaces.mjs` and skips BYZ in the lockstep version check (`scripts/sync-versions.js`), the version bump (`scripts/version-lockstep.mjs`), the publish set (`scripts/release-packages.mjs`) and the changelog sweep (`scripts/release.mjs`). Adding another independently released package means adding its name to that one set.
+
+### Pi release line
+
+**Lockstep versioning**: all Pi packages share one version; every release updates all together. `patch` = fixes + additions, `minor` = breaking changes. No major releases.
 
 1. **Update CHANGELOGs**: ask the user whether they ran the `/cl` prompt on the latest commit on `main`. If not, they must run `/cl` first to audit and update each package's `[Unreleased]` section before releasing.
 
@@ -179,6 +194,27 @@ Attribution:
 4. **CI verifies and announces the npm release**: pushing the `vX.Y.Z` tag triggers `.github/workflows/build-binaries.yml`. The `publish-npm` job uses npm trusted publishing through GitHub Actions OIDC with environment `npm-publish`; no local `npm publish`, `npm whoami`, OTP, or WebAuthn flow is required. After publishing, `announce-pi-dev-release` verifies every public workspace package resolves at the exact release version and that its npm tarball is available, then writes the verified release marker to R2. `pi.dev/api/latest-version` reads that marker; it must never announce a release from npm before this job succeeds.
 
 5. **If CI publish or announcement fails**: inspect the failed job. The publish helper is idempotent and skips package versions already present on npm; the announcement job rechecks availability before updating the R2 marker. Rerun the failed job or workflow after fixing CI or transient npm issues. Do not rerun `npm run release:patch` or `npm run release:minor` for the same version.
+
+### BYZ release line
+
+`@aibyzero/byz` ships on its own version line and its own tag. None of the Pi release commands above touch it, and it must never be released through them.
+
+1. **Set the version**: edit `version` in `packages/byz/package.json` by hand. There is deliberately no `version:` script for BYZ; `npm run version:*` skips it and prints `Skipping @aibyzero/byz (independent release line).`
+
+2. **Update `packages/byz/CHANGELOG.md`** under its `## [Unreleased]` section.
+
+3. **Verify locally** before tagging:
+   ```bash
+   npm run build:byz
+   npm --prefix packages/byz test
+   npm --prefix packages/byz run check:architecture
+   ```
+
+4. **Tag and push** `byz-vX.Y.Z`, matching `packages/byz/package.json` exactly. `scripts/byz-release.mjs` rejects a tag whose version does not match the manifest, a tag that does not point at HEAD, and any publish attempted outside GitHub Actions.
+
+5. **CI publishes**: the `byz-v*` tag triggers `.github/workflows/byz-release.yml`. It packs a dry-run artifact, records that artifact's generation identity and SHA-256, then publishes the same tarball via npm trusted publishing in the `npm-publish` environment. Never run `npm publish` for BYZ locally.
+
+**Maintenance note**: each BYZ build leaves a ~30 MB package image under `packages/byz/.byz-output/generations/`, and nothing prunes the images that were promoted to `current`. They are gitignored, but they accumulate one per successful build. Delete every generation directory except the one `packages/byz/.byz-output/current` resolves to when the directory grows.
 
 ## User Override
 
