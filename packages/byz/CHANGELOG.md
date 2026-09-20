@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.1.14 - 2026-09-20
+
+### Changed
+
+- Upgraded the bundled Pi baseline from 0.84.3 to v0.86.1, which moves system prompts and tool declarations into transcript system messages, returns an unsubscribe function from extension `on()` handlers, and adds the Meta provider, cached Node CLI modules and OSC 52 clipboard fallback for headless sessions.
+- Updated the bundled CM Workflow from 0.10.4 to 0.15.5; CM now declares ten entry skills, adding `cm-runtime` and `cm-security`.
+- Changed builds to read a committed model catalog instead of fetching it from third-party endpoints, so building and releasing BYZ no longer depend on those endpoints being reachable and unchanged.
+
+### Fixed
+
+- Fixed the packed BYZ runtime failing to start after the Pi upgrade because `@earendil-works/chord`, a new external of the bundled Pi runtime, was not declared as a BYZ dependency.
+- Fixed BYZ being dragged into the Pi lockstep release path, which blocked every Pi release and would have rewritten the BYZ version and changelog.
+- Fixed build generations accumulating without bound under `.byz-output`; a successful build now keeps the promoted image plus the most recent ones, overridable with `BYZ_KEEP_GENERATIONS`.
+- Fixed model catalog regeneration silently dropping a shipped provider when an upstream catalog stops listing it; the committed definition is carried forward and removal requires `--allow-provider-removal`.
+
 ## 0.1.13 - 2026-09-04
 
 ### Added
