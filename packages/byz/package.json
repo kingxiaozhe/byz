@@ -41,6 +41,7 @@
 		"test": "node --test test/*.test.mjs"
 	},
 	"dependencies": {
+		"@earendil-works/chord": "0.86.1",
 		"@silvia-odwyer/photon-node": "0.3.4",
 		"jiti": "2.7.0",
 		"semver": "7.8.0"
