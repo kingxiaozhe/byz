@@ -34,6 +34,8 @@ tui-debug.log
 compaction-results/
 .opencode/
 .omx/
+# Private CM workflow review archives (0600, contain internal project material).
+.reviews/
 syntax.jsonl
 out.jsonl
 pi-*.html
