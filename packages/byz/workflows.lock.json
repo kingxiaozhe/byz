@@ -4,8 +4,8 @@
 		"cm": {
 			"name": "CM Workflow",
 			"packageName": "@aibyzero/cm-workflow",
-			"version": "0.10.4",
-			"source": "github:kingxiaozhe/cm-workflow#558a6cc7651c55f37945c1a18cf50f0a033064a9",
+			"version": "0.15.5",
+			"source": "github:kingxiaozhe/cm-workflow#91d35b99b8ec84ad50604547d1d7da502d60ba59",
 			"license": "MIT",
 			"bundled": true,
 			"bundledPath": "workflows/cm",
@@ -18,6 +18,8 @@
 				"skills/cm-init",
 				"skills/cm-prd",
 				"skills/cm-refactor",
+				"skills/cm-runtime",
+				"skills/cm-security",
 				"skills/cm-test"
 			],
 			"promptsPath": "compat/claude-commands",

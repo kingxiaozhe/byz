@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { access, mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -12,7 +13,11 @@ import { prepareWorkflowRuntimeArgs } from "../.byz-output/current/dist/workflow
 const sourcePackageDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const packageDir = join(sourcePackageDir, ".byz-output", "current");
 const cliPath = join(packageDir, "dist", "cli.js");
-const CM_ENTRY_SKILLS = ["cm-ai", "cm-check", "cm-fix", "cm-idea", "cm-init", "cm-prd", "cm-refactor", "cm-test"];
+// Read the entry skills the bundled workflow actually declares, so syncing a new CM release
+// cannot leave this fixture missing a skill and failing for the wrong reason.
+const CM_ENTRY_SKILLS = createRequire(import.meta.url)("@aibyzero/cm-workflow/package.json").pi.skills.map(
+	(skillPath) => skillPath.replace(/^\.\/skills\//, ""),
+);
 
 function runByz(args, homeDir, extraEnv = {}) {
 	const env = Object.fromEntries(
@@ -228,10 +233,11 @@ test("does not expose end-user workflow update or rollback commands", async () =
 
 test("loads both bundled workflow packages without global installs", async () => {
 	const homeDir = await mkdtemp(join(tmpdir(), "byz-home-"));
-	for (const [id, version] of [
-		["cm", "0.10.4"],
-		["cm-plugin", "0.5.0"],
-	]) {
+	// Read the bundled versions from the lockfile so a workflow sync cannot leave this test stale.
+	const workflowLock = JSON.parse(await readFile(join(sourcePackageDir, "workflows.lock.json"), "utf8"));
+	const bundledVersions = Object.entries(workflowLock.workflows).map(([id, entry]) => [id, entry.version]);
+	assert.ok(bundledVersions.length > 0, "workflows.lock.json declares no workflows");
+	for (const [id, version] of bundledVersions) {
 		const result = runByz(["workflow", "status", id], homeDir, {
 			BYZ_CM_PLUGIN_WORKFLOW_ROOT: "",
 			BYZ_CM_WORKFLOW_ROOT: "",
