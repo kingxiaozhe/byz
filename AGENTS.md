@@ -55,7 +55,7 @@
   - `packages/tui` (`node:test`): `node --test test/specific.test.ts`
 - If you create or modify a test file, run it and iterate on test or implementation until it passes.
 - For `packages/coding-agent/test/suite/`, use `test/suite/harness.ts` + the faux provider. No real provider APIs, keys, or paid tokens.
-- Put issue-specific regressions under `packages/coding-agent/test/suite/regressions/` named `<issue-number>-<short-slug>.test.ts`.
+- When regressions tests for fixing a github issue, add a comment with the github issue number next to the test.
 - For ad-hoc scripts, `write` them to a temp file (e.g. `/tmp`), run, edit if needed, remove when done. Don't embed multi-line scripts in `bash` commands.
 - Never commit unless the user asks.
 
@@ -116,16 +116,7 @@ When closing issues via commit:
 
 ## Testing pi Interactive Mode with tmux
 
-Run the TUI in a controlled terminal (from the repo root):
-
-```bash
-tmux new-session -d -s pi-test -x 80 -y 24
-tmux send-keys -t pi-test "./pi-test.sh" Enter
-sleep 3 && tmux capture-pane -t pi-test -p     # capture after startup
-tmux send-keys -t pi-test "your prompt here" Enter
-tmux send-keys -t pi-test Escape               # special keys (also C-o for ctrl+o, etc.)
-tmux kill-session -t pi-test
-```
+For testing pi's interactive mode, load and follow [.pi/skills/interactive-testing.md](.pi/skills/interactive-testing.md).
 
 ## Changelog
 
@@ -141,8 +132,8 @@ Rules:
 
 Attribution:
 
-- Internal (from issues): `Fixed foo bar ([#123](https://github.com/earendil-works/pi-mono/issues/123))`
-- External contributions: `Added feature X ([#456](https://github.com/earendil-works/pi-mono/pull/456) by [@username](https://github.com/username))`
+- Internal (from issues): `Fixed foo bar ([#123](https://github.com/earendil-works/pi/issues/123))`
+- External contributions: `Added feature X ([#456](https://github.com/earendil-works/pi/pull/456) by [@username](https://github.com/username))`
 
 ## Releasing
 
@@ -156,6 +147,8 @@ This repository has two independent release lines. Pick the right one before run
 Never use a Pi release command to ship BYZ, or the reverse. The Pi tooling reads its package set from `INDEPENDENT_PACKAGES` in `scripts/package-workspaces.mjs` and skips BYZ in the lockstep version check (`scripts/sync-versions.js`), the version bump (`scripts/version-lockstep.mjs`), the publish set (`scripts/release-packages.mjs`) and the changelog sweep (`scripts/release.mjs`). Adding another independently released package means adding its name to that one set.
 
 ### Pi release line
+
+For release preparation, publishing, verification, or recovery, load and follow [.pi/skills/release.md](.pi/skills/release.md).
 
 **Lockstep versioning**: all Pi packages share one version; every release updates all together. `patch` = fixes + additions, `minor` = breaking changes. No major releases.
 

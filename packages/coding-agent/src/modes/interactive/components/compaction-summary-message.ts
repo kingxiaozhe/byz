@@ -1,4 +1,4 @@
-import { Box, Markdown, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-tui";
+import { Box, Container, Markdown, type MarkdownTheme, MouseRegion, Spacer, Text } from "@earendil-works/pi-tui";
 import type { CompactionSummaryMessage } from "../../../core/messages.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import { keyText } from "./keybinding-hints.ts";
@@ -31,21 +31,22 @@ export class CompactionSummaryMessageComponent extends Box {
 
 	private updateDisplay(): void {
 		this.clear();
+		const content = new Container();
 
 		const tokenStr = this.message.tokensBefore.toLocaleString();
 		const label = theme.fg("customMessageLabel", `\x1b[1m上下文已整理 / Context organized\x1b[22m`);
-		this.addChild(new Text(label, 0, 0));
-		this.addChild(new Spacer(1));
+		content.addChild(new Text(label, 0, 0));
+		content.addChild(new Spacer(1));
 
 		if (this.expanded) {
 			const header = `**已整理较长的历史内容 / Long context organized**\n\n原始上下文约 ${tokenStr} tokens。下面是保留下来的关键结论，方便继续完成你的目标。\nThe previous context was long, so this keeps the key points needed to continue.\n\n`;
-			this.addChild(
+			content.addChild(
 				new Markdown(header + this.message.summary, 0, 0, this.markdownTheme, {
 					color: (text: string) => theme.fg("customMessageText", text),
 				}),
 			);
 		} else {
-			this.addChild(
+			content.addChild(
 				new Text(
 					theme.fg(
 						"customMessageText",
@@ -58,5 +59,13 @@ export class CompactionSummaryMessageComponent extends Box {
 				),
 			);
 		}
+
+		this.addChild(
+			new MouseRegion(content, (event) => {
+				if (event.type !== "click" || event.button !== "left") return undefined;
+				this.setExpanded(!this.expanded);
+				return { handled: true };
+			}),
+		);
 	}
 }
