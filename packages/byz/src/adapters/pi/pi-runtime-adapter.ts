@@ -19,6 +19,7 @@ import type {
 	RuntimeProductProfile,
 	ThinkingLevel,
 	ToolDescriptor,
+	UpdateContext,
 	WorkflowContext,
 } from "../../application/ports/runtime.ts";
 import { createPiExecutionPort } from "./pi-execution-adapter.ts";
@@ -105,6 +106,7 @@ const DIAGNOSTICS_EVENTS = new Set([
 	"session_shutdown",
 ]);
 const WORKFLOW_EVENTS = new Set(["resources_discover"]);
+const UPDATE_EVENTS = new Set(["session_start", "session_shutdown"]);
 const FAST_EVENTS = new Set(["model_select", "thinking_level_select", "session_start"]);
 const PREWALK_EVENTS = new Set(["tool_result"]);
 const DELIVERY_EVENTS = new Set(["session_start", "tool_execution_start", "tool_execution_end"]);
@@ -331,6 +333,10 @@ function createModelProjector() {
 			return model;
 		},
 	};
+}
+
+function createUpdateContext(context: PiContextLike): UpdateContext {
+	return Object.freeze({ ui: createNotifyUi(context) });
 }
 
 function createFastContext(
@@ -890,6 +896,9 @@ export function createPiExtensionPorts(pi: PiExtensionApiLike): PiFeaturePorts {
 			registerCommand(pi, "workflow", new Set(["workflow"]), name, command, createWorkflowContext);
 		},
 	});
+	const update = Object.freeze({
+		on: createEventPort(pi, "update", UPDATE_EVENTS, modelProjector, createUpdateContext),
+	});
 	const fast = Object.freeze({
 		on: createEventPort(pi, "fast", FAST_EVENTS, modelProjector, fastContext),
 		registerCommand(name: string, command: CommandDefinition<FastContext>) {
@@ -1053,7 +1062,18 @@ export function createPiExtensionPorts(pi: PiExtensionApiLike): PiFeaturePorts {
 		},
 	});
 
-	return Object.freeze({ diagnostics, recovery, workflow, fast, prewalk, conversation, execution, pause, delivery });
+	return Object.freeze({
+		diagnostics,
+		recovery,
+		workflow,
+		update,
+		fast,
+		prewalk,
+		conversation,
+		execution,
+		pause,
+		delivery,
+	});
 }
 
 export function createPiRuntimeAdapter<TOptions extends ProductProfileOptions>(
