@@ -67,12 +67,11 @@ export function sanitizeTerminalText(value, maxLength = 160) {
 }
 
 export function parseSpecsStatus(value) {
-	if (
-		!isRecord(value) ||
-		!exactKeys(value, new Set(["schema_version", "status", "at", "features", "specFiles", "testCases"]))
-	) {
-		return undefined;
-	}
+	// Every field BYZ reads from this record is validated below, and only `status` and `features`
+	// are surfaced. Additional fields are ignored on purpose: rejecting the record for carrying one
+	// blinds recovery on every CM release that adds a field. CM 0.15.5 added `summaryDigest` and
+	// `approval`, which silently disabled the recovery card for the current CM.
+	if (!isRecord(value)) return undefined;
 	if (
 		(value.schema_version !== undefined && value.schema_version !== 1) ||
 		!SPEC_STATUSES.has(value.status) ||
