@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, sep } from "node:path";
@@ -109,10 +110,14 @@ test("production orchestration builds complete generations and preserves current
 			version: "1.0.0",
 		}),
 		writeFixture(join(packageDir, "node_modules", "@fixture", "workflow", "marker.txt"), "workflow\n"),
+		writeFixture(join(packageDir, "node_modules", "@fixture", "workflow", "docs", "design.png"), "image\n"),
 		writeFixture(join(codingAgentDir, "dist", "bundle", "index.js"), "export {};\n"),
 		writeFixture(join(codingAgentDir, "dist", "bundle", "rpc-entry.js"), "export {};\n"),
 		writeFixture(join(codingAgentDir, "dist", "index.d.ts"), "export {};\n"),
+		writeFixture(join(codingAgentDir, "dist", "index.js.map"), "{}\n"),
 		writeFixture(join(codingAgentDir, "docs", "README.md"), "docs\n"),
+		writeFixture(join(codingAgentDir, "docs", "diagram.png"), "image\n"),
+		writeFixture(join(codingAgentDir, "examples", "extension.ts"), "export {};\n"),
 		writeFixture(join(codingAgentDir, "examples", "README.md"), "examples\n"),
 		...manifest.runtimeAssets.map((asset) => writeFixture(join(codingAgentDir, "dist", asset), "asset\n")),
 	]);
@@ -128,6 +133,16 @@ test("production orchestration builds complete generations and preserves current
 	assert.equal(await realpath(join(outputDir, "current")), firstImage);
 	assert.match(await readFile(join(firstImage, "dist", "nested", "probe.js"), "utf8"), /probe = "included"/);
 	assert.equal(await readFile(join(firstImage, "workflows", "fixture", "marker.txt"), "utf8"), "workflow\n");
+	// A workflow's docs/ tree is never read at runtime and shipped megabytes of design images.
+	assert.equal(existsSync(join(firstImage, "workflows", "fixture", "docs")), false);
+	// Nothing reads the runtime source maps: BYZ never enables them and diagnostics record no stack.
+	assert.equal(existsSync(join(firstImage, "dist", "runtime", "index.js.map")), false);
+	assert.equal(existsSync(join(firstImage, "dist", "runtime", "index.d.ts")), true);
+	// Documentation images and example payloads are never resolved; only the prose and the
+	// examples README are.
+	assert.equal(existsSync(join(firstImage, "docs", "diagram.png")), false);
+	assert.equal(existsSync(join(firstImage, "docs", "README.md")), true);
+	assert.equal(existsSync(join(firstImage, "examples", "extension.ts")), false);
 	for (const rootName of manifest.generatedRoots)
 		assert.equal((await realpath(join(firstImage, rootName))).length > 0, true);
 

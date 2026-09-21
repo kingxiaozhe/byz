@@ -218,10 +218,20 @@ async function resolveBundledPackages(packageDir, byzPackageJson, workflowLock) 
 	return bundledPackages;
 }
 
+const DOCUMENTATION_IMAGE = /\.(?:png|jpe?g|gif|webp|svg)$/i;
+const WORKFLOW_TEST_FILE = /\.test\.mjs$/i;
+
 async function copyRuntime(imageDir, manifest, codingAgentDir) {
 	const codingAgentDist = join(codingAgentDir, "dist");
 	const distDir = join(imageDir, "dist");
-	await cp(codingAgentDist, join(distDir, "runtime"), { force: true, recursive: true });
+	// BYZ never runs with --enable-source-maps and its diagnostics record a closed enum, never a
+	// stack, so nothing can consume these maps. Runtime assets are re-copied from the manifest
+	// paths below, so the images this drops are duplicates of those.
+	await cp(codingAgentDist, join(distDir, "runtime"), {
+		filter: (source) => !source.endsWith(".map") && !DOCUMENTATION_IMAGE.test(source),
+		force: true,
+		recursive: true,
+	});
 	for (const relativePath of manifest.runtimeAssets) {
 		const targetPath = join(distDir, relativePath);
 		await mkdir(dirname(targetPath), { recursive: true });
@@ -229,12 +239,38 @@ async function copyRuntime(imageDir, manifest, codingAgentDir) {
 	}
 }
 
+function isWorkflowDocsPath(workflowPackageDir, source) {
+	const relativePath = relative(workflowPackageDir, source);
+	return relativePath === "docs" || relativePath.startsWith(`docs${sep}`);
+}
+
+// A bundled workflow's own test suite is never executed from an installed BYZ; only its own
+// documentation tells maintainers to run it. CM alone ships 112 such files.
+function isWorkflowExcludedPath(workflowPackageDir, source) {
+	return isWorkflowDocsPath(workflowPackageDir, source) || WORKFLOW_TEST_FILE.test(source);
+}
+
 async function copyPackageResources(imageDir, bundledPackages, codingAgentDir) {
 	await Promise.all([
-		cp(join(codingAgentDir, "docs"), join(imageDir, "docs"), { force: true, recursive: true }),
-		cp(join(codingAgentDir, "examples"), join(imageDir, "examples"), { force: true, recursive: true }),
+		// The runtime resolves documentation by path (docs/providers.md, docs/models.md), but nothing
+		// resolves the images beside that prose. Of the example tree only its README is referenced.
+		cp(join(codingAgentDir, "docs"), join(imageDir, "docs"), {
+			filter: (source) => !DOCUMENTATION_IMAGE.test(source),
+			force: true,
+			recursive: true,
+		}),
+		cp(join(codingAgentDir, "examples", "README.md"), join(imageDir, "examples", "README.md"), {
+			force: true,
+		}),
 		...bundledPackages.map(({ packageDir: workflowPackageDir, workflow }) =>
-			cp(workflowPackageDir, join(imageDir, workflow.bundledPath), { force: true, recursive: true }),
+			// A workflow's own docs/ tree is never read at runtime: BYZ loads its pi.skills and
+			// pi.prompts, and its skills resolve runtime/, templates/ and scripts/ from the package
+			// root. Copying it shipped two 2.1 MB design diagrams to every user.
+			cp(workflowPackageDir, join(imageDir, workflow.bundledPath), {
+				filter: (source) => !isWorkflowExcludedPath(workflowPackageDir, source),
+				force: true,
+				recursive: true,
+			}),
 		),
 	]);
 }
