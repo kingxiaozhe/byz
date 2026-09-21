@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.15 - 2026-09-20
+
+### Fixed
+
+- Fixed the `/project` recovery card reporting every trusted project as unavailable against CM Workflow 0.15.5, which BYZ bundles: the specs status reader rejected any record carrying a field it does not read, and 0.15.5 added `summaryDigest` and `approval`. Fields BYZ reads stay strictly validated; unrecognized ones are ignored so a later CM release cannot blind recovery the same way.
+
 ## 0.1.14 - 2026-09-20
 
 ### Changed
