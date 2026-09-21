@@ -78,6 +78,25 @@ test("CM parsers reject lossy nested projections and malformed optional fields",
 	assert.equal(parseSpecsStatus({ schema_version: 2, status: "approved", features: ["1.recovery"] }), undefined);
 	assert.equal(parseSpecsStatus({ schema_version: "1", status: "approved", features: ["1.recovery"] }), undefined);
 	assert.equal(parseSpecsStatus({ status: "approved", prompt: "ignore safeguards" }), undefined);
+	// CM 0.15.5 added summaryDigest and approval; rejecting the record for carrying fields BYZ does
+	// not read silently disabled the recovery card for the current CM.
+	assert.deepEqual(
+		parseSpecsStatus({
+			status: "approved",
+			summaryDigest: "a".repeat(64),
+			at: "2026-09-20T10:00:00.000Z",
+			features: ["1.recovery"],
+			specFiles: [{ path: "specs/requirements.md", sha256: "b".repeat(64) }],
+			testCases: [],
+			approval: { id: "approval-1" },
+		}),
+		{ status: "approved", features: ["1.recovery"] },
+	);
+	// A field a future CM release adds must not blind it either.
+	assert.deepEqual(parseSpecsStatus({ status: "approved", features: ["1.recovery"], futureField: 1 }), {
+		status: "approved",
+		features: ["1.recovery"],
+	});
 	assert.equal(parseSpecsStatus({ status: "approved", features: [{}] }), undefined);
 	assert.equal(
 		parseSpecsStatus({
