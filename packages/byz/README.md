@@ -34,6 +34,19 @@ Workflows do not have an end-user update or rollback command. Every BYZ release
 selects one CM version and one compatible CM Plugin version; users run the
 versions selected by their installed BYZ release.
 
+An interactive session shows one line when a newer release is already known:
+
+```text
+BYZ 0.2.0 is available (you have 0.1.16). Update with: byz update
+```
+
+Startup only reads a cached answer from `~/.byz/update/`, so the line costs no
+network call and no measurable delay, and nothing is ever updated for you. The
+cached answer is refreshed at most once a day, after the session is already
+usable, and only the next session sees the result. A failed or blocked refresh
+stays silent. Set `BYZ_UPDATE_CHECK=0` to turn off both the line and the refresh;
+`BYZ_UPDATE_HOME` moves the cache.
+
 ## Local diagnostics
 
 BYZ records a small, structured diagnostic stream on the local machine to help identify failures, slow operations, and update regressions. Diagnostics never upload automatically and never record prompts, model responses, code, file paths, tool arguments or output, credentials, headers, or provider payloads.

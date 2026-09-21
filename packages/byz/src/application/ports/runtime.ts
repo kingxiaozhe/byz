@@ -163,6 +163,11 @@ export interface ExecutionPort extends EventPort<ExecutionContext> {
 	appendEntry(entry: unknown): void;
 }
 
+/** Announcing a newer release needs no capability beyond notifying the user. */
+export type UpdateContext = BaseFeatureContext;
+
+export interface UpdatePort extends EventPort<UpdateContext> {}
+
 export interface FastPort extends EventPort<FastContext>, CommandRegistrationPort<FastContext> {
 	getThinkingLevel(): ThinkingLevel;
 	setModel(model: ModelHandle): Promise<boolean>;
@@ -177,6 +182,7 @@ export interface PiFeaturePorts {
 	diagnostics: DiagnosticsPort;
 	recovery: RecoveryPort;
 	workflow: WorkflowPort;
+	update: UpdatePort;
 	fast: FastPort;
 	prewalk: PrewalkPort;
 	conversation: ConversationPort;

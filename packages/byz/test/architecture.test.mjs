@@ -89,6 +89,7 @@ test("Pi extension adapter exposes only feature-scoped capability facades", asyn
 		"diagnostics",
 		"recovery",
 		"workflow",
+		"update",
 		"fast",
 		"prewalk",
 		"conversation",
@@ -96,6 +97,8 @@ test("Pi extension adapter exposes only feature-scoped capability facades", asyn
 		"pause",
 		"delivery",
 	]);
+	// Announcing a release needs to observe startup and notify, nothing more.
+	assert.deepEqual(Object.keys(ports.update), ["on"]);
 	for (const featurePorts of Object.values(ports)) {
 		assert.equal("secretPiCapability" in featurePorts, false);
 		assert.equal("raw" in featurePorts, false);

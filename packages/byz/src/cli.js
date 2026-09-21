@@ -22,6 +22,8 @@ import { createFastSessionController } from "./fast.js";
 import { createPrewalkExtension } from "./prewalk.js";
 import { createRecoveryExtension } from "./recovery/recovery-extension.js";
 import { main, VERSION } from "./runtime/bundle/index.js";
+import { getLatestByzRelease } from "./update.js";
+import { createUpdateNoticeExtension } from "./update-notice-extension.js";
 import { createWorkflowSwitchExtension, shouldEnableWorkflowSwitch, shouldLoadWorkflow } from "./workflow-switch.js";
 import { resolveWorkflowRuntimeResources } from "./workflows.js";
 
@@ -94,6 +96,10 @@ try {
 					initialUseLowThinking: invocation.fast.useLowThinking,
 				});
 				const prewalkExtension = createPrewalkExtension({ fastController });
+				const updateNoticeExtension = createUpdateNoticeExtension({
+					currentVersion: VERSION,
+					fetchLatest: (version, signal) => getLatestByzRelease(version, { signal }),
+				});
 				const recoveryExtension = createRecoveryExtension({
 					onDegrade(reason) {
 						diagnostics.record("byz.diagnostics.degrade", {
@@ -131,6 +137,7 @@ try {
 					workflowExtension(ports.workflow);
 					fastController.extension(ports.fast);
 					prewalkExtension(ports.prewalk);
+					updateNoticeExtension(ports.update);
 				};
 				await piRuntime.run(runtimeArgs, {
 					extensionFactories: [diagnosticsExtension],

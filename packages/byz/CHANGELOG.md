@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.1.16 - 2026-09-21
+
+### Added
+
+- Added a release notice: an interactive session shows one line when a newer BYZ is already known, pointing at `byz update`. Startup only reads a cached answer from `~/.byz/update/`, so it costs no network call and no measurable delay, and nothing is ever updated automatically. The answer is refreshed at most once a day after the session is usable, an in-flight refresh is abandoned at shutdown so it cannot delay exit, and a failed or blocked refresh stays silent. `BYZ_UPDATE_CHECK=0` disables both the line and the refresh.
+
+### Changed
+
+- Reduced the published package from 13 MB over 1759 files to 4.3 MB over 1062 files by no longer shipping files nothing resolves: runtime source maps, the bundled workflows' own documentation and test suites, documentation images, and the example tree apart from its README. Every runtime asset declared by the build manifest, all documentation prose the runtime resolves by path, and the complete bundled workflows are unchanged.
+
 ## 0.1.15 - 2026-09-20
 
 ### Fixed
