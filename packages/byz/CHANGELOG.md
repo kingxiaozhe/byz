@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.17 - 2026-10-12
+
+### Security
+
+- Updated the bundled `brace-expansion` from 5.0.9 to 5.0.12, closing three high-severity denial-of-service advisories (GHSA-q2hr-2g5m-vwhr, GHSA-qhr7-859c-m2p7, GHSA-6j4f-fj2g-mc7p) in which a crafted brace pattern exhausts CPU or the stack. It reaches BYZ through `minimatch`, which the bundled coding agent uses for path and ignore patterns.
+
 ## 0.1.16 - 2026-09-21
 
 ### Added
